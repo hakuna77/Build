@@ -234,7 +234,8 @@ jobs:
                 echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
                 echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
                 echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-                echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+                echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+                echo "CONFIG_KSU_WITH_KPROBES=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
                 
             fi
         fi
