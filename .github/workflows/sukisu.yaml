@@ -309,7 +309,13 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/arch/${{ env.ARCH }}/boot
         ls
-
+        
+    - name: Show .dtb File Sizes
+      run: |
+        echo "🔍 Listing all .dtb files with sizes:"
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/arch/arm64/boot
+        find dts -type f -name "*.dtb" -exec du -h {} + | sort -hr
+        
     - name: Check a kernel output files
       run: |
        cd $GITHUB_WORKSPACE/kernel_workspace
