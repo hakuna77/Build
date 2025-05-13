@@ -332,7 +332,17 @@ jobs:
         else
           echo "❌ KPM Patch Failed, Use Original Image"
         fi
-        
+
+    - name: Repack Image to Image.gz-dtb
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/arch/arm64/boot
+        rm -f Image.gz
+        rm -f Image.gz-dtb
+        gzip -c Image > Image.gz
+        cat Image.gz dts/mediatek/mt6785.dtb > Image.gz-dtb
+        echo "✅ Repacked Image.gz-dtb with mt6785.dtb"
+    
+
     - name: Check a kernel output files
       run: |
        cd $GITHUB_WORKSPACE/kernel_workspace
