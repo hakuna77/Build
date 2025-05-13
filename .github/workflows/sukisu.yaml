@@ -319,6 +319,7 @@ jobs:
     - name: Patching KPM
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/arch/arm64/boot
+        strings Image | grep kallsyms
         curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU_patch/refs/heads/main/kpm/patch_linux" -o patch
         chmod +x patch
         ./patch
