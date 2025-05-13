@@ -315,6 +315,19 @@ jobs:
         echo "🔍 Listing all .dtb files with sizes:"
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/arch/arm64/boot
         find dts -type f -name "*.dtb" -exec du -h {} + | sort -hr
+    
+    - name: Patching KPM
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/arch/arm64/boot
+        curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU_patch/refs/heads/main/kpm/patch_linux" -o patch
+        chmod +x patch
+        ./patch
+        if [ $? -eq 0 ]; then
+          rm -f Image
+          mv oImage Image
+          echo "✅ Image file repair complete"
+        else
+          echo "❌ KPM Patch Failed, Use Original Image"
         
     - name: Check a kernel output files
       run: |
