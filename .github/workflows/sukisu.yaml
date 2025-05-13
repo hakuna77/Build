@@ -58,6 +58,7 @@ jobs:
             KSU_EXPECTED_HASH
             REMOVE_UNUSED_PACKAGES
             ADD_KPM
+            PATCHING_KPM
         )
 
         for CONFIG in "${CONFIG_LIST[@]}"; do
