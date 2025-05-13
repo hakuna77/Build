@@ -320,10 +320,11 @@ jobs:
     - name: Patching KPM
       if: env.PATCHING_KPM == 'true'
       run: |
+        cp patch_linux $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/arch/arm64/boot
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/arch/arm64/boot
-        curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU_patch/refs/heads/main/kpm/patch_linux" -o patch
-        chmod +x patch
-        ./patch
+        
+        chmod +x patch_linux
+        ./patch_linux
         if [ $? -eq 0 ]; then
           rm -f Image
           mv oImage Image
