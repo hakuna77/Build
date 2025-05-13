@@ -192,7 +192,23 @@ jobs:
         else
           echo "LOCALVERSION=" >> $GITHUB_ENV
         fi
-
+        
+    - name: Remove Kernelsu and drivers/kernelsu if they exist
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        if [ -d "KernelSU" ]; then
+          echo "Removing KernelSU directory"
+          rm -rf KernelSU
+        else
+          echo "Kernelsu directory not found, skipping."
+        fi
+        if [ -d "drivers/kernelsu" ]; then
+          echo "Removing drivers/kernelsu directory"
+          rm -rf drivers/kernelsu
+        else
+          echo "drivers/kernelsu directory not found, skipping."
+        fi
+        
     - name: Download source boot image
       if: env.BUILD_BOOT_IMG == 'true'
       run: |
