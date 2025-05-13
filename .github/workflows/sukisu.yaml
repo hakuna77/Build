@@ -331,6 +331,7 @@ jobs:
           echo "✅ Image file repair complete"
         else
           echo "❌ KPM Patch Failed, Use Original Image"
+        fi
         
     - name: Check a kernel output files
       run: |
