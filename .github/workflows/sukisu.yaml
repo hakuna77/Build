@@ -317,9 +317,9 @@ jobs:
         find dts -type f -name "*.dtb" -exec du -h {} + | sort -hr
     
     - name: Patching KPM
+      if: env.PATCHING_KPM == 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/arch/arm64/boot
-        strings Image | grep kallsyms
         curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU_patch/refs/heads/main/kpm/patch_linux" -o patch
         chmod +x patch
         ./patch
