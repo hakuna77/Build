@@ -57,6 +57,7 @@ jobs:
             KSU_EXPECTED_SIZE
             KSU_EXPECTED_HASH
             REMOVE_UNUSED_PACKAGES
+            PATCHING_SUSFS
         )
 
         for CONFIG in "${CONFIG_LIST[@]}"; do
@@ -190,7 +191,22 @@ jobs:
         else
           echo "LOCALVERSION=" >> $GITHUB_ENV
         fi
+    - name: Patching susfs
+      if: env.PATCHING_SUSFS == 'true'
+      run: |
+        cp backport-fs-upstream-susfs-v1.5.7-non-gki.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
 
+        chmod +x backport-fs-upstream-susfs-v1.5.7-non-gki.patch
+
+        echo "Applying patch..."
+        if patch -p1 < backport-fs-upstream-susfs-v1.5.7-non-gki.patch; then
+          echo "✅ Patch applied successfully."
+        else
+          echo "❌ Patch failed to apply!"
+          exit 1
+        fi
+    
     - name: Download source boot image
       if: env.BUILD_BOOT_IMG == 'true'
       run: |
