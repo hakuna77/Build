@@ -197,10 +197,12 @@ jobs:
         cp BACKPORT-fs-upstream-susfs-v1.5.7-new-non-gki.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
 
-        if patch -p1 -N --no-backup-if-mismatch < BACKPORT-fs-upstream-susfs-v1.5.7-new-non-gki.patch; then
-          echo "✅ Patch applied successfully or already applied."
+        echo "Applying patch..."
+        if patch -p1 < BACKPORT-fs-upstream-susfs-v1.5.7-new-non-gki.patch; then
+          echo "✅ Patch applied successfully."
         else
-          echo "⚠️ Patch partially failed or already applied. Continuing..."
+          echo "❌ Patch failed to apply!"
+          exit 1
         fi
     
     - name: Download source boot image
