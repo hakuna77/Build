@@ -1,6 +1,6 @@
 name: cleanup caches by a branch
 on:
-  workflow-dispatch:
+  workflow_dispatch:
 
 jobs:
   cleanup:
