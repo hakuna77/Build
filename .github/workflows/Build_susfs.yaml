@@ -194,11 +194,11 @@ jobs:
     - name: Patching susfs
       if: env.PATCHING_SUSFS == 'true'
       run: |
-        cp BACKPORT-fs-upstream-susfs-v1.5.7-new-non-gki.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        cp BAKPORT_SUSFS_1.5.7.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
 
         echo "Applying patch..."
-        if patch -p1 < BACKPORT-fs-upstream-susfs-v1.5.7-new-non-gki.patch; then
+        if patch -p1 < BAKPORT_SUSFS_1.5.7.patch; then
           echo "✅ Patch applied successfully."
         else
           echo "❌ Patch failed to apply!"
