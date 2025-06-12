@@ -295,6 +295,9 @@ jobs:
         export KBUILD_BUILD_HOST="build-host"
         export KBUILD_BUILD_USER="build-user"
         export KBUILD_COMPILER_STRING="${{ env.compiler_version }}"
+        export LLVM=1
+        export LLVM_IAS=1
+        
         if [ ! -z ${{ env.KSU_EXPECTED_SIZE }} ] && [ ! -z ${{ env.KSU_EXPECTED_HASH }} ]; then
           export KSU_EXPECTED_SIZE=${{ env.KSU_EXPECTED_SIZE }}
           export KSU_EXPECTED_HASH=${{ env.KSU_EXPECTED_HASH }}
