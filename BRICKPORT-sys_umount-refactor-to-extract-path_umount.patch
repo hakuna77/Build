@@ -1,0 +1,143 @@
+From f6bc098b2c24dac56f69bc34923b17cbcf9fe0d8 Mon Sep 17 00:00:00 2001
+From: JJ-Coffee <akuntrial042@gmail.com>
+Date: Wed, 18 Jun 2025 10:02:30 +0000
+Subject: [PATCH] BRICKPORT: sys_umount: refactor to extract path_umount this
+ is a brickport.
+
+we have everything needed anyway.
+
+adapted from the following:
+
+- torvalds/linux@312db1a
+
+- torvalds/linux@41525f5
+
+- torvalds/linux@09267de
+
+- torvalds/linux@25ccd24
+---
+ fs/namespace.c | 83 ++++++++++++++++++--------------------------------
+ 1 file changed, 29 insertions(+), 54 deletions(-)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 41aaf9994..520aed3fc 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -1928,70 +1928,18 @@ static inline bool may_mandlock(void)
+ }
+ #endif
+ 
+-static int can_umount(const struct path *path, int flags)
+-{
+-	struct mount *mnt = real_mount(path->mnt);
+-
+-	if (!may_mount())
+-		return -EPERM;
+-	if (path->dentry != path->mnt->mnt_root)
+-		return -EINVAL;
+-	if (!check_mnt(mnt))
+-		return -EINVAL;
+-	if (mnt->mnt.mnt_flags & MNT_LOCKED) /* Check optimistically */
+-		return -EINVAL;
+-	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
+-		return -EPERM;
+-	return 0;
+-}
+-
+ // caller is responsible for flags being sane
+ int path_umount(struct path *path, int flags)
+ {
+-	struct mount *mnt = real_mount(path->mnt);
+-	int ret;
+-
+-	ret = can_umount(path, flags);
+-	if (!ret)
+-		ret = do_umount(mnt, flags);
+-
+-	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
+-	dput(path->dentry);
+-	mntput_no_expire(mnt);
+-	return ret;
+-}
+-
+-/*
+- * Now umount can handle mount points as well as block devices.
+- * This is important for filesystems which use unnamed block devices.
+- *
+- * We now support a flag for forced unmount like the other 'big iron'
+- * unixes. Our API is identical to OSF/1 to avoid making a mess of AMD
+- */
+-
+-SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
+-{
+-	struct path path;
+ 	struct mount *mnt;
+ 	int retval;
+-	int lookup_flags = 0;
+ 	bool user_request = !(current->flags & PF_KTHREAD);
+ 
+-	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
+-		return -EINVAL;
+-
+ 	if (!may_mount())
+ 		return -EPERM;
+ 
+-	if (!(flags & UMOUNT_NOFOLLOW))
+-		lookup_flags |= LOOKUP_FOLLOW;
+-
+-	retval = user_path_mountpoint_at(AT_FDCWD, name, lookup_flags, &path);
+-	if (retval)
+-		goto out;
+-	mnt = real_mount(path.mnt);
+ 	retval = -EINVAL;
+-	if (path.dentry != path.mnt->mnt_root)
++	if (path->dentry != path->mnt->mnt_root)
+ 		goto dput_and_out;
+ 	if (!check_mnt(mnt))
+ 		goto dput_and_out;
+@@ -2008,7 +1956,7 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
+ 	retval = do_umount(mnt, flags);
+ dput_and_out:
+ 	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
+-	dput(path.dentry);
++	dput(path->dentry);
+ 	if (user_request && (!retval || (flags & MNT_FORCE))) {
+ 		/* filesystem needs to handle unclosed namespaces */
+ 		if (mnt->mnt.mnt_sb->s_op->umount_end)
+@@ -2035,6 +1983,33 @@ out:
+ 	return retval;
+ }
+ 
++ /*
++ * Now umount can handle mount points as well as block devices.
++ * This is important for filesystems which use unnamed block devices.
++ *
++ * We now support a flag for forced unmount like the other 'big iron'
++ * unixes. Our API is identical to OSF/1 to avoid making a mess of AMD
++ */
++
++SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
++{
++	struct path path;
++	int lookup_flags = 0;
++	int retval;
++
++	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
++		return -EINVAL;
++
++	if (!(flags & UMOUNT_NOFOLLOW))
++		lookup_flags |= LOOKUP_FOLLOW;
++
++	retval = user_path_mountpoint_at(AT_FDCWD, name, lookup_flags, &path);
++	if (retval)
++		return retval;
++	
++	return path_umount(&path, flags);
++}
++
+ #ifdef __ARCH_WANT_SYS_OLDUMOUNT
+ 
+ /*
+-- 
+2.34.1
+
