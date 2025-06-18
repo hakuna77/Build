@@ -204,7 +204,7 @@ jobs:
           BRICKPORT-sys_umount-refactor-to-extract-path_umount.patch
         do
         if patch -p1 < "$patch_file"; then
-          echo "✅ Patch applied successfully."
+          echo "✅ $patch_file applied successfully."
         else
           echo "❌ Patch failed to apply!"
           exit 1
