@@ -58,6 +58,7 @@ jobs:
             KSU_EXPECTED_HASH
             REMOVE_UNUSED_PACKAGES
             PATCHING_SUSFS
+            PATCHING_KSUN
         )
 
         for CONFIG in "${CONFIG_LIST[@]}"; do
@@ -222,6 +223,20 @@ jobs:
         curl -LSs "https://raw.githubusercontent.com/${{ env.REPO_KSU }}/KernelSU-Next/${{ env.KERNELSU_BRANCH_OR_TAG }}/kernel/setup.sh" | bash -s ${{ env.KERNELSU_BRANCH_OR_TAG }}
         KSU_VERSION=$(cd KernelSU-Next && expr $(/usr/bin/git rev-list --count HEAD) + 10200)
         echo "UPLOADNAME=-KernelSU_$KSU_VERSION" >> $GITHUB_ENV
+        
+    - name: Patching KSUN
+      if: env.PATCHING_KSUN == 'true'
+      run: |
+        cp 0001-kernel-implement-susfs-v1.5.8-KernelSU-Next-v1.0.8.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
+
+        echo "Applying patch..."
+        if patch -p1 < 0001-kernel-implement-susfs-v1.5.8-KernelSU-Next-v1.0.8.patch; then
+          echo "✅ Patch applied successfully."
+        else
+          echo "❌ Patch failed to apply!"
+          exit 1
+        fi
 
     - name: Setup Configuration for Kernel
       run: |
