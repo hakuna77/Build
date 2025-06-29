@@ -196,17 +196,11 @@ jobs:
       if: env.PATCHING_SUSFS == 'true'
       run: |
         cp 0001-BACKPORT-SUSFS-v1.5.8.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        cp Android.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        cp Android1.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        cp brickport.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
 
         echo "Applying patch..."
         for patch_file in \
-          0001-BACKPORT-SUSFS-v1.5.8.patch \
-          Android.patch \
-          Android1.patch \
-          brickport.patch
+          0001-BACKPORT-SUSFS-v1.5.8.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
