@@ -30,13 +30,12 @@ diff --git a/.gitignore b/.gitignore
 index 2a7f1ccf..b3c7a8f3 100644
 --- a/.gitignore
 +++ b/.gitignore
-@@ -1,5 +1,8 @@
+@@ -1,2 +1,5 @@
  .idea
  .vscode
 +*.orig
 +*.rej
 +*.patch
-\ No newline at end of file
 diff --git a/kernel/Kconfig b/kernel/Kconfig
 index ab6dd5c9..a20eaa57 100644
 --- a/kernel/Kconfig
