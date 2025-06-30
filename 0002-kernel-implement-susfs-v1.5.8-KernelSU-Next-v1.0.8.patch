@@ -36,9 +36,6 @@ index 2a7f1ccf..b3c7a8f3 100644
 +*.orig
 +*.rej
 +*.patch
- *.patch
- *.orig
- *.rej
 \ No newline at end of file
 diff --git a/kernel/Kconfig b/kernel/Kconfig
 index ab6dd5c9..a20eaa57 100644
