@@ -237,8 +237,7 @@ jobs:
 
         echo "Applying patch..."
         for patch_file in \
-          0002-kernel-implement-susfs-v1.5.8-KernelSU-Next-v1.0.8.patch \
-          0001-kernel-ksud-core_hook-migrate-ksud-execution-to-secu.patch
+          0002-kernel-implement-susfs-v1.5.8-KernelSU-Next-v1.0.8.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
