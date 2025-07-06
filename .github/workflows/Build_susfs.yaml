@@ -196,7 +196,7 @@ jobs:
       if: env.PATCHING_SUSFS == 'true'
       run: |
         cp 0001-BACKPORT-SUSFS-v1.5.8.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        cp 0001-Kernel-Refactor-show-enabled_features.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        cp 0001-kernel-Refactor-show-enabled_features.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
 
         echo "Applying patch..."
