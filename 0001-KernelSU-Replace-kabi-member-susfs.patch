@@ -1,0 +1,39 @@
+From 315bcdf9cb51a08b31adc191c48b99d8c21c4ab7 Mon Sep 17 00:00:00 2001
+From: JJ-Coffee <akuntrial042@gmail.com>
+Date: Mon, 7 Jul 2025 14:37:50 +0000
+Subject: [PATCH] KernelSU: Replace kabi member susfs_task_state of tast_struct
+ and use...
+
+---
+ kernel/Kconfig     | 1 +
+ kernel/core_hook.c | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/Kconfig b/kernel/Kconfig
+index a20eaa57..7ecf3b47 100644
+--- a/kernel/Kconfig
++++ b/kernel/Kconfig
+@@ -44,6 +44,7 @@ menu "KernelSU - SUSFS"
+ config KSU_SUSFS
+     bool "KernelSU addon - SUSFS"
+     depends on KSU
++    depends on THREAD_INFO_IN_TASK
+     default y
+     help
+       Patch and Enable SUSFS to kernel with KernelSU.
+diff --git a/kernel/core_hook.c b/kernel/core_hook.c
+index 02e94c1c..6228f986 100644
+--- a/kernel/core_hook.c
++++ b/kernel/core_hook.c
+@@ -1098,7 +1098,7 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+ #ifdef CONFIG_KSU_SUSFS
+ 	else {
+ 		task_lock(current);
+-		current->susfs_task_state |= TASK_STRUCT_NON_ROOT_USER_APP_PROC;
++		susfs_set_current_non_root_user_app_proc();
+ 		task_unlock(current);
+ 	}
+ #endif
+-- 
+2.34.1
+

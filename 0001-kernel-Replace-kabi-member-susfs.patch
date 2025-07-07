@@ -1,0 +1,138 @@
+From 4456c4da76230afd3cafe576b0070c085b2f2dd9 Mon Sep 17 00:00:00 2001
+From: JJ-Coffee <akuntrial042@gmail.com>
+Date: Mon, 7 Jul 2025 14:14:53 +0000
+Subject: [PATCH] kernel & KernelSU: Replace kabi member susfs
+
+---
+ fs/notify/fdinfo.c        |  2 +-
+ fs/proc/fd.c              |  2 +-
+ fs/stat.c                 |  2 +-
+ fs/statfs.c               |  2 +-
+ fs/susfs.c                | 14 +++++---------
+ include/linux/susfs_def.h | 16 ++++++++++++++--
+ 6 files changed, 23 insertions(+), 15 deletions(-)
+
+diff --git a/fs/notify/fdinfo.c b/fs/notify/fdinfo.c
+index 62e084ec0..abf4a912b 100644
+--- a/fs/notify/fdinfo.c
++++ b/fs/notify/fdinfo.c
+@@ -102,7 +102,7 @@ static void inotify_fdinfo(struct seq_file *m, struct fsnotify_mark *mark)
+ 	inode = igrab(mark->connector->inode);
+ 	if (inode) {
+ #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+-		if (likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC) &&
++		if (likely(susfs_is_current_non_root_user_app_proc()) &&
+ 				unlikely(inode->i_state & INODE_STATE_SUS_KSTAT)) {
+ 			struct path path;
+ 			char *pathname = kmalloc(PAGE_SIZE, GFP_KERNEL);
+diff --git a/fs/proc/fd.c b/fs/proc/fd.c
+index f5cc2d598..7c5583125 100644
+--- a/fs/proc/fd.c
++++ b/fs/proc/fd.c
+@@ -61,7 +61,7 @@ static int seq_show(struct seq_file *m, void *v)
+ 
+ #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+ 	mnt = real_mount(file->f_path.mnt);
+-	if (likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC) &&
++	if (likely(susfs_is_current_non_root_user_app_proc()) &&
+ 			mnt->mnt_id >= DEFAULT_SUS_MNT_ID) {
+ 		for (; mnt->mnt_id >= DEFAULT_SUS_MNT_ID; mnt = mnt->mnt_parent) { }
+ 	}
+diff --git a/fs/stat.c b/fs/stat.c
+index f18a29ce3..abdd9f42b 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -40,7 +40,7 @@ extern void susfs_sus_ino_for_generic_fillattr(unsigned long ino, struct kstat *
+ void generic_fillattr(struct inode *inode, struct kstat *stat)
+ {
+ #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+-	if (likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC) &&
++	if (likely(susfs_is_current_non_root_user_app_proc()) &&
+ 			unlikely(inode->i_state & INODE_STATE_SUS_KSTAT)) {
+ 		susfs_sus_ino_for_generic_fillattr(inode->i_ino, stat);
+ 		stat->mode = inode->i_mode;
+diff --git a/fs/statfs.c b/fs/statfs.c
+index 52308f1df..6e22c86a6 100644
+--- a/fs/statfs.c
++++ b/fs/statfs.c
+@@ -78,7 +78,7 @@ int vfs_statfs(const struct path *path, struct kstatfs *buf)
+ 	struct mount *mnt;
+ 
+ 	mnt = real_mount(path->mnt);
+-	if (likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
++	if (likely(susfs_is_current_non_root_user_app_proc())) {
+ 		for (; mnt->mnt_id >= DEFAULT_SUS_MNT_ID; mnt = mnt->mnt_parent) {}
+ 	}
+ 	error = statfs_by_dentry(mnt->mnt.mnt_root, buf);
+diff --git a/fs/susfs.c b/fs/susfs.c
+index 9a5bb6d91..2961f0140 100644
+--- a/fs/susfs.c
++++ b/fs/susfs.c
+@@ -239,21 +239,17 @@ out_path_put_path:
+ }
+ 
+ static inline bool is_i_uid_in_android_data_not_allowed(uid_t i_uid) {
+-	uid_t cur_uid = current_uid().val;
+-
+-	return (likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC) &&
+-							(unlikely(cur_uid != i_uid)));
++	return (likely(susfs_is_current_non_root_user_app_proc()) &&
++		unlikely(current_uid().val != i_uid));
+ }
+ 
+ static inline bool is_i_uid_in_sdcard_not_allowed(void) {
+-	return (likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC));
++	return (likely(susfs_is_current_non_root_user_app_proc()));
+ }
+ 
+ static inline bool is_i_uid_not_allowed(uid_t i_uid) {
+-	uid_t cur_uid = current_uid().val;
+-
+-	return (likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC) &&
+-							(unlikely(cur_uid != i_uid)));
++	return (likely(susfs_is_current_non_root_user_app_proc()) &&
++		unlikely(current_uid().val != i_uid));
+ }
+ 
+ bool susfs_is_base_dentry_android_data_dir(struct dentry* base) {
+diff --git a/include/linux/susfs_def.h b/include/linux/susfs_def.h
+index e5514e198..e22e0b05e 100644
+--- a/include/linux/susfs_def.h
++++ b/include/linux/susfs_def.h
+@@ -46,14 +46,17 @@
+  * inode->i_state => storing flag 'INODE_STATE_'
+  * mount->mnt.susfs_mnt_id_backup => storing original mnt_id of normal mounts or custom sus mnt_id of sus mounts
+  * task_struct->susfs_last_fake_mnt_id => storing last valid fake mnt_id (will be deprecated or exclusive for non-gki only)
+- * task_struct->susfs_task_state => storing flag 'TASK_STRUCT_'
++ * inode->i_mapping->flags => storing flag 'AS_FLAGS_'
++ * nd->state => storing flag 'ND_STATE_'
++ * nd->flags => storing flag 'ND_FLAGS_'
++ * task_struct->thread_info.flags => storing flag 'TIF_'
+  */
+ #define INODE_STATE_SUS_PATH BIT(24)
+ #define INODE_STATE_SUS_MOUNT BIT(25)
+ #define INODE_STATE_SUS_KSTAT BIT(26)
+ #define INODE_STATE_OPEN_REDIRECT BIT(27)
+ 
+-#define TASK_STRUCT_NON_ROOT_USER_APP_PROC BIT(24)
++#define TIF_NON_ROOT_USER_APP_PROC 33 // thread_info->flags is unsigned long :D
+ 
+ #define AS_FLAGS_ANDROID_DATA_ROOT_DIR 28
+ #define AS_FLAGS_SDCARD_ROOT_DIR 29
+@@ -71,4 +74,13 @@
+ #define DATA_ADB_NO_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT "/data/adb/susfs_no_auto_add_sus_ksu_default_mount"
+ #define DATA_ADB_NO_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT "/data/adb/susfs_no_auto_add_try_umount_for_bind_mount"
+ 
++static inline bool susfs_is_current_non_root_user_app_proc(void) {
++	return test_ti_thread_flag(&current->thread_info, TIF_NON_ROOT_USER_APP_PROC);
++}
++
++static inline void susfs_set_current_non_root_user_app_proc(void) {
++	set_ti_thread_flag(&current->thread_info, TIF_NON_ROOT_USER_APP_PROC);
++}
++
++
+ #endif // #ifndef KSU_SUSFS_DEF_H
+-- 
+2.34.1
+
