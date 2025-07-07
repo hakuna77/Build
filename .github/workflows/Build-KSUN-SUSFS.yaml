@@ -244,7 +244,7 @@ jobs:
         for patch_file in \
           susfs.patch \
           0001-KernelSU-Refactor-show-enabled_features.patch \
-          0001-KernelSU-Replace-kabi-member-susfs.patch
+          0001-KernelSU-Replace-kabi-member-susfs_task_state-of-tas.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
