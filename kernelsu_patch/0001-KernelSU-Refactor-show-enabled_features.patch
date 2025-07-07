@@ -1,14 +1,14 @@
-From 577a06e7ce4ca5e1b7d129ae0e6dda06c26dd70e Mon Sep 17 00:00:00 2001
+From 00f7b52c337912980b0c02a721a7904b38d6ae48 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sun, 6 Jul 2025 06:23:46 +0000
-Subject: [PATCH] KernelSU: Refactor show enabled_features
+Date: Mon, 7 Jul 2025 19:59:13 +0000
+Subject: [PATCH 1/2] KernelSU: Refactor show enabled_features
 
 ---
  kernel/core_hook.c | 51 ++++++----------------------------------------
  1 file changed, 6 insertions(+), 45 deletions(-)
 
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index 75da0a88..02e94c1c 100644
+index f3d19112..6ee2d61c 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
 @@ -788,8 +788,11 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
