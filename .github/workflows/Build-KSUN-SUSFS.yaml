@@ -235,16 +235,14 @@ jobs:
     - name: Patching KSUN
       if: env.PATCHING_KSUN == 'true'
       run: |
-        cp kernelsu_patch/susfs.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
+        cp kernelsu_patch/0001-susfs-v1.5.9.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         cp kernelsu_patch/0001-KernelSU-Refactor-show-enabled_features.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         cp kernelsu_patch/0001-KernelSU-Replace-kabi-member-susfs_task_state-of-tas.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
 
         echo "Applying patch..."
         for patch_file in \
-          susfs.patch \
-          0001-KernelSU-Refactor-show-enabled_features.patch \
-          0001-KernelSU-Replace-kabi-member-susfs_task_state-of-tas.patch
+          0001-susfs-v1.5.9.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
