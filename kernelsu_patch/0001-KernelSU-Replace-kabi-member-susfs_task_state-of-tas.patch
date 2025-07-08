@@ -1,6 +1,6 @@
-From c19e80b16415839e48fbd0e31fad9ad03edfed43 Mon Sep 17 00:00:00 2001
+From d664abb7ad4c5cb38c0e08e270f5b968028c33f2 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Tue, 8 Jul 2025 04:05:39 +0000
+Date: Tue, 8 Jul 2025 05:40:58 +0000
 Subject: [PATCH] KernelSU: Replace kabi member susfs_task_state of tast_struct
 
 ---
@@ -21,10 +21,10 @@ index a20eaa57..7ecf3b47 100644
      help
        Patch and Enable SUSFS to kernel with KernelSU.
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index 0b1d0aa7..55b73bdf 100644
+index 68c9313b..e83519b6 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
-@@ -1104,7 +1104,7 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -1101,7 +1101,7 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  		//   the detection, really big helps here!
  		else if (new_uid.val >= 90000 && new_uid.val < 1000000 && susfs_is_umount_for_zygote_iso_service_enabled) {
  			task_lock(current);
@@ -33,7 +33,7 @@ index 0b1d0aa7..55b73bdf 100644
  			task_unlock(current);
  			goto out_susfs_try_umount_all;
  		}
-@@ -1123,7 +1123,7 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -1120,7 +1120,7 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  #ifdef CONFIG_KSU_SUSFS
  	else {
  		task_lock(current);
