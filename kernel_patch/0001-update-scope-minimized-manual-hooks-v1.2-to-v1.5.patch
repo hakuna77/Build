@@ -1,0 +1,81 @@
+From 3d7bf59102798f60f608a30a191650a2767278c9 Mon Sep 17 00:00:00 2001
+From: JJ-Coffee <akuntrial042@gmail.com>
+Date: Wed, 9 Jul 2025 14:51:14 +0000
+Subject: [PATCH] update scope-minimized manual hooks v1.2 to v1.5
+
+---
+ fs/exec.c | 20 ++++++--------------
+ fs/open.c |  4 ++--
+ fs/stat.c |  3 ++-
+ 3 files changed, 10 insertions(+), 17 deletions(-)
+
+diff --git a/fs/exec.c b/fs/exec.c
+index 30316e4f9..c6e223a32 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1973,16 +1973,11 @@ void set_dumpable(struct mm_struct *mm, int value)
+ }
+ 
+ #ifdef CONFIG_KSU
+-extern bool ksu_execveat_hook __read_mostly;
+-extern int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
+-			       void *__never_use_argv, void *__never_use_envp,
+-			       int *__never_use_flags);
+-extern int ksu_handle_execve_ksud(const char __user *filename_user,
+-			const char __user *const __user *__argv);
+-#ifdef CONFIG_COMPAT  // 32-on-64 support
+-extern int ksu_handle_compat_execve_ksud(const char __user *filename_user,
+-			const compat_uptr_t __user *__argv);
+-#endif
++extern __attribute__((hot)) int ksu_handle_execve_sucompat(int *fd,
++				const char __user **filename_user,
++				void *__never_use_argv,
++				void *__never_use_envp,
++				int *__never_use_flags);
+ #endif
+ 
+ SYSCALL_DEFINE3(execve,
+@@ -1991,10 +1986,7 @@ SYSCALL_DEFINE3(execve,
+ 		const char __user *const __user *, envp)
+ {
+ #ifdef CONFIG_KSU
+-	if (unlikely(ksu_execveat_hook))
+-		ksu_handle_execve_ksud(filename, argv);
+-	else
+-		ksu_handle_execve_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL);
++	ksu_handle_execve_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL);
+ #endif
+ 	return do_execve(getname(filename), argv, envp);
+ }
+diff --git a/fs/open.c b/fs/open.c
+index 2d2fa08b5..5d6269e2b 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -355,8 +355,8 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
+ }
+ 
+ #ifdef CONFIG_KSU
+-extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
+-			int *flags);
++extern __attribute__((hot)) int ksu_handle_faccessat(int *dfd,
++		const char __user **filename_user, int *mode, int *flags);
+ #endif
+ 
+ /*
+diff --git a/fs/stat.c b/fs/stat.c
+index 37a766a5f..d344f29e1 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -354,7 +354,8 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+ }
+ 
+ #ifdef CONFIG_KSU
+-extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
++extern __attribute__((hot)) int ksu_handle_stat(int *dfd,
++			const char __user **filename_user, int *flags);
+ #endif
+ 
+ #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
+-- 
+2.34.1
+
