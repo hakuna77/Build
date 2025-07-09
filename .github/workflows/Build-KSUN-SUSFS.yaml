@@ -237,12 +237,14 @@ jobs:
       run: |
         cp kernelsu_patch/0001-susfs-v1.5.9.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         cp kernelsu_patch/0001-KernelSU-Refactor-show-enabled_features.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
+        cp kernelsu_patch/0001-kernel-synchronize-with-the-latest-scope-minimized-m.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         cp kernelsu_patch/0001-KernelSU-Replace-kabi-member-susfs_task_state-of-tas.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
 
         echo "Applying patch..."
         for patch_file in \
           0001-susfs-v1.5.9.patch \
+          0001-kernel-synchronize-with-the-latest-scope-minimized-m.patch \
           0001-KernelSU-Replace-kabi-member-susfs_task_state-of-tas.patch
         do
           if patch -p1 < "$patch_file"; then
