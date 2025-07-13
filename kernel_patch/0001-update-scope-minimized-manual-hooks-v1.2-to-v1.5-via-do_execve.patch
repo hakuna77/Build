@@ -1,14 +1,14 @@
-From 3b3eb354584d8f96f3f7ac76015de867a33517e1 Mon Sep 17 00:00:00 2001
+From 720ff721a90cb86f7de38035188e412766ddce8f Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sun, 13 Jul 2025 10:12:20 +0000
-Subject: [PATCH] update scope-minimized manual hooks v1.2 to v1.5 via
- do_execve
+Date: Sun, 13 Jul 2025 11:05:45 +0000
+Subject: [PATCH] update scope-minimized manual hooks v1.2 to v1.5 via 
+ do_execve v2
 
 ---
  fs/exec.c | 34 ++++++++++++----------------------
- fs/open.c |  4 ++--
- fs/stat.c |  3 ++-
- 3 files changed, 16 insertions(+), 25 deletions(-)
+ fs/open.c |  5 +++--
+ fs/stat.c |  4 +++-
+ 3 files changed, 18 insertions(+), 25 deletions(-)
 
 diff --git a/fs/exec.c b/fs/exec.c
 index 30316e4f9..6bbcc9adc 100644
@@ -88,31 +88,33 @@ index 30316e4f9..6bbcc9adc 100644
  }
  
 diff --git a/fs/open.c b/fs/open.c
-index 2d2fa08b5..5d6269e2b 100644
+index 2d2fa08b5..643d0bfe6 100644
 --- a/fs/open.c
 +++ b/fs/open.c
-@@ -355,8 +355,8 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
+@@ -355,8 +355,9 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
  }
  
  #ifdef CONFIG_KSU
 -extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
 -			int *flags);
-+extern __attribute__((hot)) int ksu_handle_faccessat(int *dfd,
-+		const char __user **filename_user, int *mode, int *flags);
++__attribute__((hot)) 
++extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
++				int *mode, int *flags);
  #endif
  
  /*
 diff --git a/fs/stat.c b/fs/stat.c
-index abdd9f42b..685507ff2 100644
+index abdd9f42b..ca6b32ee6 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
-@@ -372,7 +372,8 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+@@ -372,7 +372,9 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
  }
  
  #ifdef CONFIG_KSU
 -extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
-+extern __attribute__((hot)) int ksu_handle_stat(int *dfd,
-+			const char __user **filename_user, int *flags);
++__attribute__((hot)) 
++extern int ksu_handle_stat(int *dfd, const char __user **filename_user,
++				int *flags);
  #endif
  
  #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
