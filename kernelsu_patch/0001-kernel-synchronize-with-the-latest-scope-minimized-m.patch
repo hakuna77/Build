@@ -1,19 +1,19 @@
-From d6d2376d4734c094d06bcf50957925c45fa0f205 Mon Sep 17 00:00:00 2001
+From 8c5909b8a508b2b24d813beba14c92433d471fb9 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Wed, 9 Jul 2025 14:23:45 +0000
-Subject: [PATCH] kernel: synchronize with the latest 'scope-minimized manual
+Date: Sun, 13 Jul 2025 10:47:02 +0000
+Subject: [PATCH] kernel: synchronize with the latest 'scope-minimized manual 
  hooks' -v1.5
 
 ---
  kernel/core_hook.c     |  52 +++++++
  kernel/kernel_compat.c |  28 ++++
  kernel/kernel_compat.h |   1 +
- kernel/ksud.c          | 314 ++++++++++++++++++++---------------------
+ kernel/ksud.c          | 315 ++++++++++++++++++++---------------------
  kernel/ksud.h          |   3 +
- 5 files changed, 239 insertions(+), 159 deletions(-)
+ 5 files changed, 239 insertions(+), 160 deletions(-)
 
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index ce9d9c6d..4aed2f56 100644
+index 0aa80dec..235b590a 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
 @@ -7,6 +7,7 @@
@@ -160,7 +160,7 @@ index b0d664a9..a2424a19 100644
  
  #endif
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 722f6055..426dc19e 100644
+index ad91d740..426dc19e 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
 @@ -19,6 +19,7 @@
@@ -182,7 +182,7 @@ index 722f6055..426dc19e 100644
  void ksu_on_post_fs_data(void)
  {
  	static bool done = false;
-@@ -104,189 +101,188 @@ struct user_arg_ptr {
+@@ -104,190 +101,188 @@ struct user_arg_ptr {
  	} ptr;
  };
  
@@ -439,7 +439,8 @@ index 722f6055..426dc19e 100644
 -					first_arg, p, sizeof(first_arg));
 -				pr_info("/system/bin/init first arg: %s\n",
 -					first_arg);
--				if (!strcmp(first_arg, "second_stage")) {
+-				if (!strcmp(first_arg, "second_stage") || 
+-				    (argc == 2 && !strcmp(first_arg, ""))) {
 -					pr_info("/system/bin/init second_stage executed\n");
 -					ksu_apply_kernelsu_rules();
 -					init_second_stage_executed = true;
