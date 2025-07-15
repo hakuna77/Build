@@ -195,7 +195,7 @@ jobs:
     - name: Patching susfs
       if: env.PATCHING_SUSFS == 'true'
       run: |
-        cp kernel_patch/0001-kernel-implement-susfs-v1.5.9.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        cp kernel_patch/0001-susfs-v1.5.9.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         cp kernel_patch/0001-update-scope-minimized-manual-hooks-v1.2-to-v1.5-via-do_execve.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         cp kernel_patch/0001-kernel-Replace-kabi-member-susfs.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         cp kernel_patch/0001-kernel-SUS_PATH-Fix-leaking-dentry-lock-ref-count.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
@@ -203,7 +203,7 @@ jobs:
 
         echo "Applying patch..."
         for patch_file in \
-          0001-kernel-implement-susfs-v1.5.9.patch \
+          0001-susfs-v1.5.9.patch \
           0001-update-scope-minimized-manual-hooks-v1.2-to-v1.5-via-do_execve.patch \
           0001-kernel-Replace-kabi-member-susfs.patch \
           0001-kernel-SUS_PATH-Fix-leaking-dentry-lock-ref-count.patch
