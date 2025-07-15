@@ -1,6 +1,6 @@
-From 64bb3865086d2488103a533a27f60172b29cf580 Mon Sep 17 00:00:00 2001
+From 1488dd741285ccd413f1c3b66f0b80032c38ba4a Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Tue, 15 Jul 2025 18:35:23 +0000
+Date: Tue, 15 Jul 2025 19:56:07 +0000
 Subject: [PATCH] susfs v1.5.9
 
 ---
@@ -11,6 +11,7 @@ Subject: [PATCH] susfs v1.5.9
  kernel/apk_sign.c        |   2 +-
  kernel/apk_sign.h        |   2 +-
  kernel/core_hook.c       | 577 +++++++++++++++++++++++++++++++++++++--
+ kernel/kernel_compat.h   |   1 +
  kernel/ksu.c             |  16 +-
  kernel/ksud.c            |  21 +-
  kernel/ksud.h            |   2 +-
@@ -21,7 +22,7 @@ Subject: [PATCH] susfs v1.5.9
  kernel/sucompat.c        | 106 +++++--
  kernel/throne_tracker.c  |   4 +-
  kernel/throne_tracker.h  |   2 +-
- 17 files changed, 946 insertions(+), 80 deletions(-)
+ 18 files changed, 947 insertions(+), 80 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 706fd07f..4886543c 100644
@@ -1012,6 +1013,18 @@ index 6bbb350c..ecfd6be6 100644
  	return 0;
  }
  
+diff --git a/kernel/kernel_compat.h b/kernel/kernel_compat.h
+index c85e9e2c..cad307a0 100644
+--- a/kernel/kernel_compat.h
++++ b/kernel/kernel_compat.h
+@@ -32,6 +32,7 @@ extern struct key *init_session_keyring;
+ #endif
+ 
+ extern void ksu_android_ns_fs_check();
++extern int ksu_access_ok(const void *addr, unsigned long size);
+ extern struct file *ksu_filp_open_compat(const char *filename, int flags,
+ 					 umode_t mode);
+ extern ssize_t ksu_kernel_read_compat(struct file *p, void *buf, size_t count,
 diff --git a/kernel/ksu.c b/kernel/ksu.c
 index 11864141..a8a02c2f 100644
 --- a/kernel/ksu.c

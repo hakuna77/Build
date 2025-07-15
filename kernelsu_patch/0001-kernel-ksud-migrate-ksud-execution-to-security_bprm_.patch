@@ -1,6 +1,6 @@
-From 30e55902ca9a62661bd093d5f2b44462552a3b51 Mon Sep 17 00:00:00 2001
+From eaae08e0b9edfd01181fa079a848e64b7825a3cf Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Tue, 15 Jul 2025 18:39:57 +0000
+Date: Tue, 15 Jul 2025 20:05:35 +0000
 Subject: [PATCH] kernel: ksud: migrate ksud execution to security_bprm_check
 
 ---
@@ -104,13 +104,13 @@ index db47f8eb..40b92081 100644
 +#endif
 +}
 diff --git a/kernel/kernel_compat.h b/kernel/kernel_compat.h
-index c85e9e2c..6e24ee4e 100644
+index cad307a0..4da7414f 100644
 --- a/kernel/kernel_compat.h
 +++ b/kernel/kernel_compat.h
-@@ -32,6 +32,24 @@ extern struct key *init_session_keyring;
- #endif
+@@ -33,6 +33,24 @@ extern struct key *init_session_keyring;
  
  extern void ksu_android_ns_fs_check();
+ extern int ksu_access_ok(const void *addr, unsigned long size);
 +extern long ksu_copy_from_user_nofault(void *dst, const void __user *src, size_t size);
 +
 +/*

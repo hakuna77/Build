@@ -240,7 +240,8 @@ jobs:
 
         echo "Applying patch..."
         for patch_file in \
-          0001-susfs-v1.5.9.patch
+          0001-susfs-v1.5.9.patch \
+          0001-kernel-ksud-migrate-ksud-execution-to-security_bprm_.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
