@@ -237,7 +237,7 @@ jobs:
     - name: Patching KSUN
       if: env.PATCHING_KSUN == 'true'
       run: |
-        cp kernelsu_patch/0001-susfs-v1.5.9.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
+        cp kernelsu_patch/0001-susfsv159-to-ksun-v1.0.9.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         cp kernelsu_patch/0001-KernelSU-Refactor-show-enabled_features.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         cp kernelsu_patch/0001-kernel-synchronize-with-the-latest-scope-minimized-m.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         cp kernelsu_patch/0001-KernelSU-Replace-kabi-member-susfs_task_state-of-tas.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
@@ -245,7 +245,7 @@ jobs:
 
         echo "Applying patch..."
         for patch_file in \
-          0001-susfs-v1.5.9.patch \
+          0001-susfsv159-to-ksun-v1.0.9.patch \
           0001-kernel-synchronize-with-the-latest-scope-minimized-m.patch \
           0001-KernelSU-Replace-kabi-member-susfs_task_state-of-tas.patch
         do
