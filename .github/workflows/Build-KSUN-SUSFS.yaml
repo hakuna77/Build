@@ -235,6 +235,8 @@ jobs:
       run: |
         cp kernelsu_patch/0001-susfs-v1.5.9-v1.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         cp kernelsu_patch/0001-kernel-synchronize-with-the-latest-scope-minimized-m.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
+        
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
 
         echo "Applying patch..."
         for patch_file in \
