@@ -195,8 +195,8 @@ jobs:
     - name: Patching susfs
       if: env.PATCHING_SUSFS == 'true'
       run: |
-        cp kernel_patch/0001-fs-susfs.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        cp kernel_patch/0001-update-scope-minimized-manual-hooks-v1.2-to-v1.5-via-do_execve.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        cp kernel_patch/*.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
 
         echo "Applying patch..."
@@ -233,8 +233,7 @@ jobs:
     - name: Patching KSUN
       if: env.PATCHING_KSUN == 'true'
       run: |
-        cp kernelsu_patch/0001-susfs-v1.5.9.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
-        cp kernelsu_patch/0001-kernel-ksud-migrate-ksud-execution-to-security_bprm_.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
+        cp kernelsu_patch/*.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
 
