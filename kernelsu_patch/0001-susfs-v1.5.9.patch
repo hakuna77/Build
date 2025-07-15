@@ -1,12 +1,12 @@
-From 5f6bf344d2c71b25b05612f7b6a5a778c5ef5dba Mon Sep 17 00:00:00 2001
+From da9a35c092b89fcb10e9f9bb905732319e035b11 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Tue, 15 Jul 2025 14:32:53 +0000
-Subject: [PATCH] susfs-v1.5.9_v1
+Date: Tue, 15 Jul 2025 17:14:09 +0000
+Subject: [PATCH] susfs v1.5.9
 
 ---
  .gitignore               |   3 +
  kernel/Kconfig           | 135 +++++++++
- kernel/Makefile          |  77 ++++++
+ kernel/Makefile          |   9 +
  kernel/allowlist.c       |  10 +-
  kernel/apk_sign.c        |   2 +-
  kernel/apk_sign.h        |   2 +-
@@ -23,7 +23,7 @@ Subject: [PATCH] susfs-v1.5.9_v1
  kernel/sucompat.c        | 106 +++++--
  kernel/throne_tracker.c  |   4 +-
  kernel/throne_tracker.h  |   2 +-
- 19 files changed, 1025 insertions(+), 80 deletions(-)
+ 19 files changed, 957 insertions(+), 80 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 706fd07f..4886543c 100644
@@ -180,81 +180,13 @@ index ab6dd5c9..7ecf3b47 100644
 +
  endmenu
 diff --git a/kernel/Makefile b/kernel/Makefile
-index 6da2b6f0..6e4fc9c4 100644
+index 6da2b6f0..c502a1d2 100644
 --- a/kernel/Makefile
 +++ b/kernel/Makefile
-@@ -116,4 +116,81 @@ endif
+@@ -116,4 +116,13 @@ endif
  ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat
  ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
  
-+## For non-gki compatiblity ##
-+ifeq ($(shell grep -q " current_sid(void)" $(srctree)/security/selinux/include/objsec.h; echo $$?),0)
-+ccflags-y += -DKSU_COMPAT_HAS_CURRENT_SID
-+endif
-+
-+ifeq ($(shell grep -q "struct selinux_state " $(srctree)/security/selinux/include/security.h; echo $$?),0)
-+ccflags-y += -DKSU_COMPAT_HAS_SELINUX_STATE
-+endif
-+
-+ccflags-y += -DKSU_UMOUNT
-+ifneq ($(shell grep -Eq "get_cred_rcu" $(srctree)/include/linux/cred.h; echo $$?),0)
-+$(info -- KSU_SUSFS: adding function 'static inline const struct cred *get_cred_rcu();' to $(srctree)/include/linux/cred.h)
-+GET_CRED_RCU = static inline const struct cred *get_cred_rcu(const struct cred *cred)\n\
-+{\n\t\
-+	struct cred *nonconst_cred = (struct cred *) cred;\n\t\
-+	if (!cred)\n\t\t\
-+		return NULL;\n\t\
-+	if (!atomic_inc_not_zero(&nonconst_cred->usage))\n\t\t\
-+		return NULL;\n\t\
-+	validate_creds(cred);\n\t\
-+	return cred;\n\
-+}\n
-+$(shell sed -i '/^static inline void put_cred/i $(GET_CRED_RCU)' $(srctree)/include/linux/cred.h;)
-+endif
-+
-+ifneq ($(shell grep -Eq "^static int can_umount" $(srctree)/fs/namespace.c; echo $$?),0)
-+$(info -- KSU_SUSFS: adding function 'static int can_umount(const struct path *path, int flags);' to $(srctree)/fs/namespace.c)
-+CAN_UMOUNT = static int can_umount(const struct path *path, int flags)\n\
-+{\n\t\
-+        struct mount *mnt = real_mount(path->mnt);\n\t\
-+        if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))\n\t\t\
-+                return -EINVAL;\n\t\
-+        if (!may_mount())\n\t\t\
-+                return -EPERM;\n\t\
-+        if (path->dentry != path->mnt->mnt_root)\n\t\t\
-+                return -EINVAL;\n\t\
-+        if (!check_mnt(mnt))\n\t\t\
-+                return -EINVAL;\n\t\
-+        if (mnt->mnt.mnt_flags & MNT_LOCKED)\n\t\t\
-+                return -EINVAL;\n\t\
-+        if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))\n\t\t\
-+                return -EPERM;\n\t\
-+        return 0;\n\
-+}\n
-+$(shell sed -i '/^static bool is_mnt_ns_file/i $(CAN_UMOUNT)' $(srctree)/fs/namespace.c;)
-+endif
-+
-+ifneq ($(shell grep -Eq "^int path_umount" $(srctree)/fs/namespace.c; echo $$?),0)
-+$(info -- KSU_SUSFS: adding function 'int path_umount(struct path *path, int flags);' to $(srctree)/fs/namespace.c)
-+PATH_UMOUNT = int path_umount(struct path *path, int flags)\n\
-+{\n\t\
-+        struct mount *mnt = real_mount(path->mnt);\n\t\
-+        int ret;\n\t\
-+        ret = can_umount(path, flags);\n\t\
-+        if (!ret)\n\t\t\
-+                ret = do_umount(mnt, flags);\n\t\
-+        dput(path->dentry);\n\t\
-+        mntput_no_expire(mnt);\n\t\
-+        return ret;\n\
-+}\n
-+$(shell sed -i '/^static bool is_mnt_ns_file/i $(PATH_UMOUNT)' $(srctree)/fs/namespace.c;)
-+endif
-+
-+ifneq ($(shell grep -Eq "^int path_umount" $(srctree)/fs/internal.h; echo $$?),0)
-+$(shell sed -i '/^extern void __init mnt_init/a int path_umount(struct path *path, int flags);' $(srctree)/fs/internal.h;)
-+$(info -- KSU_SUSFS: adding 'int path_umount(struct path *path, int flags);' to $(srctree)/fs/internal.h)
-+endif
-+
 +## For susfs stuff ##
 +ifeq ($(shell test -e $(srctree)/fs/susfs.c; echo $$?),0)
 +$(eval SUSFS_VERSION=$(shell cat $(srctree)/include/linux/susfs.h | grep -E '^#define SUSFS_VERSION' | cut -d' ' -f3 | sed 's/"//g'))
@@ -1083,7 +1015,7 @@ index 6bbb350c..ecfd6be6 100644
  }
  
 diff --git a/kernel/kernel_compat.c b/kernel/kernel_compat.c
-index 841a0e52..47d8f5e3 100644
+index db47f8eb..873da944 100644
 --- a/kernel/kernel_compat.c
 +++ b/kernel/kernel_compat.c
 @@ -76,6 +76,16 @@ void ksu_android_ns_fs_check()
@@ -1104,10 +1036,10 @@ index 841a0e52..47d8f5e3 100644
  {
  #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_IS_HW_HISI) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
 diff --git a/kernel/kernel_compat.h b/kernel/kernel_compat.h
-index 6d79f7ed..b0d664a9 100644
+index c85e9e2c..cad307a0 100644
 --- a/kernel/kernel_compat.h
 +++ b/kernel/kernel_compat.h
-@@ -29,6 +29,7 @@ extern struct key *init_session_keyring;
+@@ -32,6 +32,7 @@ extern struct key *init_session_keyring;
  #endif
  
  extern void ksu_android_ns_fs_check();
@@ -1171,7 +1103,7 @@ index 11864141..a8a02c2f 100644
  MODULE_LICENSE("GPL");
  MODULE_AUTHOR("weishu");
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index b30c69d0..ad91d740 100644
+index 2543239d..adb2e0d4 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
 @@ -64,6 +64,9 @@ bool ksu_vfs_read_hook __read_mostly = true;
@@ -1203,16 +1135,16 @@ index b30c69d0..ad91d740 100644
  	ksu_load_allow_list();
  	// sanity check, this may influence the performance
  	stop_input_hook();
-@@ -204,7 +207,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
- 				if (!strcmp(first_arg, "second_stage") || 
- 				    (argc == 2 && !strcmp(first_arg, ""))) {
+@@ -203,7 +206,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+ 					first_arg);
+ 				if (!strcmp(first_arg, "second_stage")) {
  					pr_info("/system/bin/init second_stage executed\n");
 -					apply_kernelsu_rules();
 +					ksu_apply_kernelsu_rules();
  					init_second_stage_executed = true;
  					ksu_android_ns_fs_check();
  				}
-@@ -228,7 +231,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+@@ -227,7 +230,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
  				pr_info("/init first arg: %s\n", first_arg);
  				if (!strcmp(first_arg, "--second-stage")) {
  					pr_info("/init second_stage executed\n");
@@ -1221,7 +1153,7 @@ index b30c69d0..ad91d740 100644
  					init_second_stage_executed = true;
  					ksu_android_ns_fs_check();
  				}
-@@ -265,7 +268,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+@@ -264,7 +267,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
  					    (!strcmp(env_value, "1") ||
  					     !strcmp(env_value, "true"))) {
  						pr_info("/init second_stage executed\n");
@@ -1230,7 +1162,7 @@ index b30c69d0..ad91d740 100644
  						init_second_stage_executed =
  							true;
  						ksu_android_ns_fs_check();
-@@ -280,7 +283,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+@@ -279,7 +282,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
  		first_app_process = false;
  		pr_info("exec app_process, /data prepared, second_stage: %d\n",
  			init_second_stage_executed);
@@ -1239,7 +1171,7 @@ index b30c69d0..ad91d740 100644
  		stop_execve_hook();
  	}
  
-@@ -678,6 +681,10 @@ static void stop_execve_hook()
+@@ -677,6 +680,10 @@ static void stop_execve_hook()
  	ksu_execveat_hook = false;
  	pr_info("stop execve_hook\n");
  #endif

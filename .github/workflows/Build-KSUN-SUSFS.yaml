@@ -233,15 +233,15 @@ jobs:
     - name: Patching KSUN
       if: env.PATCHING_KSUN == 'true'
       run: |
-        cp kernelsu_patch/0001-susfs-v1.5.9-v1.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
-        cp kernelsu_patch/0001-kernel-synchronize-with-the-latest-scope-minimized-m.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
+        cp kernelsu_patch/0001-susfs-v1.5.9.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
+        cp kernelsu_patch/0001-kernel-ksud-migrate-ksud-execution-to-security_bprm_.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
 
         echo "Applying patch..."
         for patch_file in \
-          0001-susfs-v1.5.9-v1.patch \
-          0001-kernel-synchronize-with-the-latest-scope-minimized-m.patch
+          0001-susfs-v1.5.9.patch \
+          0001-kernel-ksud-migrate-ksud-execution-to-security_bprm_.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
