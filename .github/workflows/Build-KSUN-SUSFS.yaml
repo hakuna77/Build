@@ -238,7 +238,7 @@ jobs:
 
         echo "Applying patch..."
         for patch_file in \
-          0001-susfsv159-to-ksun-v1.0.9.patch \
+          0001-susfs-v1.5.9_v1.patch \
           0001-kernel-synchronize-with-the-latest-scope-minimized-m.patch
         do
           if patch -p1 < "$patch_file"; then
