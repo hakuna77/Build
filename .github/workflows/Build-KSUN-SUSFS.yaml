@@ -195,18 +195,14 @@ jobs:
     - name: Patching susfs
       if: env.PATCHING_SUSFS == 'true'
       run: |
-        cp kernel_patch/0001-susfs-v1.5.9.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        cp kernel_patch/0001-fs-susfs.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         cp kernel_patch/0001-update-scope-minimized-manual-hooks-v1.2-to-v1.5-via-do_execve.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        cp kernel_patch/0001-kernel-Replace-kabi-member-susfs.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        cp kernel_patch/0001-kernel-SUS_PATH-Fix-leaking-dentry-lock-ref-count.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
 
         echo "Applying patch..."
         for patch_file in \
-          0001-susfs-v1.5.9.patch \
-          0001-update-scope-minimized-manual-hooks-v1.2-to-v1.5-via-do_execve.patch \
-          0001-kernel-Replace-kabi-member-susfs.patch \
-          0001-kernel-SUS_PATH-Fix-leaking-dentry-lock-ref-count.patch
+          0001-fs-susfs.patch \
+          0001-update-scope-minimized-manual-hooks-v1.2-to-v1.5-via-do_execve.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
@@ -237,17 +233,13 @@ jobs:
     - name: Patching KSUN
       if: env.PATCHING_KSUN == 'true'
       run: |
-        cp kernelsu_patch/0001-susfsv159-to-ksun-v1.0.9.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
-        cp kernelsu_patch/0001-KernelSU-Refactor-show-enabled_features.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
+        cp kernelsu_patch/0001-susfs-v1.5.9_v1.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
         cp kernelsu_patch/0001-kernel-synchronize-with-the-latest-scope-minimized-m.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
-        cp kernelsu_patch/0001-KernelSU-Replace-kabi-member-susfs_task_state-of-tas.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
 
         echo "Applying patch..."
         for patch_file in \
           0001-susfsv159-to-ksun-v1.0.9.patch \
-          0001-kernel-synchronize-with-the-latest-scope-minimized-m.patch \
-          0001-KernelSU-Replace-kabi-member-susfs_task_state-of-tas.patch
+          0001-kernel-synchronize-with-the-latest-scope-minimized-m.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."

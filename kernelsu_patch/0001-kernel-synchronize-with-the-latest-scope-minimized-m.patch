@@ -1,6 +1,6 @@
-From 8c5909b8a508b2b24d813beba14c92433d471fb9 Mon Sep 17 00:00:00 2001
+From f9d81543431fee7c4e2741df3e49cc126ed50e24 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sun, 13 Jul 2025 10:47:02 +0000
+Date: Tue, 15 Jul 2025 14:37:27 +0000
 Subject: [PATCH] kernel: synchronize with the latest 'scope-minimized manual 
  hooks' -v1.5
 
@@ -13,7 +13,7 @@ Subject: [PATCH] kernel: synchronize with the latest 'scope-minimized manual
  5 files changed, 239 insertions(+), 160 deletions(-)
 
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index 0aa80dec..235b590a 100644
+index ecfd6be6..3fc22f59 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
 @@ -7,6 +7,7 @@
@@ -41,7 +41,7 @@ index 0aa80dec..235b590a 100644
  #ifdef CONFIG_KSU_SUSFS
  bool susfs_is_allow_su(void)
  {
-@@ -1277,6 +1288,46 @@ int ksu_key_permission(key_ref_t key_ref, const struct cred *cred,
+@@ -1294,6 +1305,46 @@ int ksu_key_permission(key_ref_t key_ref, const struct cred *cred,
  }
  #endif
  
@@ -88,7 +88,7 @@ index 0aa80dec..235b590a 100644
  #ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
  static int ksu_task_prctl(int option, unsigned long arg2, unsigned long arg3,
  			  unsigned long arg4, unsigned long arg5)
-@@ -1299,6 +1350,7 @@ static int ksu_task_fix_setuid(struct cred *new, const struct cred *old,
+@@ -1316,6 +1367,7 @@ static int ksu_task_fix_setuid(struct cred *new, const struct cred *old,
  
  #ifndef MODULE
  static struct security_hook_list ksu_hooks[] = {
