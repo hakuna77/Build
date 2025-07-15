@@ -1,6 +1,6 @@
-From 1488dd741285ccd413f1c3b66f0b80032c38ba4a Mon Sep 17 00:00:00 2001
+From a2830da7bedaf5984b3c9e0a763a8d0626a826cb Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Tue, 15 Jul 2025 19:56:07 +0000
+Date: Tue, 15 Jul 2025 20:42:52 +0000
 Subject: [PATCH] susfs v1.5.9
 
 ---
@@ -11,6 +11,7 @@ Subject: [PATCH] susfs v1.5.9
  kernel/apk_sign.c        |   2 +-
  kernel/apk_sign.h        |   2 +-
  kernel/core_hook.c       | 577 +++++++++++++++++++++++++++++++++++++--
+ kernel/kernel_compat.c   |   2 +-
  kernel/kernel_compat.h   |   1 +
  kernel/ksu.c             |  16 +-
  kernel/ksud.c            |  21 +-
@@ -22,7 +23,7 @@ Subject: [PATCH] susfs v1.5.9
  kernel/sucompat.c        | 106 +++++--
  kernel/throne_tracker.c  |   4 +-
  kernel/throne_tracker.h  |   2 +-
- 18 files changed, 947 insertions(+), 80 deletions(-)
+ 19 files changed, 948 insertions(+), 81 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 706fd07f..4886543c 100644
@@ -1013,6 +1014,19 @@ index 6bbb350c..ecfd6be6 100644
  	return 0;
  }
  
+diff --git a/kernel/kernel_compat.c b/kernel/kernel_compat.c
+index db47f8eb..2b4fd47e 100644
+--- a/kernel/kernel_compat.c
++++ b/kernel/kernel_compat.c
+@@ -174,7 +174,7 @@ long ksu_strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr,
+ }
+ #endif
+ 
+-static inline int ksu_access_ok(const void *addr, unsigned long size)
++int ksu_access_ok(const void *addr, unsigned long size)
+ {
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+ 	return access_ok(addr, size);
 diff --git a/kernel/kernel_compat.h b/kernel/kernel_compat.h
 index c85e9e2c..cad307a0 100644
 --- a/kernel/kernel_compat.h
