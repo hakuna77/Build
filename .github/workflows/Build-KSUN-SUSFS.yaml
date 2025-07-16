@@ -240,7 +240,8 @@ jobs:
         echo "Applying patch..."
         for patch_file in \
           0001-susfs-v1.5.9.patch \
-          0001-kernel-ksud-migrate-ksud-execution-to-security_bprm_.patch
+          0001-kernel-ksud-migrate-ksud-execution-to-security_bprm_.patch \
+          0001-sus_su.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
@@ -276,8 +277,8 @@ jobs:
                 echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
                 echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
                 echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-                echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-                echo "CONFIG_KSU_KPROBES_HOOK=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+                echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+                echo "CONFIG_KSU_KPROBES_HOOK=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
                 echo "CONFIG_KSU_LSM_SECURITY_HOOKS=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             fi
         fi
