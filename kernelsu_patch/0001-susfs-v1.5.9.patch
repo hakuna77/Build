@@ -1,6 +1,6 @@
-From a2830da7bedaf5984b3c9e0a763a8d0626a826cb Mon Sep 17 00:00:00 2001
+From 0fe8db2eca87edcb21e7627d9692f7d60a029827 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Tue, 15 Jul 2025 20:42:52 +0000
+Date: Wed, 16 Jul 2025 16:18:05 +0000
 Subject: [PATCH] susfs v1.5.9
 
 ---
@@ -1438,7 +1438,7 @@ index 07120c25..d0dfdf9c 100644
  u32 ksu_get_devpts_sid();
  
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index 11b2a551..2c83b5cb 100644
+index c58d6293..4bfec242 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
 @@ -13,6 +13,9 @@
@@ -1606,7 +1606,7 @@ index 11b2a551..2c83b5cb 100644
  
  #ifndef CONFIG_KSU_KPROBES_HOOK
  	if (!ksu_sucompat_non_kp) {
-@@ -206,7 +240,7 @@ int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
+@@ -191,7 +225,7 @@ int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
  	pr_info("sys_execve su found\n");
  	*filename_user = ksud_user_path();
  
@@ -1615,7 +1615,7 @@ index 11b2a551..2c83b5cb 100644
  
  	return 0;
  }
-@@ -352,3 +386,41 @@ void ksu_sucompat_exit()
+@@ -337,3 +371,41 @@ void ksu_sucompat_exit()
  	pr_info("ksu_sucompat_exit: hooks disabled: execve/execveat_su, faccessat, stat, devpts\n");
  #endif
  }

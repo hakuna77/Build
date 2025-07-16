@@ -1,6 +1,6 @@
-From f1dcb9004eb65d3e3a7199d4356298e951724456 Mon Sep 17 00:00:00 2001
+From 3b1f786724d40705cbad6d8da76b554f147bd701 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Wed, 16 Jul 2025 12:17:29 +0000
+Date: Wed, 16 Jul 2025 16:19:37 +0000
 Subject: [PATCH] kernel: sucompat: dummify and micro-optimize devpts hook
 
 ---
@@ -31,10 +31,10 @@ index ecfd6be6..afc687fd 100644
  	return 0;
  }
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index 2c83b5cb..9e6fbc2a 100644
+index 4bfec242..c83afb23 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
-@@ -245,7 +245,12 @@ int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
+@@ -230,7 +230,12 @@ int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
  	return 0;
  }
  
@@ -47,7 +47,7 @@ index 2c83b5cb..9e6fbc2a 100644
  {
  #ifndef CONFIG_KSU_KPROBES_HOOK
  	if (!ksu_sucompat_non_kp) {
-@@ -263,20 +268,16 @@ int ksu_handle_devpts(struct inode *inode)
+@@ -248,20 +253,16 @@ int ksu_handle_devpts(struct inode *inode)
  		return 0;
  	}
  
