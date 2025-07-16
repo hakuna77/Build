@@ -1,0 +1,78 @@
+From f1dcb9004eb65d3e3a7199d4356298e951724456 Mon Sep 17 00:00:00 2001
+From: JJ-Coffee <akuntrial042@gmail.com>
+Date: Wed, 16 Jul 2025 12:17:29 +0000
+Subject: [PATCH] kernel: sucompat: dummify and micro-optimize devpts hook
+
+---
+ kernel/core_hook.c |  4 ++--
+ kernel/sucompat.c  | 19 ++++++++++---------
+ 2 files changed, 12 insertions(+), 11 deletions(-)
+
+diff --git a/kernel/core_hook.c b/kernel/core_hook.c
+index ecfd6be6..afc687fd 100644
+--- a/kernel/core_hook.c
++++ b/kernel/core_hook.c
+@@ -1263,7 +1263,7 @@ __maybe_unused int ksu_kprobe_exit(void)
+ 	return 0;
+ }
+ 
+-extern int ksu_handle_devpts(struct inode *inode); // sucompat.c
++extern int __ksu_handle_devpts(struct inode *inode); // sucompat.c
+ 
+ static int ksu_inode_permission(struct inode *inode, int mask)
+ {
+@@ -1271,7 +1271,7 @@ static int ksu_inode_permission(struct inode *inode, int mask)
+ #ifdef CONFIG_KSU_DEBUG
+ 		pr_info("%s: devpts inode accessed with mask: %x\n", __func__, mask);
+ #endif
+-		ksu_handle_devpts(inode);
++		__ksu_handle_devpts(inode);
+ 	}
+ 	return 0;
+ }
+diff --git a/kernel/sucompat.c b/kernel/sucompat.c
+index 2c83b5cb..9e6fbc2a 100644
+--- a/kernel/sucompat.c
++++ b/kernel/sucompat.c
+@@ -245,7 +245,12 @@ int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
+ 	return 0;
+ }
+ 
++//dummified
+ int ksu_handle_devpts(struct inode *inode)
++{
++	return 0;
++}
++int __ksu_handle_devpts(struct inode *inode)
+ {
+ #ifndef CONFIG_KSU_KPROBES_HOOK
+ 	if (!ksu_sucompat_non_kp) {
+@@ -263,20 +268,16 @@ int ksu_handle_devpts(struct inode *inode)
+ 		return 0;
+ 	}
+ 
+-	if (!ksu_is_allow_uid(uid))
++	if (likely(!ksu_is_allow_uid(uid)))
+ 		return 0;
+ 
+-	if (ksu_devpts_sid) {
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+-		struct inode_security_struct *sec = selinux_inode(inode);
++	struct inode_security_struct *sec = selinux_inode(inode);
+ #else
+-		struct inode_security_struct *sec =
+-			(struct inode_security_struct *)inode->i_security;
++	struct inode_security_struct *sec = (struct inode_security_struct *)inode->i_security;
+ #endif
+-		if (sec) {
+-			sec->sid = ksu_devpts_sid;
+-		}
+-	}
++	if (ksu_devpts_sid && sec)
++		sec->sid = ksu_devpts_sid;
+ 
+ 	return 0;
+ }
+-- 
+2.34.1
+
