@@ -239,8 +239,7 @@ jobs:
 
         echo "Applying patch..."
         for patch_file in \
-          0001-susfs-v1.5.9.patch \
-          0001-kernel-sucompat-dummify-and-micro-optimize-devpts-ho.patch
+          0001-susfs-v1.5.9.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
