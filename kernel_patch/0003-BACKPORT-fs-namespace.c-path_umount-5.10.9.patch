@@ -1,0 +1,69 @@
+From b1b8d259ac81520abe6f7cba8f229a995ab16d7f Mon Sep 17 00:00:00 2001
+From: JJ-Coffee <akuntrial042@gmail.com>
+Date: Fri, 18 Jul 2025 20:39:11 +0000
+Subject: [PATCH 3/6] BACKPORT: fs/namespace.c path_umount [5.10.9]
+
+---
+ fs/internal.h  |  1 +
+ fs/namespace.c | 33 +++++++++++++++++++++++++++++++++
+ 2 files changed, 34 insertions(+)
+
+diff --git a/fs/internal.h b/fs/internal.h
+index b4338451c..6c3d8a3b9 100644
+--- a/fs/internal.h
++++ b/fs/internal.h
+@@ -68,6 +68,7 @@ extern int finish_automount(struct vfsmount *, struct path *);
+ extern int sb_prepare_remount_readonly(struct super_block *);
+ 
+ extern void __init mnt_init(void);
++int path_umount(struct path *path, int flags);
+ 
+ extern int __mnt_want_write(struct vfsmount *);
+ extern int __mnt_want_write_file(struct file *);
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 8e852fed0..6135217cb 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -1721,6 +1721,39 @@ static inline bool may_mandlock(void)
+ 	return capable(CAP_SYS_ADMIN);
+ }
+ 
++static int can_umount(const struct path *path, int flags)
++{
++	struct mount *mnt = real_mount(path->mnt);
++
++	if (!may_mount())
++		return -EPERM;
++	if (path->dentry != path->mnt->mnt_root)
++		return -EINVAL;
++	if (!check_mnt(mnt))
++		return -EINVAL;
++	if (mnt->mnt.mnt_flags & MNT_LOCKED) /* Check optimistically */
++		return -EINVAL;
++	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
++		return -EPERM;
++	return 0;
++}
++
++// caller is responsible for flags being sane
++int path_umount(struct path *path, int flags)
++{
++	struct mount *mnt = real_mount(path->mnt);
++	int ret;
++
++	ret = can_umount(path, flags);
++	if (!ret)
++		ret = do_umount(mnt, flags);
++
++	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
++	dput(path->dentry);
++	mntput_no_expire(mnt);
++	return ret;
++}
++
+ /*
+  * Now umount can handle mount points as well as block devices.
+  * This is important for filesystems which use unnamed block devices.
+-- 
+2.34.1
+

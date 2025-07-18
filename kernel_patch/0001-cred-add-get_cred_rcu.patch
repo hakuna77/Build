@@ -1,0 +1,48 @@
+From f5cc6de11566742b431d9cd6b2bbca0261fe982a Mon Sep 17 00:00:00 2001
+From: JJ-Coffee <akuntrial042@gmail.com>
+Date: Fri, 18 Jul 2025 20:33:55 +0000
+Subject: [PATCH 1/6] cred: add get_cred_rcu()
+
+---
+ include/linux/cred.h | 11 +++++++++++
+ kernel/cred.c        |  2 +-
+ 2 files changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/include/linux/cred.h b/include/linux/cred.h
+index 2a0d46742..8e7cb6cd2 100644
+--- a/include/linux/cred.h
++++ b/include/linux/cred.h
+@@ -251,6 +251,17 @@ static inline const struct cred *get_cred(const struct cred *cred)
+ 	return get_new_cred(nonconst_cred);
+ }
+ 
++static inline const struct cred *get_cred_rcu(const struct cred *cred)
++{
++	struct cred *nonconst_cred = (struct cred *) cred;
++	if (!cred)
++		return NULL;
++	if (!atomic_inc_not_zero(&nonconst_cred->usage))
++		return NULL;
++	validate_creds(cred);
++	return cred;
++}
++
+ /**
+  * put_cred - Release a reference to a set of credentials
+  * @cred: The credentials to release
+diff --git a/kernel/cred.c b/kernel/cred.c
+index a9f0f8b21..42d81d6ee 100644
+--- a/kernel/cred.c
++++ b/kernel/cred.c
+@@ -197,7 +197,7 @@ const struct cred *get_task_cred(struct task_struct *task)
+ 	do {
+ 		cred = __task_cred((task));
+ 		BUG_ON(!cred);
+-	} while (!atomic_inc_not_zero(&((struct cred *)cred)->usage));
++	} while (!get_cred_rcu(cred));
+ 
+ 	rcu_read_unlock();
+ 	return cred;
+-- 
+2.34.1
+

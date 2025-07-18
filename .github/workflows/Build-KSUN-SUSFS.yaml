@@ -201,8 +201,12 @@ jobs:
 
         echo "Applying patch..."
         for patch_file in \
-          0001-fs-susfs.patch \
-          0001-update-scope-minimized-manual-hooks-v1.2-to-v1.5-via-do_execve.patch
+          0001-cred-add-get_cred_rcu.patch \
+          0002-BACKPORT-ptrace-Move-setting-clearing.patch \
+          0003-BACKPORT-fs-namespace.c-path_umount-5.10.9.patch \
+          0004-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
+          0005-KernelSU-integrate-scope-minimized-manual-hooks-k4.1.patch \
+          0006-susfs-v1.5.9.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
