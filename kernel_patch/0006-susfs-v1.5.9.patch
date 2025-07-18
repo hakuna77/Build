@@ -1,13 +1,13 @@
-From aa9028b3b073428096b4fcfff0d780aaf9271a43 Mon Sep 17 00:00:00 2001
+From 3c49fb2e144004ab233717107c5b3baa20e958b0 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Fri, 18 Jul 2025 21:17:14 +0000
-Subject: [PATCH 6/6] susfs v1.5.9
+Date: Fri, 18 Jul 2025 23:31:45 +0000
+Subject: [PATCH] susfs v.1.5.9
 
 ---
  fs/Makefile               |    2 +
  fs/namei.c                |  257 +++++++-
  fs/namespace.c            |  295 ++++++++-
- fs/notify/fdinfo.c        |   55 +-
+ fs/notify/fdinfo.c        |   57 +-
  fs/proc/cmdline.c         |   10 +
  fs/proc/fd.c              |   17 +
  fs/proc/task_mmu.c        |   16 +
@@ -22,7 +22,7 @@ Subject: [PATCH 6/6] susfs v1.5.9
  include/linux/susfs_def.h |   98 +++
  kernel/kallsyms.c         |   11 +
  kernel/sys.c              |    6 +
- 18 files changed, 2505 insertions(+), 11 deletions(-)
+ 18 files changed, 2506 insertions(+), 12 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -468,7 +468,7 @@ index 3817aa28b..667cd2256 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..c06538b56 100644
+index 8e852fed0..cfdc837c7 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,39 @@
@@ -747,7 +747,7 @@ index 6135217cb..c06538b56 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -1859,6 +2050,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1826,6 +2017,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  	p = mnt;
  	list_for_each_entry(r, &mnt->mnt_mounts, mnt_child) {
  		struct mount *s;
@@ -755,7 +755,7 @@ index 6135217cb..c06538b56 100644
  		if (!is_subdir(r->mnt_mountpoint, dentry))
  			continue;
  
-@@ -1890,7 +2082,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1857,7 +2049,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  				goto out;
  			lock_mount_hash();
  			list_add_tail(&q->mnt_list, &res->mnt_list);
@@ -764,7 +764,7 @@ index 6135217cb..c06538b56 100644
  			unlock_mount_hash();
  		}
  	}
-@@ -2339,6 +2531,27 @@ static int do_loopback(struct path *path, const char *old_name,
+@@ -2306,6 +2498,27 @@ static int do_loopback(struct path *path, const char *old_name,
  		umount_tree(mnt, UMOUNT_SYNC);
  		unlock_mount_hash();
  	}
@@ -792,7 +792,7 @@ index 6135217cb..c06538b56 100644
  out2:
  	unlock_mount(mp);
  out:
-@@ -2935,6 +3148,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
+@@ -2902,6 +3115,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
  	else
  		retval = do_new_mount(&path, type_page, sb_flags, mnt_flags,
  				      dev_name, data_page);
@@ -808,7 +808,7 @@ index 6135217cb..c06538b56 100644
  dput_out:
  	path_put(&path);
  	return retval;
-@@ -3012,6 +3234,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -2979,6 +3201,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	struct mount *old;
  	struct mount *new;
  	int copy_flags;
@@ -819,7 +819,7 @@ index 6135217cb..c06538b56 100644
  
  	BUG_ON(!ns);
  
-@@ -3031,6 +3257,14 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -2998,6 +3224,14 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -834,7 +834,7 @@ index 6135217cb..c06538b56 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3067,6 +3301,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3034,6 +3268,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -864,7 +864,7 @@ index 6135217cb..c06538b56 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3607,3 +3864,37 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3574,3 +3831,37 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
@@ -903,7 +903,7 @@ index 6135217cb..c06538b56 100644
 +}
 +#endif
 diff --git a/fs/notify/fdinfo.c b/fs/notify/fdinfo.c
-index 517f88c1d..a12e956e9 100644
+index 517f88c1d..364e1ab39 100644
 --- a/fs/notify/fdinfo.c
 +++ b/fs/notify/fdinfo.c
 @@ -13,6 +13,9 @@
@@ -956,7 +956,7 @@ index 517f88c1d..a12e956e9 100644
  {
  	struct inotify_inode_mark *inode_mark;
  	struct inode *inode;
-@@ -83,13 +101,36 @@ static void inotify_fdinfo(struct seq_file *m, struct fsnotify_mark *mark)
+@@ -83,16 +101,39 @@ static void inotify_fdinfo(struct seq_file *m, struct fsnotify_mark *mark)
  	inode_mark = container_of(mark, struct inotify_inode_mark, fsn_mark);
  	inode = igrab(mark->connector->inode);
  	if (inode) {
@@ -999,7 +999,11 @@ index 517f88c1d..a12e956e9 100644
 +#endif
  		seq_printf(m, "inotify wd:%x ino:%lx sdev:%x mask:%x ignored_mask:%x ",
  			   inode_mark->wd, inode->i_ino, inode->i_sb->s_dev,
- 			   mask, mark->ignored_mask);
+-			   mask, mark->ignored_mask);
++			   inotify_mark_user_mask(mark));
+ 		show_mark_fhandle(m, inode);
+ 		seq_putc(m, '\n');
+ 		iput(inode);
 diff --git a/fs/proc/cmdline.c b/fs/proc/cmdline.c
 index 403cbb12a..7c3fad2cb 100644
 --- a/fs/proc/cmdline.c
@@ -1630,7 +1634,7 @@ index 0c357663e..51ef27ba4 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (error >= 0)
 diff --git a/fs/stat.c b/fs/stat.c
-index e37288cf2..d20e19d47 100644
+index 873785dae..5acec06e7 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,9 @@
