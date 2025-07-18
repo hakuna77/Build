@@ -1,13 +1,13 @@
-From 3c49fb2e144004ab233717107c5b3baa20e958b0 Mon Sep 17 00:00:00 2001
+From 97dc17891f0b0939002d46021b3b8925fcd7c4b8 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Fri, 18 Jul 2025 23:31:45 +0000
-Subject: [PATCH] susfs v.1.5.9
+Date: Fri, 18 Jul 2025 23:55:20 +0000
+Subject: [PATCH] susfs v1.5.9
 
 ---
  fs/Makefile               |    2 +
  fs/namei.c                |  257 +++++++-
  fs/namespace.c            |  295 ++++++++-
- fs/notify/fdinfo.c        |   57 +-
+ fs/notify/fdinfo.c        |   48 ++
  fs/proc/cmdline.c         |   10 +
  fs/proc/fd.c              |   17 +
  fs/proc/task_mmu.c        |   16 +
@@ -22,7 +22,7 @@ Subject: [PATCH] susfs v.1.5.9
  include/linux/susfs_def.h |   98 +++
  kernel/kallsyms.c         |   11 +
  kernel/sys.c              |    6 +
- 18 files changed, 2506 insertions(+), 12 deletions(-)
+ 18 files changed, 2505 insertions(+), 4 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -903,7 +903,7 @@ index 8e852fed0..cfdc837c7 100644
 +}
 +#endif
 diff --git a/fs/notify/fdinfo.c b/fs/notify/fdinfo.c
-index 517f88c1d..364e1ab39 100644
+index c62a87ee3..f3437ed78 100644
 --- a/fs/notify/fdinfo.c
 +++ b/fs/notify/fdinfo.c
 @@ -13,6 +13,9 @@
@@ -956,17 +956,10 @@ index 517f88c1d..364e1ab39 100644
  {
  	struct inotify_inode_mark *inode_mark;
  	struct inode *inode;
-@@ -83,16 +101,39 @@ static void inotify_fdinfo(struct seq_file *m, struct fsnotify_mark *mark)
+@@ -83,6 +101,36 @@ static void inotify_fdinfo(struct seq_file *m, struct fsnotify_mark *mark)
  	inode_mark = container_of(mark, struct inotify_inode_mark, fsn_mark);
  	inode = igrab(mark->connector->inode);
  	if (inode) {
--		/*
--		 * IN_ALL_EVENTS represents all of the mask bits
--		 * that we expose to userspace.  There is at
--		 * least one bit (FS_EVENT_ON_CHILD) which is
--		 * used only internally to the kernel.
--		 */
--		u32 mask = mark->mask & IN_ALL_EVENTS;
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +		if (likely(susfs_is_current_non_root_user_app_proc()) &&
 +				unlikely(inode->i_mapping->flags & BIT_SUS_KSTAT)) {
@@ -997,13 +990,9 @@ index 517f88c1d..364e1ab39 100644
 +		}
 +out_seq_printf:
 +#endif
- 		seq_printf(m, "inotify wd:%x ino:%lx sdev:%x mask:%x ignored_mask:%x ",
+ 		seq_printf(m, "inotify wd:%x ino:%lx sdev:%x mask:%x ignored_mask:0 ",
  			   inode_mark->wd, inode->i_ino, inode->i_sb->s_dev,
--			   mask, mark->ignored_mask);
-+			   inotify_mark_user_mask(mark));
- 		show_mark_fhandle(m, inode);
- 		seq_putc(m, '\n');
- 		iput(inode);
+ 			   inotify_mark_user_mask(mark));
 diff --git a/fs/proc/cmdline.c b/fs/proc/cmdline.c
 index 403cbb12a..7c3fad2cb 100644
 --- a/fs/proc/cmdline.c
