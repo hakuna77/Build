@@ -204,6 +204,7 @@ jobs:
           0001-cred-add-get_cred_rcu.patch \
           0002-BACKPORT-ptrace-Move-setting-clearing.patch \
           0003-BACKPORT-fs-namespace.c-path_umount-5.10.9.patch \
+          0001-inotify-show-inotify-mask-flags-in-proc-fdinfo.patch \
           0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
           0007-KernelSU-integrate-scope-minimized-manual-hooks-k4.1.patch \
           0008-susfs-v1.5.9.patch
