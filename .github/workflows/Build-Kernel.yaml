@@ -250,7 +250,7 @@ jobs:
           0001-inotify-show-inotify-mask-flags-in-proc-fdinfo.patch \
           0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
           0001-scope-minimized-manual-hooks-v1.4.patch \
-          0008-susfs-v1.5.9.patch
+          0001-susfs-v.1.5.9-sidex.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
