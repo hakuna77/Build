@@ -1,7 +1,7 @@
-From 3e1e26be7f8cf17c40c3c02eb1692a67d7b8ac57 Mon Sep 17 00:00:00 2001
+From 150955f21029ac98eff0c414185397501affb0b4 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sun, 20 Jul 2025 23:24:58 +0000
-Subject: [PATCH] susfs v1
+Date: Mon, 21 Jul 2025 02:05:39 +0000
+Subject: [PATCH] susfs v1.5.9
 
 ---
  .gitignore               |   3 +
@@ -10,7 +10,7 @@ Subject: [PATCH] susfs v1
  kernel/allowlist.c       |  10 +-
  kernel/apk_sign.c        |   2 +-
  kernel/apk_sign.h        |   2 +-
- kernel/core_hook.c       | 589 ++++++++++++++++++++++++++++++++++++---
+ kernel/core_hook.c       | 577 +++++++++++++++++++++++++++++++++++++--
  kernel/kernel_compat.c   |   2 +-
  kernel/kernel_compat.h   |   1 +
  kernel/ksu.c             |  16 +-
@@ -23,8 +23,7 @@ Subject: [PATCH] susfs v1
  kernel/sucompat.c        | 106 +++++--
  kernel/throne_tracker.c  |   4 +-
  kernel/throne_tracker.h  |   2 +-
- 20 files changed, 966 insertions(+), 87 deletions(-)
- create mode 100755 getpatch.sh
+ 19 files changed, 949 insertions(+), 81 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 706fd07f..4886543c 100644
@@ -273,7 +272,7 @@ index bed501c4..e02aa514 100644
  
  #endif
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index cbefd271..f25b9407 100644
+index 478c0805..ec1c31dd 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
 @@ -35,6 +35,10 @@
@@ -971,7 +970,7 @@ index cbefd271..f25b9407 100644
  	if (!is_zygote_child) {
  		pr_info("handle umount ignore non zygote child: %d\n",
  			current->pid);
-@@ -655,34 +1177,39 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -655,26 +1177,31 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  		current->pid);
  #endif
  
@@ -1008,23 +1007,9 @@ index cbefd271..f25b9407 100644
  	// try umount lsposed dex2oat bins
 -	try_umount("/apex/com.android.art/bin/dex2oat64", false, MNT_DETACH);
 -	try_umount("/apex/com.android.art/bin/dex2oat32", false, MNT_DETACH);
+-
 +	ksu_try_umount("/apex/com.android.art/bin/dex2oat64", false, MNT_DETACH);
 +	ksu_try_umount("/apex/com.android.art/bin/dex2oat32", false, MNT_DETACH);
- 
- 	// try umount su binary of kernelnosu
--	try_umount("/system/bin/su", false, MNT_DETACH);
--	try_umount("/system/xbin/su", false, MNT_DETACH);
--	try_umount("/product/xbin/su", false, MNT_DETACH);
--	try_umount("/vendor/xbin/su", false, MNT_DETACH);
--	try_umount("/odm/xbin/su", false, MNT_DETACH);
--	try_umount("/system_ext/xbin/sudo", false, MNT_DETACH);
--
-+	ksu_try_umount("/system/bin/su", false, MNT_DETACH);
-+	ksu_try_umount("/system/xbin/su", false, MNT_DETACH);
-+	ksu_try_umount("/product/xbin/su", false, MNT_DETACH);
-+	ksu_try_umount("/vendor/xbin/su", false, MNT_DETACH);
-+	ksu_try_umount("/odm/xbin/su", false, MNT_DETACH);
-+	ksu_try_umount("/system_ext/xbin/sudo", false, MNT_DETACH);
 +#endif
  	return 0;
  }
