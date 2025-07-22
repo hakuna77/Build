@@ -1,7 +1,7 @@
-From ff1ccef72ef502f221d371c7a66cac060f5823e1 Mon Sep 17 00:00:00 2001
+From 687fb7f381a2e1b1c2c5e5bf07f2507109fcf89a Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Mon, 21 Jul 2025 11:47:10 +0000
-Subject: [PATCH] susfs v.1.5.9 sidex
+Date: Tue, 22 Jul 2025 13:31:43 +0000
+Subject: [PATCH] susfs test
 
 ---
  fs/Makefile               |    2 +
@@ -13,7 +13,7 @@ Subject: [PATCH] susfs v.1.5.9 sidex
  fs/proc/task_mmu.c        |   17 +-
  fs/proc_namespace.c       |   23 +
  fs/readdir.c              |  279 +++++++-
- fs/stat.c                 |   18 +
+ fs/stat.c                 |   31 +
  fs/statfs.c               |   21 +
  fs/susfs.c                | 1306 +++++++++++++++++++++++++++++++++++++
  include/linux/mount.h     |    3 +
@@ -22,7 +22,7 @@ Subject: [PATCH] susfs v.1.5.9 sidex
  include/linux/susfs_def.h |  105 +++
  kernel/kallsyms.c         |   11 +
  kernel/sys.c              |    6 +
- 18 files changed, 2623 insertions(+), 5 deletions(-)
+ 18 files changed, 2636 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1629,20 +1629,22 @@ index 0c357663e..51ef27ba4 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (error >= 0)
 diff --git a/fs/stat.c b/fs/stat.c
-index 873785dae..5acec06e7 100644
+index 873785dae..f5a737111 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
-@@ -17,6 +17,9 @@
+@@ -17,6 +17,11 @@
  #include <linux/syscalls.h>
  #include <linux/pagemap.h>
  #include <linux/compat.h>
 +#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MOUNT)
 +#include <linux/susfs_def.h>
++#include "internal.h"
++#include "mount.h"
 +#endif
  
  #include <linux/uaccess.h>
  #include <asm/unistd.h>
-@@ -30,8 +33,23 @@
+@@ -30,8 +35,23 @@
   * found on the VFS inode structure.  This is the default if no getattr inode
   * operation is supplied.
   */
@@ -1666,6 +1668,32 @@ index 873785dae..5acec06e7 100644
  	stat->dev = inode->i_sb->s_dev;
  	stat->ino = inode->i_ino;
  	stat->mode = inode->i_mode;
+@@ -169,6 +189,9 @@ int vfs_statx(int dfd, const char __user *filename, int flags,
+ 	struct path path;
+ 	int error = -EINVAL;
+ 	unsigned int lookup_flags = LOOKUP_FOLLOW | LOOKUP_AUTOMOUNT;
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	struct mount *mnt;
++#endif
+ 
+ 	if ((flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT |
+ 		       AT_EMPTY_PATH | KSTAT_QUERY_FLAGS)) != 0)
+@@ -187,7 +210,15 @@ retry:
+ 		goto out;
+ 
+ 	error = vfs_getattr(&path, stat, request_mask, flags);
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	mnt = real_mount(path.mnt);
++	if (likely(susfs_is_current_non_root_user_app_proc())) {
++		for (; mnt->mnt_id >= DEFAULT_SUS_MNT_ID; mnt = mnt->mnt_parent) {}
++	}
++	stat->mnt_id = mnt->mnt_id;
++#else
+ 	path_put(&path);
++#endif
+ 	if (retry_estale(error, lookup_flags)) {
+ 		lookup_flags |= LOOKUP_REVAL;
+ 		goto retry;
 diff --git a/fs/statfs.c b/fs/statfs.c
 index ca1084cbe..a0300326b 100644
 --- a/fs/statfs.c
