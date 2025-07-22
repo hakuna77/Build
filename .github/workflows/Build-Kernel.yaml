@@ -248,6 +248,7 @@ jobs:
           0002-BACKPORT-ptrace-Move-setting-clearing.patch \
           0003-BACKPORT-fs-namespace.c-path_umount-5.10.9.patch \
           0001-inotify-show-inotify-mask-flags-in-proc-fdinfo.patch \
+          0001-BACKPORT-statx-add-mount-ID.patch \
           0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
           0001-scope-minimized-manual-hooks-v1.4.patch \
           0001-susfs-v.1.5.9-sidex.patch
