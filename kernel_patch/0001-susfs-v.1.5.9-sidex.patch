@@ -1,6 +1,6 @@
-From ff1ccef72ef502f221d371c7a66cac060f5823e1 Mon Sep 17 00:00:00 2001
+From 60f4006302b1537e8f97650f1adf17b19174051b Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Mon, 21 Jul 2025 11:47:10 +0000
+Date: Tue, 22 Jul 2025 11:17:16 +0000
 Subject: [PATCH] susfs v.1.5.9 sidex
 
 ---
@@ -1111,7 +1111,7 @@ index 924dc8249..0172b4cea 100644
  	}
  
 diff --git a/fs/proc_namespace.c b/fs/proc_namespace.c
-index b859aaeec..5f35aba40 100644
+index b859aaeec..ab76df58e 100644
 --- a/fs/proc_namespace.c
 +++ b/fs/proc_namespace.c
 @@ -12,12 +12,20 @@
@@ -1140,7 +1140,7 @@ index b859aaeec..5f35aba40 100644
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID)&&(susfs_hide_sus_mnts_for_all_procs || !susfs_is_current_ksu_domain()))
++	if (unlikely(r->mnt.mnt_root->d_inode->i_mapping->flags & BIT_SUS_MOUNT)&&(susfs_hide_sus_mnts_for_all_procs || !susfs_is_current_ksu_domain()))
 +		return 0;
 +#endif
 +
@@ -1152,7 +1152,7 @@ index b859aaeec..5f35aba40 100644
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID)&&(susfs_hide_sus_mnts_for_all_procs || !susfs_is_current_ksu_domain()))
++	if (unlikely(r->mnt.mnt_root->d_inode->i_mapping->flags & BIT_SUS_MOUNT)&&(susfs_hide_sus_mnts_for_all_procs || !susfs_is_current_ksu_domain()))
 +		return 0;
 +#endif
 +
@@ -1164,7 +1164,7 @@ index b859aaeec..5f35aba40 100644
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID)&&(susfs_hide_sus_mnts_for_all_procs || !susfs_is_current_ksu_domain()))
++	if (unlikely(r->mnt.mnt_root->d_inode->i_mapping->flags & BIT_SUS_MOUNT)&&(susfs_hide_sus_mnts_for_all_procs || !susfs_is_current_ksu_domain()))
 +		return 0;
 +#endif
 +
