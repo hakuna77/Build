@@ -1,6 +1,6 @@
-From d64e78049868eff1d4c3564ff8815b00acbcae61 Mon Sep 17 00:00:00 2001
+From d4ea4ff28b294f88a5e29b81bcfd0487445f0916 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Wed, 23 Jul 2025 10:11:35 +0000
+Date: Wed, 23 Jul 2025 12:18:27 +0000
 Subject: [PATCH] susfs test
 
 ---
@@ -13,7 +13,7 @@ Subject: [PATCH] susfs test
  fs/proc/task_mmu.c        |   17 +-
  fs/proc_namespace.c       |   26 +
  fs/readdir.c              |  279 +++++++-
- fs/stat.c                 |   32 +-
+ fs/stat.c                 |   30 +
  fs/statfs.c               |   21 +
  fs/susfs.c                | 1306 +++++++++++++++++++++++++++++++++++++
  include/linux/mount.h     |    3 +
@@ -22,7 +22,7 @@ Subject: [PATCH] susfs test
  include/linux/susfs_def.h |  105 +++
  kernel/kallsyms.c         |   11 +
  kernel/sys.c              |    6 +
- 18 files changed, 2639 insertions(+), 6 deletions(-)
+ 18 files changed, 2638 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1632,7 +1632,7 @@ index 0c357663e..51ef27ba4 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (error >= 0)
 diff --git a/fs/stat.c b/fs/stat.c
-index b21367968..d6c1c5294 100644
+index c9594f39e..4839dcd19 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,9 @@
@@ -1669,19 +1669,17 @@ index b21367968..d6c1c5294 100644
  	stat->dev = inode->i_sb->s_dev;
  	stat->ino = inode->i_ino;
  	stat->mode = inode->i_mode;
-@@ -194,7 +212,10 @@ int vfs_statx(int dfd, const char __user *filename, int flags,
+@@ -177,6 +195,9 @@ static int vfs_statx(int dfd, const char __user *filename, int flags,
  	struct path path;
- 	int error = -EINVAL;
- 	unsigned lookup_flags;
--
+ 	unsigned lookup_flags = 0;
+ 	int error;
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	struct mount *mnt;
 +#endif
-+	
- 	if (vfs_stat_set_lookup_flags(&lookup_flags, flags))
- 		return -EINVAL;
- retry:
-@@ -203,7 +224,16 @@ retry:
+ 
+ 	if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_EMPTY_PATH |
+ 		      AT_STATX_SYNC_TYPE))
+@@ -195,7 +216,16 @@ retry:
  		goto out;
  
  	error = vfs_getattr(&path, stat, request_mask, flags);
