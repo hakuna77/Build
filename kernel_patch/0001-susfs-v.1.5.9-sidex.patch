@@ -1,6 +1,6 @@
-From 1f19011906f231664e1fc040a96c5d9942525acd Mon Sep 17 00:00:00 2001
+From d64e78049868eff1d4c3564ff8815b00acbcae61 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Tue, 22 Jul 2025 20:10:40 +0000
+Date: Wed, 23 Jul 2025 10:11:35 +0000
 Subject: [PATCH] susfs test
 
 ---
@@ -11,7 +11,7 @@ Subject: [PATCH] susfs test
  fs/proc/cmdline.c         |   10 +
  fs/proc/fd.c              |   17 +
  fs/proc/task_mmu.c        |   17 +-
- fs/proc_namespace.c       |   23 +
+ fs/proc_namespace.c       |   26 +
  fs/readdir.c              |  279 +++++++-
  fs/stat.c                 |   32 +-
  fs/statfs.c               |   21 +
@@ -22,7 +22,7 @@ Subject: [PATCH] susfs test
  include/linux/susfs_def.h |  105 +++
  kernel/kallsyms.c         |   11 +
  kernel/sys.c              |    6 +
- 18 files changed, 2636 insertions(+), 6 deletions(-)
+ 18 files changed, 2639 insertions(+), 6 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1111,7 +1111,7 @@ index 924dc8249..0172b4cea 100644
  	}
  
 diff --git a/fs/proc_namespace.c b/fs/proc_namespace.c
-index b859aaeec..5f35aba40 100644
+index b859aaeec..6fab80260 100644
 --- a/fs/proc_namespace.c
 +++ b/fs/proc_namespace.c
 @@ -12,12 +12,20 @@
@@ -1135,37 +1135,40 @@ index b859aaeec..5f35aba40 100644
  static unsigned mounts_poll(struct file *file, poll_table *wait)
  {
  	struct seq_file *m = file->private_data;
-@@ -102,6 +110,11 @@ static int show_vfsmnt(struct seq_file *m, struct vfsmount *mnt)
+@@ -102,6 +110,12 @@ static int show_vfsmnt(struct seq_file *m, struct vfsmount *mnt)
  	struct super_block *sb = mnt_path.dentry->d_sb;
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (unlikely(r->mnt.mnt_root->d_inode->i_mapping->flags & BIT_SUS_MOUNT)&&(susfs_hide_sus_mnts_for_all_procs || !susfs_is_current_ksu_domain()))
++	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID && susfs_hide_sus_mnts_for_all_procs)) {
 +		return 0;
++	}
 +#endif
 +
  	if (sb->s_op->show_devname) {
  		err = sb->s_op->show_devname(m, mnt_path.dentry);
  		if (err)
-@@ -138,6 +151,11 @@ static int show_mountinfo(struct seq_file *m, struct vfsmount *mnt)
+@@ -138,6 +152,12 @@ static int show_mountinfo(struct seq_file *m, struct vfsmount *mnt)
  	struct path mnt_path = { .dentry = mnt->mnt_root, .mnt = mnt };
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (unlikely(r->mnt.mnt_root->d_inode->i_mapping->flags & BIT_SUS_MOUNT)&&(susfs_hide_sus_mnts_for_all_procs || !susfs_is_current_ksu_domain()))
++	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID && susfs_hide_sus_mnts_for_all_procs)) {
 +		return 0;
++	}
 +#endif
 +
  	seq_printf(m, "%i %i %u:%u ", r->mnt_id, r->mnt_parent->mnt_id,
  		   MAJOR(sb->s_dev), MINOR(sb->s_dev));
  	if (sb->s_op->show_path) {
-@@ -202,6 +220,11 @@ static int show_vfsstat(struct seq_file *m, struct vfsmount *mnt)
+@@ -202,6 +222,12 @@ static int show_vfsstat(struct seq_file *m, struct vfsmount *mnt)
  	struct super_block *sb = mnt_path.dentry->d_sb;
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (unlikely(r->mnt.mnt_root->d_inode->i_mapping->flags & BIT_SUS_MOUNT)&&(susfs_hide_sus_mnts_for_all_procs || !susfs_is_current_ksu_domain()))
++	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID && susfs_hide_sus_mnts_for_all_procs)) {
 +		return 0;
++	}
 +#endif
 +
  	/* device */
