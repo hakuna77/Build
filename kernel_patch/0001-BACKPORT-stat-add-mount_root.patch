@@ -1,6 +1,6 @@
-From d2ebeaa1db3e15f0b2ce46fd60bc479fbbf4cbf6 Mon Sep 17 00:00:00 2001
+From d215159f298eb579ec7f5137538942419dabd382 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Wed, 23 Jul 2025 12:15:26 +0000
+Date: Wed, 23 Jul 2025 13:41:11 +0000
 Subject: [PATCH] backport: stat
 
 ---
@@ -8,11 +8,11 @@ Subject: [PATCH] backport: stat
  drivers/block/loop.c                 |   4 +-
  fs/internal.h                        |   6 ++
  fs/stat.c                            | 136 +++++++++++++++++----------
- include/linux/fs.h                   |  23 +----
+ include/linux/fs.h                   |  29 ++----
  include/linux/stat.h                 |   3 +-
  include/uapi/linux/stat.h            |  19 +++-
  tools/include/uapi/linux/stat.h      |  11 ++-
- 8 files changed, 126 insertions(+), 77 deletions(-)
+ 8 files changed, 128 insertions(+), 81 deletions(-)
 
 diff --git a/arch/arm64/include/uapi/asm/unistd.h b/arch/arm64/include/uapi/asm/unistd.h
 index 5072cbd15..dae1584cf 100644
@@ -329,10 +329,10 @@ index 873785dae..c9594f39e 100644
  
  #ifdef CONFIG_COMPAT
 diff --git a/include/linux/fs.h b/include/linux/fs.h
-index 6fe92b49d..6ca6ad63b 100644
+index 6fe92b49d..ad28bbd5a 100644
 --- a/include/linux/fs.h
 +++ b/include/linux/fs.h
-@@ -3105,8 +3105,9 @@ extern const struct inode_operations simple_symlink_inode_operations;
+@@ -3105,31 +3105,19 @@ extern const struct inode_operations simple_symlink_inode_operations;
  
  extern int iterate_dir(struct file *, struct dir_context *);
  
@@ -344,10 +344,15 @@ index 6fe92b49d..6ca6ad63b 100644
  
  static inline int vfs_stat(const char __user *filename, struct kstat *stat)
  {
-@@ -3118,17 +3119,6 @@ static inline int vfs_lstat(const char __user *name, struct kstat *stat)
- 	return vfs_statx(AT_FDCWD, name, AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT,
- 			 stat, STATX_BASIC_STATS);
+-	return vfs_statx(AT_FDCWD, filename, AT_NO_AUTOMOUNT,
+-			 stat, STATX_BASIC_STATS);
++	return vfs_fstatat(AT_FDCWD, filename, stat, 0);
  }
+ static inline int vfs_lstat(const char __user *name, struct kstat *stat)
+ {
+-	return vfs_statx(AT_FDCWD, name, AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT,
+-			 stat, STATX_BASIC_STATS);
+-}
 -static inline int vfs_fstatat(int dfd, const char __user *filename,
 -			      struct kstat *stat, int flags)
 -{
@@ -357,12 +362,14 @@ index 6fe92b49d..6ca6ad63b 100644
 -static inline int vfs_fstat(int fd, struct kstat *stat)
 -{
 -	return vfs_statx_fd(fd, stat, STATX_BASIC_STATS, 0);
--}
--
++	return vfs_fstatat(AT_FDCWD, name, stat, AT_SYMLINK_NOFOLLOW);
+ }
  
+-
  extern const char *vfs_get_link(struct dentry *, struct delayed_call *);
  extern int vfs_readlink(struct dentry *, char __user *, int);
-@@ -3232,11 +3222,6 @@ extern void setattr_copy(struct inode *inode, const struct iattr *attr);
+ 
+@@ -3232,11 +3220,6 @@ extern void setattr_copy(struct inode *inode, const struct iattr *attr);
  
  extern int file_update_time(struct file *file);
  
@@ -374,7 +381,7 @@ index 6fe92b49d..6ca6ad63b 100644
  static inline bool vma_is_dax(struct vm_area_struct *vma)
  {
  	return vma->vm_file && IS_DAX(vma->vm_file->f_mapping->host);
-@@ -3261,7 +3246,7 @@ static inline int iocb_flags(struct file *file)
+@@ -3261,7 +3244,7 @@ static inline int iocb_flags(struct file *file)
  	int res = 0;
  	if (file->f_flags & O_APPEND)
  		res |= IOCB_APPEND;
