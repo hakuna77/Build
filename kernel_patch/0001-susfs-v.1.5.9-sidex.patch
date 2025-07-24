@@ -1,6 +1,6 @@
-From d4ea4ff28b294f88a5e29b81bcfd0487445f0916 Mon Sep 17 00:00:00 2001
+From e7c6b5805ab661933e70836267405dbe5208bac3 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Wed, 23 Jul 2025 12:18:27 +0000
+Date: Thu, 24 Jul 2025 08:25:06 +0000
 Subject: [PATCH] susfs test
 
 ---
@@ -11,7 +11,7 @@ Subject: [PATCH] susfs test
  fs/proc/cmdline.c         |   10 +
  fs/proc/fd.c              |   17 +
  fs/proc/task_mmu.c        |   17 +-
- fs/proc_namespace.c       |   26 +
+ fs/proc_namespace.c       |   25 +
  fs/readdir.c              |  279 +++++++-
  fs/stat.c                 |   30 +
  fs/statfs.c               |   21 +
@@ -22,7 +22,7 @@ Subject: [PATCH] susfs test
  include/linux/susfs_def.h |  105 +++
  kernel/kallsyms.c         |   11 +
  kernel/sys.c              |    6 +
- 18 files changed, 2638 insertions(+), 5 deletions(-)
+ 18 files changed, 2637 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1111,10 +1111,10 @@ index 924dc8249..0172b4cea 100644
  	}
  
 diff --git a/fs/proc_namespace.c b/fs/proc_namespace.c
-index b859aaeec..6fab80260 100644
+index b859aaeec..2a03ba420 100644
 --- a/fs/proc_namespace.c
 +++ b/fs/proc_namespace.c
-@@ -12,12 +12,20 @@
+@@ -12,12 +12,19 @@
  #include <linux/security.h>
  #include <linux/fs_struct.h>
  #include <linux/sched/task.h>
@@ -1128,19 +1128,18 @@ index b859aaeec..6fab80260 100644
  #include "internal.h"
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+extern bool susfs_is_current_ksu_domain(void);
 +bool susfs_hide_sus_mnts_for_all_procs = true; // hide sus mounts for all processes by default
 +#endif
 +
  static unsigned mounts_poll(struct file *file, poll_table *wait)
  {
  	struct seq_file *m = file->private_data;
-@@ -102,6 +110,12 @@ static int show_vfsmnt(struct seq_file *m, struct vfsmount *mnt)
+@@ -102,6 +109,12 @@ static int show_vfsmnt(struct seq_file *m, struct vfsmount *mnt)
  	struct super_block *sb = mnt_path.dentry->d_sb;
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID && susfs_hide_sus_mnts_for_all_procs)) {
++	if (susfs_hide_sus_mnts_for_all_procs && r->mnt_id >= DEFAULT_SUS_MNT_ID) {
 +		return 0;
 +	}
 +#endif
@@ -1148,12 +1147,12 @@ index b859aaeec..6fab80260 100644
  	if (sb->s_op->show_devname) {
  		err = sb->s_op->show_devname(m, mnt_path.dentry);
  		if (err)
-@@ -138,6 +152,12 @@ static int show_mountinfo(struct seq_file *m, struct vfsmount *mnt)
+@@ -138,6 +151,12 @@ static int show_mountinfo(struct seq_file *m, struct vfsmount *mnt)
  	struct path mnt_path = { .dentry = mnt->mnt_root, .mnt = mnt };
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID && susfs_hide_sus_mnts_for_all_procs)) {
++	if (susfs_hide_sus_mnts_for_all_procs && r->mnt_id >= DEFAULT_SUS_MNT_ID) {
 +		return 0;
 +	}
 +#endif
@@ -1161,12 +1160,12 @@ index b859aaeec..6fab80260 100644
  	seq_printf(m, "%i %i %u:%u ", r->mnt_id, r->mnt_parent->mnt_id,
  		   MAJOR(sb->s_dev), MINOR(sb->s_dev));
  	if (sb->s_op->show_path) {
-@@ -202,6 +222,12 @@ static int show_vfsstat(struct seq_file *m, struct vfsmount *mnt)
+@@ -202,6 +221,12 @@ static int show_vfsstat(struct seq_file *m, struct vfsmount *mnt)
  	struct super_block *sb = mnt_path.dentry->d_sb;
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (unlikely(r->mnt_id >= DEFAULT_SUS_MNT_ID && susfs_hide_sus_mnts_for_all_procs)) {
++	if (susfs_hide_sus_mnts_for_all_procs && r->mnt_id >= DEFAULT_SUS_MNT_ID) {
 +		return 0;
 +	}
 +#endif
