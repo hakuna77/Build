@@ -1,6 +1,6 @@
-From 5549ac3dbf844135eec7041bea14f79493e99e21 Mon Sep 17 00:00:00 2001
+From e7c6b5805ab661933e70836267405dbe5208bac3 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Wed, 30 Jul 2025 19:05:25 +0000
+Date: Thu, 24 Jul 2025 08:25:06 +0000
 Subject: [PATCH] susfs test
 
 ---
@@ -13,7 +13,7 @@ Subject: [PATCH] susfs test
  fs/proc/task_mmu.c        |   17 +-
  fs/proc_namespace.c       |   25 +
  fs/readdir.c              |  279 +++++++-
- fs/stat.c                 |   29 +
+ fs/stat.c                 |   30 +
  fs/statfs.c               |   21 +
  fs/susfs.c                | 1306 +++++++++++++++++++++++++++++++++++++
  include/linux/mount.h     |    3 +
@@ -22,7 +22,7 @@ Subject: [PATCH] susfs test
  include/linux/susfs_def.h |  105 +++
  kernel/kallsyms.c         |   11 +
  kernel/sys.c              |    6 +
- 18 files changed, 2636 insertions(+), 5 deletions(-)
+ 18 files changed, 2637 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1631,7 +1631,7 @@ index 0c357663e..51ef27ba4 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (error >= 0)
 diff --git a/fs/stat.c b/fs/stat.c
-index 3af9250ff..18bd74d02 100644
+index c9594f39e..4839dcd19 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,9 @@
@@ -1644,7 +1644,7 @@ index 3af9250ff..18bd74d02 100644
  
  #include <linux/uaccess.h>
  #include <asm/unistd.h>
-@@ -32,8 +35,23 @@
+@@ -33,8 +36,23 @@
   * found on the VFS inode structure.  This is the default if no getattr inode
   * operation is supplied.
   */
@@ -1668,10 +1668,21 @@ index 3af9250ff..18bd74d02 100644
  	stat->dev = inode->i_sb->s_dev;
  	stat->ino = inode->i_ino;
  	stat->mode = inode->i_mode;
-@@ -189,7 +207,15 @@ retry:
+@@ -177,6 +195,9 @@ static int vfs_statx(int dfd, const char __user *filename, int flags,
+ 	struct path path;
+ 	unsigned lookup_flags = 0;
+ 	int error;
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	struct mount *mnt;
++#endif
+ 
+ 	if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_EMPTY_PATH |
+ 		      AT_STATX_SYNC_TYPE))
+@@ -195,7 +216,16 @@ retry:
  		goto out;
  
  	error = vfs_getattr(&path, stat, request_mask, flags);
++	
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	mnt = real_mount(path.mnt);
 +	if (likely(susfs_is_current_non_root_user_app_proc())) {
@@ -1682,18 +1693,8 @@ index 3af9250ff..18bd74d02 100644
  	stat->mnt_id = real_mount(path.mnt)->mnt_id;
 +#endif
  	stat->result_mask |= STATX_MNT_ID;
- 	path_put(&path);
- 	if (retry_estale(error, lookup_flags)) {
-@@ -250,6 +276,9 @@ SYSCALL_DEFINE2(stat, const char __user *, filename,
- {
- 	struct kstat stat;
- 	int error;
-+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	struct mount *mnt;
-+#endif
- 
- 	error = vfs_stat(filename, &stat);
- 	if (error)
+ 	if (path.mnt->mnt_root == path.dentry)
+ 		stat->attributes |= STATX_ATTR_MOUNT_ROOT;
 diff --git a/fs/statfs.c b/fs/statfs.c
 index ca1084cbe..a0300326b 100644
 --- a/fs/statfs.c
