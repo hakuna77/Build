@@ -2,6 +2,14 @@ name: Build Kernel
 on:
   workflow_dispatch:
     inputs:
+      kernel_source_branch:
+        description: 'Kernel source branch'
+        required: false
+        default: 'next'
+        type: choice
+        options:
+          - 'begonia-r-oss'
+          - 'begonia'
       enable_kernelsu:
         description: 'Enable KernelSU integration?'
         required: true
@@ -44,6 +52,7 @@ on:
           - 'false'
 
 env:
+  KERNEL_SOURCE_BRANCH: ${{ github.event.inputs.kernel_source_branch }}
   ENABLE_KERNELSU: ${{ github.event.inputs.enable_kernelsu }}
   KERNELSU_BRANCH_OR_TAG: ${{ github.event.inputs.kernelsu_branch_or_tag }}
   REPO_KSU: ${{ github.event.inputs.repo_ksu }}
@@ -65,7 +74,6 @@ jobs:
         CONFIG_ENV=$(grep -w "CONFIG_ENV" config.env | head -n 1 | cut -d "=" -f 2)
         CONFIG_LIST=(
             KERNEL_SOURCE
-            KERNEL_SOURCE_BRANCH
             KERNEL_CONFIG
             KERNEL_IMAGE_NAME
             ARCH
@@ -244,14 +252,7 @@ jobs:
 
         echo "Applying patch..."
         for patch_file in \
-          0001-cred-add-get_cred_rcu.patch \
-          0002-BACKPORT-ptrace-Move-setting-clearing.patch \
-          0003-BACKPORT-fs-namespace.c-path_umount-5.10.9.patch \
-          0001-inotify-show-inotify-mask-flags-in-proc-fdinfo.patch \
-          0001-BACKPORT-stat-add-mount_root.patch \
-          0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
-          0001-scope-minimized-manual-hooks-v1.4.patch \
-          0001-susfs-v.1.5.9-sidex.patch
+          0001-susfs-v.1.5.9-k-4.14.186.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
