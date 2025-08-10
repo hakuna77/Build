@@ -252,7 +252,8 @@ jobs:
 
         echo "Applying patch..."
         for patch_file in \
-          0001-susfs-v.1.5.9-k-4.14.186.patch
+          0001-susfs-v.1.5.9-k-4.14.186.patch \
+          avc.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
