@@ -1,6 +1,6 @@
-From 9fc937e0600ce1366a53d83ac3c8f96e25d8a5a9 Mon Sep 17 00:00:00 2001
+From 203e7d4ec49e0af858814d48cead0e62b1eb5817 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sun, 14 Sep 2025 23:44:21 +0000
+Date: Mon, 15 Sep 2025 00:16:48 +0000
 Subject: [PATCH] susfs-v1.5.9
 
 ---
@@ -8,7 +8,7 @@ Subject: [PATCH] susfs-v1.5.9
  kernel/Kconfig           | 135 ++++++++++
  kernel/Makefile          |  77 ++++++
  kernel/allowlist.c       |   8 +-
- kernel/core_hook.c       | 554 ++++++++++++++++++++++++++++++++++++++-
+ kernel/core_hook.c       | 555 ++++++++++++++++++++++++++++++++++++++-
  kernel/kernel_compat.c   |   2 +-
  kernel/kernel_compat.h   |   1 +
  kernel/ksu.c             |   8 +
@@ -17,7 +17,7 @@ Subject: [PATCH] susfs-v1.5.9
  kernel/selinux/selinux.c |  92 +++++++
  kernel/selinux/selinux.h |  12 +
  kernel/sucompat.c        | 105 +++++++-
- 13 files changed, 993 insertions(+), 21 deletions(-)
+ 13 files changed, 994 insertions(+), 21 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 706fd07f..a7490354 100644
@@ -301,7 +301,7 @@ index bcdac3f0..c59be97c 100644
  	return ksu_queue_work(&ksu_save_work);
  }
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index 4f810bdc..2e6085fd 100644
+index 4f810bdc..537e4c91 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
 @@ -35,6 +35,10 @@
@@ -315,10 +315,11 @@ index 4f810bdc..2e6085fd 100644
  #include "allowlist.h"
  #include "arch.h"
  #include "core_hook.h"
-@@ -46,11 +50,76 @@
+@@ -46,11 +50,77 @@
  #include "throne_tracker.h"
  #include "kernel_compat.h"
  
++#ifdef CONFIG_KSU_SUSFS
 +extern u32 susfs_zygote_sid;
 +extern bool susfs_is_mnt_devname_ksu(struct path *path);
 +#ifdef CONFIG_KSU_SUSFS_SUS_PATH
@@ -393,7 +394,7 @@ index 4f810bdc..2e6085fd 100644
  extern void ksu_sucompat_init();
  extern void ksu_sucompat_exit();
  
-@@ -390,6 +459,9 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -390,6 +460,9 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  		switch (arg3) {
  		case EVENT_POST_FS_DATA: {
  			static bool post_fs_data_lock = false;
@@ -403,7 +404,7 @@ index 4f810bdc..2e6085fd 100644
  			if (!post_fs_data_lock) {
  				post_fs_data_lock = true;
  				pr_info("post-fs-data triggered\n");
-@@ -508,6 +580,379 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -508,6 +581,379 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  	}
  #endif
  
@@ -783,7 +784,7 @@ index 4f810bdc..2e6085fd 100644
  	// all other cmds are for 'root manager'
  	if (!from_manager) {
  		return 0;
-@@ -573,6 +1018,12 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -573,6 +1019,12 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  		}
  
  		if (enabled) {
@@ -796,7 +797,7 @@ index 4f810bdc..2e6085fd 100644
  			ksu_sucompat_init();
  		} else {
  			ksu_sucompat_exit();
-@@ -612,11 +1063,15 @@ static bool should_umount(struct path *path)
+@@ -612,11 +1064,15 @@ static bool should_umount(struct path *path)
  		return false;
  	}
  
@@ -812,7 +813,7 @@ index 4f810bdc..2e6085fd 100644
  }
  
  static int ksu_umount_mnt(struct path *path, int flags)
-@@ -629,7 +1084,11 @@ static int ksu_umount_mnt(struct path *path, int flags)
+@@ -629,7 +1085,11 @@ static int ksu_umount_mnt(struct path *path, int flags)
  #endif
  }
  
@@ -824,7 +825,7 @@ index 4f810bdc..2e6085fd 100644
  {
  	struct path path;
  	int err = kern_path(mnt, 0, &path);
-@@ -649,12 +1108,35 @@ static void try_umount(const char *mnt, bool check_mnt, int flags)
+@@ -649,12 +1109,35 @@ static void try_umount(const char *mnt, bool check_mnt, int flags)
  		return;
  	}
  
@@ -860,7 +861,7 @@ index 4f810bdc..2e6085fd 100644
  int ksu_handle_setuid(struct cred *new, const struct cred *old)
  {
  	// this hook is used for umounting overlayfs for some uid, if there isn't any module mounted, just ignore it!
-@@ -681,6 +1163,53 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -681,6 +1164,53 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  		return 0;
  	}
  
@@ -914,7 +915,7 @@ index 4f810bdc..2e6085fd 100644
  	// isolated process may be directly forked from zygote, always unmount
  	if (is_unsupported_app_uid(new_uid.val)) {
  #ifdef CONFIG_KSU_DEBUG
-@@ -695,7 +1224,23 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -695,7 +1225,23 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  #endif
  		return 0;
  	}
@@ -938,7 +939,7 @@ index 4f810bdc..2e6085fd 100644
  	if (!ksu_uid_should_umount(new_uid.val)) {
  		return 0;
  	} else {
-@@ -719,6 +1264,11 @@ do_umount:
+@@ -719,6 +1265,11 @@ do_umount:
  		current->pid);
  #endif
  
@@ -950,7 +951,7 @@ index 4f810bdc..2e6085fd 100644
  	// fixme: use `collect_mounts` and `iterate_mount` to iterate all mountpoint and
  	// filter the mountpoint whose target is `/data/adb`
  	try_umount("/odm", true, 0);
-@@ -738,7 +1288,7 @@ do_umount:
+@@ -738,7 +1289,7 @@ do_umount:
  	// try umount lsposed dex2oat bins
  	try_umount("/apex/com.android.art/bin/dex2oat64", false, MNT_DETACH);
  	try_umount("/apex/com.android.art/bin/dex2oat32", false, MNT_DETACH);
