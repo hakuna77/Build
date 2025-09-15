@@ -1,14 +1,14 @@
-From ddb6484d11cdd8864771cf6e0acf18f60eb1ecd7 Mon Sep 17 00:00:00 2001
+From 1b70e87a7ffb7d219c118b88f799e5a4ccb3243e Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Mon, 15 Sep 2025 08:19:43 +0000
-Subject: [PATCH] susfs-v1.5.9
+Date: Mon, 15 Sep 2025 09:30:58 +0000
+Subject: [PATCH] update
 
 ---
  .gitignore               |   3 +
  kernel/Kconfig           | 135 ++++++++++
  kernel/Makefile          |   9 +
  kernel/allowlist.c       |   8 +-
- kernel/core_hook.c       | 539 ++++++++++++++++++++++++++++++++++++++-
+ kernel/core_hook.c       | 537 ++++++++++++++++++++++++++++++++++++++-
  kernel/kernel_compat.c   |   2 +-
  kernel/kernel_compat.h   |   1 +
  kernel/ksu.c             |   8 +
@@ -17,7 +17,7 @@ Subject: [PATCH] susfs-v1.5.9
  kernel/selinux/selinux.c |  92 +++++++
  kernel/selinux/selinux.h |  12 +
  kernel/sucompat.c        | 105 +++++++-
- 13 files changed, 906 insertions(+), 25 deletions(-)
+ 13 files changed, 906 insertions(+), 23 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 706fd07f..a7490354 100644
@@ -233,7 +233,7 @@ index bcdac3f0..c59be97c 100644
  	return ksu_queue_work(&ksu_save_work);
  }
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index 4f810bdc..10e59af8 100644
+index 4f810bdc..e2b926ff 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
 @@ -35,6 +35,10 @@
@@ -818,8 +818,8 @@ index 4f810bdc..10e59af8 100644
 +#ifdef CONFIG_KSU_SUSFS_SUS_SU
 +		susfs_set_current_proc_su_not_allowed();
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_SU
-+        if (susfs_is_umount_for_zygote_system_process_enabled) {
-+    		goto do_umount;
++		if (susfs_is_umount_for_zygote_system_process_enabled) {
++			goto do_umount;
 +		}
 +	}
 +#endif // #ifdef CONFIG_KSU_SUSFS
@@ -843,17 +843,15 @@ index 4f810bdc..10e59af8 100644
  		goto do_umount;
  	}
  
-@@ -696,9 +1208,6 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -695,7 +1207,6 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+ #endif
  		return 0;
  	}
- 
--	if (!ksu_uid_should_umount(new_uid.val)) {
--		return 0;
--	} else {
- #ifdef CONFIG_KSU_DEBUG
- 		pr_info("uid: %d should not umount!\n", current_uid().val);
- #endif
-@@ -708,17 +1217,35 @@ do_umount:
+-
+ 	if (!ksu_uid_should_umount(new_uid.val)) {
+ 		return 0;
+ 	} else {
+@@ -708,17 +1219,35 @@ do_umount:
  	// check old process's selinux context, if it is not zygote, ignore it!
  	// because some su apps may setuid to untrusted_app but they are in global mount namespace
  	// when we umount for such process, that is a disaster!
@@ -890,7 +888,7 @@ index 4f810bdc..10e59af8 100644
  	// fixme: use `collect_mounts` and `iterate_mount` to iterate all mountpoint and
  	// filter the mountpoint whose target is `/data/adb`
  	try_umount("/odm", true, 0);
-@@ -738,7 +1265,7 @@ do_umount:
+@@ -738,7 +1267,7 @@ do_umount:
  	// try umount lsposed dex2oat bins
  	try_umount("/apex/com.android.art/bin/dex2oat64", false, MNT_DETACH);
  	try_umount("/apex/com.android.art/bin/dex2oat32", false, MNT_DETACH);
