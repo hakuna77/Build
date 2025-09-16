@@ -1,4 +1,4 @@
-name: Build Kernel
+name: Build Kernelsu for branch begonia
 on:
   workflow_dispatch:
     inputs:
