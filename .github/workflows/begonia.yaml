@@ -5,7 +5,7 @@ on:
       kernel_source_branch:
         description: 'Kernel source branch'
         required: false
-        default: 'next'
+        default: 'begonia'
         type: choice
         options:
           - 'begonia-r-oss'
@@ -259,7 +259,7 @@ jobs:
           0001-BACKPORT-stat-add-mount_root.patch \
           0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
           0001-scope-minimized-manual-hooks-v1.4.patch \
-          0001-susfs-v.1.5.9-k-4.14.186.patch \
+          0001-susfs-forbranch-begonia.patch \
           avc.patch \
           0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch
         do
