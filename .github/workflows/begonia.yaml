@@ -33,7 +33,7 @@ on:
         type: choice
         options:
           - 'KernelSU-Next'
-          - 'JJ'
+          - 'JJ-Coffee'
       patching_susfs:
         description: 'Enable patch susfs Kernel?'
         required: true
