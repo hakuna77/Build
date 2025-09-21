@@ -1,6 +1,6 @@
-From 2c34825ec49c0786909eed03fce0dc6815469a25 Mon Sep 17 00:00:00 2001
+From d12cc7c1f76396fd6148e25e6f2c2aca5936755e Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sun, 21 Sep 2025 11:19:33 +0000
+Date: Sun, 21 Sep 2025 11:47:44 +0000
 Subject: [PATCH] susfs update
 
 ---
@@ -15,8 +15,8 @@ Subject: [PATCH] susfs update
  kernel/selinux/rules.c   |   9 +
  kernel/selinux/selinux.c |  92 +++++++
  kernel/selinux/selinux.h |  12 +
- kernel/sucompat.c        |  81 +++++-
- 12 files changed, 887 insertions(+), 16 deletions(-)
+ kernel/sucompat.c        |  83 +++++-
+ 12 files changed, 888 insertions(+), 17 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 706fd07f..a7490354 100644
@@ -1114,7 +1114,7 @@ index 07120c25..91894c8c 100644
  
  #endif
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index 742c8dcc..7453fa18 100644
+index 742c8dcc..54c940ba 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
 @@ -14,6 +14,9 @@
@@ -1218,6 +1218,15 @@ index 742c8dcc..7453fa18 100644
  
  #ifndef CONFIG_KSU_KPROBES_HOOK
  	if (!ksu_sucompat_non_kp) {
+@@ -181,7 +208,7 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+ 		return 0;
+ 
+ 	pr_info("do_execveat_common su found\n");
+-	memcpy((void *)filename->name, sh, sizeof(sh));
++	memcpy((void *)filename->name, ksud_path, sizeof(ksud_path));
+ 
+ 	escape_to_root();
+ 
 @@ -332,3 +359,41 @@ void ksu_sucompat_exit()
  	pr_info("ksu_sucompat_exit: hooks disabled: execve/execveat_su, faccessat, stat, devpts\n");
  #endif
