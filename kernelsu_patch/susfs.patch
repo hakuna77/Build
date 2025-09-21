@@ -1,6 +1,6 @@
-From 43fd0e75ba54938a104015b60fc784b9e6993b61 Mon Sep 17 00:00:00 2001
+From 2c34825ec49c0786909eed03fce0dc6815469a25 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sun, 21 Sep 2025 01:57:49 +0000
+Date: Sun, 21 Sep 2025 11:19:33 +0000
 Subject: [PATCH] susfs update
 
 ---
@@ -15,8 +15,8 @@ Subject: [PATCH] susfs update
  kernel/selinux/rules.c   |   9 +
  kernel/selinux/selinux.c |  92 +++++++
  kernel/selinux/selinux.h |  12 +
- kernel/sucompat.c        |  82 +++++-
- 12 files changed, 886 insertions(+), 18 deletions(-)
+ kernel/sucompat.c        |  81 +++++-
+ 12 files changed, 887 insertions(+), 16 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 706fd07f..a7490354 100644
@@ -1114,7 +1114,7 @@ index 07120c25..91894c8c 100644
  
  #endif
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index 742c8dcc..59ee1eae 100644
+index 742c8dcc..7453fa18 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
 @@ -14,6 +14,9 @@
@@ -1159,21 +1159,31 @@ index 742c8dcc..59ee1eae 100644
  
  	return userspace_stack_buffer(ksud_path, sizeof(ksud_path));
  }
-@@ -79,9 +84,11 @@ static int ksu_sucompat_user_common(const char __user **filename_user,
- 				const char *syscall_name,
+@@ -66,8 +71,10 @@ static __always_inline bool is_su_allowed(const void *ptr_to_check)
+ 	}
+ #endif
+ 
++#ifndef CONFIG_KSU_SUSFS_SUS_SU
+ 	if (likely(!ksu_is_allow_uid(current_uid().val)))
+ 		return false;
++#endif
+ 
+ 	if (unlikely(!ptr_to_check))
+ 		return false;
+@@ -80,8 +87,11 @@ static int ksu_sucompat_user_common(const char __user **filename_user,
  				const bool escalate)
  {
--	const char su[] = SU_PATH;
+ 	const char su[] = SU_PATH;
 -
 +#ifdef CONFIG_KSU_SUSFS_SUS_SU
-+	char path[sizeof(su) + 1] = {0};
++	char path[sizeof(su)] = {0};
 +#else
  	char path[sizeof(su) + 1]; // sizeof includes nullterm already!
 +#endif
  	long len = ksu_strncpy_from_user_retry(path, *filename_user, sizeof(path));
  	if (len <= 0) // sizeof(su) is not zero
  		return 0;
-@@ -120,6 +127,25 @@ int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
+@@ -120,6 +130,25 @@ int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
  	return ksu_sucompat_user_common(filename_user, "faccessat", false);
  }
  
@@ -1199,7 +1209,7 @@ index 742c8dcc..59ee1eae 100644
  // sys_newfstatat, sys_fstat64
  int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags)
  {
-@@ -160,8 +186,6 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+@@ -160,8 +189,6 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
  				 int *__never_use_flags)
  {
  	struct filename *filename;
@@ -1208,16 +1218,7 @@ index 742c8dcc..59ee1eae 100644
  
  #ifndef CONFIG_KSU_KPROBES_HOOK
  	if (!ksu_sucompat_non_kp) {
-@@ -181,7 +205,7 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
- 		return 0;
- 
- 	pr_info("do_execveat_common su found\n");
--	memcpy((void *)filename->name, sh, sizeof(sh));
-+	memcpy((void *)filename->name, ksud_path, sizeof(ksud_path));
- 
- 	escape_to_root();
- 
-@@ -332,3 +356,41 @@ void ksu_sucompat_exit()
+@@ -332,3 +359,41 @@ void ksu_sucompat_exit()
  	pr_info("ksu_sucompat_exit: hooks disabled: execve/execveat_su, faccessat, stat, devpts\n");
  #endif
  }
