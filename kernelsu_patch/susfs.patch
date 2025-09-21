@@ -1,6 +1,6 @@
-From 0017098e9f8ed3cf83558b7062404bf22c7055a9 Mon Sep 17 00:00:00 2001
+From 9752569f6e5c7455dabd97ff9d8f2bfa934e4bc9 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sun, 21 Sep 2025 14:54:14 +0000
+Date: Sun, 21 Sep 2025 15:36:21 +0000
 Subject: [PATCH] susfs ksun
 
 ---
@@ -232,7 +232,7 @@ index bcdac3f0..c59be97c 100644
  	return ksu_queue_work(&ksu_save_work);
  }
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index d0c5c13d..c9372054 100644
+index d0c5c13d..c2879166 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
 @@ -36,6 +36,10 @@
@@ -620,7 +620,7 @@ index d0c5c13d..c9372054 100644
 +			int error = 0;
 +			int len_of_susfs_version = strlen(SUSFS_VERSION);
 +			char *susfs_version = SUSFS_VERSION;
-+			if (!ksu_access_ok((void __user*)arg3, len_of_susfs_version1)) {
++			if (!ksu_access_ok((void __user*)arg3, len_of_susfs_version+1)) {
 +				pr_err("susfs: CMD_SUSFS_SHOW_VERSION -> arg3 is not accessible\n");
 +				return 0;
 +			}
@@ -628,7 +628,7 @@ index d0c5c13d..c9372054 100644
 +				pr_err("susfs: CMD_SUSFS_SHOW_VERSION -> arg5 is not accessible\n");
 +				return 0;
 +			}
-+			error = copy_to_user((void __user*)arg3, (void*)susfs_version, len_of_susfs_version1);
++			error = copy_to_user((void __user*)arg3, (void*)susfs_version, len_of_susfs_version+1);
 +			pr_info("susfs: CMD_SUSFS_SHOW_VERSION -> ret: %d\n", error);
 +			if (copy_to_user((void __user*)arg5, &error, sizeof(error)))
 +				pr_info("susfs: copy_to_user() failed\n");
@@ -658,7 +658,7 @@ index d0c5c13d..c9372054 100644
 +			int error = 0;
 +			int len_of_variant = strlen(SUSFS_VARIANT);
 +			char *susfs_variant = SUSFS_VARIANT;
-+			if (!ksu_access_ok((void __user*)arg3, len_of_variant1)) {
++			if (!ksu_access_ok((void __user*)arg3, len_of_variant+1)) {
 +				pr_err("susfs: CMD_SUSFS_SHOW_VARIANT -> arg3 is not accessible\n");
 +				return 0;
 +			}
@@ -666,7 +666,7 @@ index d0c5c13d..c9372054 100644
 +				pr_err("susfs: CMD_SUSFS_SHOW_VARIANT -> arg5 is not accessible\n");
 +				return 0;
 +			}
-+			error = copy_to_user((void __user*)arg3, (void*)susfs_variant, len_of_variant1);
++			error = copy_to_user((void __user*)arg3, (void*)susfs_variant, len_of_variant+1);
 +			pr_info("susfs: CMD_SUSFS_SHOW_VARIANT -> ret: %d\n", error);
 +			if (copy_to_user((void __user*)arg5, &error, sizeof(error)))
 +				pr_info("susfs: copy_to_user() failed\n");
