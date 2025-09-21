@@ -1,14 +1,14 @@
-From d12cc7c1f76396fd6148e25e6f2c2aca5936755e Mon Sep 17 00:00:00 2001
+From 7f496f3616498f8b3b03ed59562990d4af1c3cde Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sun, 21 Sep 2025 11:47:44 +0000
-Subject: [PATCH] susfs update
+Date: Sun, 21 Sep 2025 13:30:21 +0000
+Subject: [PATCH] update susfs
 
 ---
  .gitignore               |   3 +
  kernel/Kconfig           | 135 ++++++++++
  kernel/Makefile          |   9 +
  kernel/allowlist.c       |   8 +-
- kernel/core_hook.c       | 537 ++++++++++++++++++++++++++++++++++++++-
+ kernel/core_hook.c       | 546 ++++++++++++++++++++++++++++++++++++++-
  kernel/kernel_compat.h   |   1 +
  kernel/ksu.c             |   8 +
  kernel/ksud.c            |   8 +
@@ -16,7 +16,7 @@ Subject: [PATCH] susfs update
  kernel/selinux/selinux.c |  92 +++++++
  kernel/selinux/selinux.h |  12 +
  kernel/sucompat.c        |  83 +++++-
- 12 files changed, 888 insertions(+), 17 deletions(-)
+ 12 files changed, 897 insertions(+), 17 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 706fd07f..a7490354 100644
@@ -232,7 +232,7 @@ index bcdac3f0..c59be97c 100644
  	return ksu_queue_work(&ksu_save_work);
  }
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index d0c5c13d..766475c7 100644
+index d0c5c13d..4661c0be 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
 @@ -36,6 +36,10 @@
@@ -246,11 +246,20 @@ index d0c5c13d..766475c7 100644
  #include "allowlist.h"
  #include "arch.h"
  #include "core_hook.h"
-@@ -47,11 +51,77 @@
+@@ -47,11 +51,86 @@
  #include "throne_tracker.h"
  #include "kernel_compat.h"
  
 +#ifdef CONFIG_KSU_SUSFS
++bool susfs_is_allow_su(void)
++{
++	if (is_manager()) {
++		// we are manager, allow!
++		return true;
++	}
++	return ksu_is_allow_uid(current_uid().val);
++}
++
 +extern u32 susfs_zygote_sid;
 +extern bool susfs_is_mnt_devname_ksu(struct path *path);
 +#ifdef CONFIG_KSU_SUSFS_SUS_PATH
@@ -325,7 +334,7 @@ index d0c5c13d..766475c7 100644
  extern void ksu_sucompat_init();
  extern void ksu_sucompat_exit();
  
-@@ -394,6 +464,9 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -394,6 +473,9 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  			if (!post_fs_data_lock) {
  				post_fs_data_lock = true;
  				pr_info("post-fs-data triggered\n");
@@ -335,7 +344,7 @@ index d0c5c13d..766475c7 100644
  				on_post_fs_data();
  			}
  			break;
-@@ -509,6 +582,379 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -509,6 +591,379 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  	}
  #endif
  
@@ -715,7 +724,7 @@ index d0c5c13d..766475c7 100644
  	// all other cmds are for 'root manager'
  	if (!from_manager) {
  		return 0;
-@@ -574,6 +1020,12 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -574,6 +1029,12 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  		}
  
  		if (enabled) {
@@ -728,7 +737,7 @@ index d0c5c13d..766475c7 100644
  			ksu_sucompat_init();
  		} else {
  			ksu_sucompat_exit();
-@@ -601,6 +1053,11 @@ static bool is_non_appuid(kuid_t uid)
+@@ -601,6 +1062,11 @@ static bool is_non_appuid(kuid_t uid)
  	return appid < FIRST_APPLICATION_UID;
  }
  
@@ -740,7 +749,7 @@ index d0c5c13d..766475c7 100644
  static bool should_umount(struct path *path)
  {
  	if (!path) {
-@@ -613,11 +1070,15 @@ static bool should_umount(struct path *path)
+@@ -613,11 +1079,15 @@ static bool should_umount(struct path *path)
  		return false;
  	}
  
@@ -756,7 +765,7 @@ index d0c5c13d..766475c7 100644
  }
  
  static int ksu_umount_mnt(struct path *path, int flags)
-@@ -630,7 +1091,11 @@ static int ksu_umount_mnt(struct path *path, int flags)
+@@ -630,7 +1100,11 @@ static int ksu_umount_mnt(struct path *path, int flags)
  #endif
  }
  
@@ -768,7 +777,7 @@ index d0c5c13d..766475c7 100644
  {
  	struct path path;
  	int err = kern_path(mnt, 0, &path);
-@@ -650,12 +1115,35 @@ static void try_umount(const char *mnt, bool check_mnt, int flags)
+@@ -650,12 +1124,35 @@ static void try_umount(const char *mnt, bool check_mnt, int flags)
  		return;
  	}
  
@@ -804,7 +813,7 @@ index d0c5c13d..766475c7 100644
  int ksu_handle_setuid(struct cred *new, const struct cred *old)
  {
  	// this hook is used for umounting overlayfs for some uid, if there isn't any module mounted, just ignore it!
-@@ -675,6 +1163,21 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -675,6 +1172,21 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  		return 0;
  	}
  
@@ -826,7 +835,7 @@ index d0c5c13d..766475c7 100644
  	if (is_non_appuid(new_uid)) {
  #ifdef CONFIG_KSU_DEBUG
  		pr_info("handle setuid ignore non application uid: %d\n", new_uid.val);
-@@ -687,6 +1190,15 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -687,6 +1199,15 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  #ifdef CONFIG_KSU_DEBUG
  		pr_info("handle umount for unsupported application uid: %d\n", new_uid.val);
  #endif
@@ -842,7 +851,7 @@ index d0c5c13d..766475c7 100644
  		goto do_umount;
  	}
  
-@@ -696,7 +1208,6 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -696,7 +1217,6 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  #endif
  		return 0;
  	}
@@ -850,7 +859,7 @@ index d0c5c13d..766475c7 100644
  	if (!ksu_uid_should_umount(new_uid.val)) {
  		return 0;
  	} else {
-@@ -709,17 +1220,35 @@ do_umount:
+@@ -709,17 +1229,35 @@ do_umount:
  	// check old process's selinux context, if it is not zygote, ignore it!
  	// because some su apps may setuid to untrusted_app but they are in global mount namespace
  	// when we umount for such process, that is a disaster!
@@ -887,7 +896,7 @@ index d0c5c13d..766475c7 100644
  	// fixme: use `collect_mounts` and `iterate_mount` to iterate all mountpoint and
  	// filter the mountpoint whose target is `/data/adb`
  	try_umount("/odm", true, 0);
-@@ -739,7 +1268,7 @@ do_umount:
+@@ -739,7 +1277,7 @@ do_umount:
  	// try umount lsposed dex2oat bins
  	try_umount("/apex/com.android.art/bin/dex2oat64", false, MNT_DETACH);
  	try_umount("/apex/com.android.art/bin/dex2oat32", false, MNT_DETACH);
