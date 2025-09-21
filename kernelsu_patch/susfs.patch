@@ -1,6 +1,6 @@
-From 9752569f6e5c7455dabd97ff9d8f2bfa934e4bc9 Mon Sep 17 00:00:00 2001
+From 9f27eee5fb630b6d33fd711910a3698db3747495 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sun, 21 Sep 2025 15:36:21 +0000
+Date: Sun, 21 Sep 2025 17:50:28 +0000
 Subject: [PATCH] susfs ksun
 
 ---
@@ -1097,7 +1097,7 @@ index 07120c25..91894c8c 100644
  
  #endif
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index 742c8dcc..f18e9249 100644
+index a9350350..c889e973 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
 @@ -15,6 +15,10 @@
@@ -1161,9 +1161,9 @@ index 742c8dcc..f18e9249 100644
  	const char su[] = SU_PATH;
 -
 +#ifdef CONFIG_KSU_SUSFS_SUS_SU
-+	char path[sizeof(su) + 1] = {0};
++	char path[sizeof(su)] = {0};
 +#else
- 	char path[sizeof(su) + 1]; // sizeof includes nullterm already!
+ 	char path[sizeof(su)]; // sizeof includes nullterm already!
 +#endif
  	long len = ksu_strncpy_from_user_retry(path, *filename_user, sizeof(path));
  	if (len <= 0) // sizeof(su) is not zero
