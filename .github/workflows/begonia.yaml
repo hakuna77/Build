@@ -258,7 +258,7 @@ jobs:
           0001-inotify-show-inotify-mask-flags-in-proc-fdinfo.patch \
           0001-BACKPORT-stat-from-k-5.10.y.patch \
           0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
-          0001-scope-minimized-manual-hooks-v1.4.patch \
+          0001-scope-minimized-manual-hooks-v1.5.patch \
           0001-susfs-forbranch-begonia.patch \
           avc.patch \
           0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch
