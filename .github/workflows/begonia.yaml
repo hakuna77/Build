@@ -26,6 +26,7 @@ on:
         options:
           - 'next'
           - 'next-susfs'
+          - 'v1.1.0'
       repo_ksu:
         description: 'Repo for KernelSU (owner/repo)'
         required: false
@@ -298,7 +299,7 @@ jobs:
 
         echo "Applying patch..."
         for patch_file in \
-          susfs.patch
+          0001-susfs-v1.5.10-with-tag.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
