@@ -27,6 +27,7 @@ on:
           - 'next'
           - 'next-susfs'
           - 'v1.1.0'
+          - 'Mr.Groox'
       repo_ksu:
         description: 'Repo for KernelSU (owner/repo)'
         required: false
