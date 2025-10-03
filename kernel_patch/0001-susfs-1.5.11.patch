@@ -1,6 +1,6 @@
-From e0be4e9cc81891b2f41ab34e4e3d5db118f1e469 Mon Sep 17 00:00:00 2001
+From 63ba33e5f9043a800aa6e0f9e40bb076a223fca2 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Fri, 3 Oct 2025 17:19:37 +0000
+Date: Fri, 3 Oct 2025 17:41:35 +0000
 Subject: [PATCH] susfs 1.5.11
 
 ---
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..0857ea21f 100644
+index 6135217cb..05b151b02 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,40 @@
@@ -494,7 +494,7 @@ index 6135217cb..0857ea21f 100644
 +
 +static DEFINE_IDA(susfs_ksu_mnt_id_ida);
 +static DEFINE_IDA(susfs_ksu_mnt_group_ida);
-+define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */
++#define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */
 +static int susfs_mnt_id_start = DEFAULT_KSU_MNT_ID;
 +static int susfs_mnt_group_start = DEFAULT_KSU_MNT_GROUP_ID;
 +
