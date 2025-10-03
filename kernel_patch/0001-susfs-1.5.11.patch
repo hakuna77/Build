@@ -551,7 +551,7 @@ index 6135217cb..dd4082ad1 100644
 +	int mnt_id_backup = mnt->mnt.susfs_mnt_id_backup;
 +	//First we have to check if susfs_mnt_id_backup is >= DEFAULT_KSU_MNT_ID,
 +	// if so, no need to free.
-+	if (unlikely(mnt_id_backup == DEFAULT_KSU_MNT_ID)) {
++	if (unlikely(mnt_id_backup >= DEFAULT_KSU_MNT_ID)) {
 +		return;
 +	}
 +	// Second if susfs_mnt_id_backup was set after mnt_id reorder, free it if so.
