@@ -261,7 +261,7 @@ jobs:
           0001-BACKPORT-stat-from-k-5.10.y.patch \
           0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
           0001-scope-minimized-manual-hooks-v1.5.patch \
-          0001-susfs-v1.5.10-for-branch-begonia.patch \
+          0001-susfs-1.5.11.patch \
           avc.patch \
           0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch
         do
