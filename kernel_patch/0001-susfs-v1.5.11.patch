@@ -1,7 +1,7 @@
-From 61df4765c75ad2b7d2a4cfb1ff542c578eca87b7 Mon Sep 17 00:00:00 2001
+From 6e5dd3e0b7c5b4ab0e7e6b7718945132ec8c8b67 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sat, 4 Oct 2025 11:06:18 +0000
-Subject: [PATCH] susfs 1.5.11
+Date: Sat, 4 Oct 2025 11:49:28 +0000
+Subject: [PATCH] susfs v1.5.11
 
 ---
  fs/Makefile               |    2 +
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..23bc27316 100644
+index 6135217cb..5db29b270 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,40 @@
@@ -557,18 +557,18 @@ index 6135217cb..23bc27316 100644
 +	// Second if susfs_mnt_id_backup was set after mnt_id reorder, free it if so.
 +	if (likely(mnt_id_backup)) {
 +		spin_lock(&mnt_id_lock);
-+		ida_remove(&susfs_ksu_mnt_id_ida, mnt_id_backup);
-+		if (susfs_mnt_id_start > mnt_id_backup)
-+			susfs_mnt_id_start = mnt_id_backup;
++		ida_remove(&mnt_id_ida, mnt_id_backup);
++		if (mnt_id_start > mnt_id_backup)
++			mnt_id_start = mnt_id_backup;
 +		spin_unlock(&mnt_id_lock);
 +		return;
 +	}
 +	// Lastly check if ksu mounts are umounted globally
 +	if (unlikely(mnt->mnt_id >= DEFAULT_KSU_MNT_ID)) {
 +		spin_lock(&mnt_id_lock);
-+		ida_remove(&mnt_id_ida, id);
-+		if (mnt_id_start > id)
-+			mnt_id_start = id;
++		ida_remove(&susfs_ksu_mnt_id_ida, id);
++		if (susfs_mnt_id_start > id)
++			susfs_mnt_id_start = id;
 +		spin_unlock(&mnt_id_lock);
 +		return;
 +	}
