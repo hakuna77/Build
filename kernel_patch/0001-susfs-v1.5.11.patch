@@ -1,12 +1,12 @@
-From 6c2167c34e250d3d84d7759cf7147c6e546707f7 Mon Sep 17 00:00:00 2001
+From e2f2fb871859a7ff1989776bdde40b4f1241ee15 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sat, 4 Oct 2025 22:16:33 +0000
+Date: Sat, 4 Oct 2025 23:03:01 +0000
 Subject: [PATCH] susfs v1.5.11
 
 ---
  fs/Makefile               |    2 +
  fs/namei.c                |  262 +++++++-
- fs/namespace.c            |  379 ++++++++++-
+ fs/namespace.c            |  383 ++++++++++-
  fs/notify/fdinfo.c        |   53 ++
  fs/proc/cmdline.c         |   10 +
  fs/proc/fd.c              |   18 +
@@ -22,7 +22,7 @@ Subject: [PATCH] susfs v1.5.11
  include/linux/susfs_def.h |   87 +++
  kernel/kallsyms.c         |   33 +
  kernel/sys.c              |    6 +
- 18 files changed, 2727 insertions(+), 5 deletions(-)
+ 18 files changed, 2731 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..f385a2876 100644
+index 6135217cb..05babb19e 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,40 @@
@@ -954,13 +954,13 @@ index 6135217cb..f385a2876 100644
 +	// Assign the 'last_entry_mnt_id' to 'current->susfs_last_fake_mnt_id' for later use.
 +	// should be fine here assuming zygote is forking/unsharing app in one single thread.
 +	// Or should we put a lock here?
-+	current->susfs_last_fake_mnt_id = first_mnt_id;
++	current->susfs_last_fake_mnt_id = last_entry_mnt_id;
 +#endif
-+end unused*/
++*/
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3607,3 +3948,37 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3607,3 +3948,41 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
@@ -982,6 +982,10 @@ index 6135217cb..f385a2876 100644
 +		mnt->mnt.susfs_mnt_id_backup = mnt->mnt_id;
 +		mnt->mnt_id = first_mnt_id++;
 +	}
++	// Assign the 'last_entry_mnt_id' to 'current->susfs_last_fake_mnt_id' for later use.
++	// should be fine here assuming zygote is forking/unsharing app in one single thread.
++	// Or should we put a lock here?
++	current->susfs_last_fake_mnt_id = first_mnt_id
 +	put_mnt_ns(mnt_ns);
 +}
 +#endif
