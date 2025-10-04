@@ -1,12 +1,12 @@
-From 46402ddb0ef750678ca724db69a69d1839621e53 Mon Sep 17 00:00:00 2001
+From 10eda05d5819588c1bd09786193d85d3963a7570 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sat, 4 Oct 2025 13:51:30 +0000
+Date: Sat, 4 Oct 2025 18:56:20 +0000
 Subject: [PATCH] susfs v1.5.11
 
 ---
  fs/Makefile               |    2 +
  fs/namei.c                |  262 +++++++-
- fs/namespace.c            |  374 ++++++++++-
+ fs/namespace.c            |  379 ++++++++++-
  fs/notify/fdinfo.c        |   53 ++
  fs/proc/cmdline.c         |   10 +
  fs/proc/fd.c              |   18 +
@@ -22,7 +22,7 @@ Subject: [PATCH] susfs v1.5.11
  include/linux/susfs_def.h |   87 +++
  kernel/kallsyms.c         |   33 +
  kernel/sys.c              |    6 +
- 18 files changed, 2722 insertions(+), 5 deletions(-)
+ 18 files changed, 2727 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..e3a40c347 100644
+index 6135217cb..74d72a9dc 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,40 @@
@@ -827,7 +827,7 @@ index 6135217cb..e3a40c347 100644
  	mnt->mnt.mnt_root = dget(root);
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
-+/*unused for test
++
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	// If caller process is zygote and not doing unshare, so we just reorder the mnt_id
 +	if (likely(is_current_zygote_domain) && !(flag & CL_ZYGOTE_COPY_MNT_NS)) {
@@ -835,7 +835,7 @@ index 6135217cb..e3a40c347 100644
 +		mnt->mnt_id = current->susfs_last_fake_mnt_id++;
 +	}
 +#endif
-+*/
++
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
@@ -914,22 +914,26 @@ index 6135217cb..e3a40c347 100644
  	BUG_ON(!ns);
  
  	if (likely(!(flags & CLONE_NEWNS))) {
-@@ -3031,6 +3340,9 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3031,6 +3340,12 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	copy_flags |= CL_COPY_MNT_NS;
++	if (susfs_is_current_zygote_domain()) {
++	    copy_flags |= CL_ZYGOTE_COPY_MNT_NS;
++    }
 +#endif
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3067,6 +3379,30 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3067,6 +3382,32 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
-+/*unused for test
++
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++/*unused for test
 +	// current->susfs_last_fake_mnt_id -> to record last valid fake mnt_id to zygote pid
 +	// q->mnt.susfs_mnt_id_backup -> original mnt_id
 +	// q->mnt_id -> will be modified to the fake mnt_id
@@ -946,16 +950,17 @@ index 6135217cb..e3a40c347 100644
 +			q->mnt_id = last_entry_mnt_id++;
 +		}
 +	}
++	end unused*/ 
 +	// Assign the 'last_entry_mnt_id' to 'current->susfs_last_fake_mnt_id' for later use.
 +	// should be fine here assuming zygote is forking/unsharing app in one single thread.
 +	// Or should we put a lock here?
 +	current->susfs_last_fake_mnt_id = last_entry_mnt_id;
 +#endif
-+*/
++
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3607,3 +3943,37 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3607,3 +3948,37 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
