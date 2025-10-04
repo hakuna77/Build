@@ -1,6 +1,6 @@
-From 10eda05d5819588c1bd09786193d85d3963a7570 Mon Sep 17 00:00:00 2001
+From ee3144ac0eb33447bb6d4bd64850351dcd94ef4e Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sat, 4 Oct 2025 18:56:20 +0000
+Date: Sat, 4 Oct 2025 19:21:00 +0000
 Subject: [PATCH] susfs v1.5.11
 
 ---
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..74d72a9dc 100644
+index 6135217cb..b78adb63f 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,40 @@
@@ -830,7 +830,7 @@ index 6135217cb..74d72a9dc 100644
 +
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	// If caller process is zygote and not doing unshare, so we just reorder the mnt_id
-+	if (likely(is_current_zygote_domain) && !(flag & CL_ZYGOTE_COPY_MNT_NS)) {
++	if (likely(susfs_is_current_zygote_domain()) && !(flag & CL_ZYGOTE_COPY_MNT_NS)) {
 +		mnt->mnt.susfs_mnt_id_backup = mnt->mnt_id;
 +		mnt->mnt_id = current->susfs_last_fake_mnt_id++;
 +	}
