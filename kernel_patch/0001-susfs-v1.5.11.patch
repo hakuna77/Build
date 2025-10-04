@@ -1,12 +1,12 @@
-From 5238b32e7f3d5235352ba64204b96c5bc94a9c55 Mon Sep 17 00:00:00 2001
+From 6c2167c34e250d3d84d7759cf7147c6e546707f7 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sat, 4 Oct 2025 20:38:06 +0000
+Date: Sat, 4 Oct 2025 22:16:33 +0000
 Subject: [PATCH] susfs v1.5.11
 
 ---
  fs/Makefile               |    2 +
  fs/namei.c                |  262 +++++++-
- fs/namespace.c            |  384 ++++++++++-
+ fs/namespace.c            |  379 ++++++++++-
  fs/notify/fdinfo.c        |   53 ++
  fs/proc/cmdline.c         |   10 +
  fs/proc/fd.c              |   18 +
@@ -22,7 +22,7 @@ Subject: [PATCH] susfs v1.5.11
  include/linux/susfs_def.h |   87 +++
  kernel/kallsyms.c         |   33 +
  kernel/sys.c              |    6 +
- 18 files changed, 2732 insertions(+), 5 deletions(-)
+ 18 files changed, 2727 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..1f96acaed 100644
+index 6135217cb..f385a2876 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,40 @@
@@ -734,7 +734,7 @@ index 6135217cb..1f96acaed 100644
  	mnt->mnt.mnt_sb = root->d_sb;
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
-+/* unused for test
++
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	// If caller process is zygote, then it is a normal mount, so we just reorder the mnt_id
 +	if (susfs_is_current_zygote_domain()) {
@@ -742,11 +742,11 @@ index 6135217cb..1f96acaed 100644
 +		mnt->mnt_id = current->susfs_last_fake_mnt_id++;
 +	}
 +#endif
-+*/
++
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &root->d_sb->s_mounts);
  	unlock_mount_hash();
-@@ -1093,7 +1288,81 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1093,7 +1288,76 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	struct mount *mnt;
  	int err;
  
@@ -777,11 +777,6 @@ index 6135217cb..1f96acaed 100644
 +
 +	// Second we check for zygote process, same due to magic mount
 +	if (susfs_is_current_zygote_domain()) {
-+		// cek CL_ZYGOTE_COPY_MNT_NS
-+		if (flag & CL_ZYGOTE_COPY_MNT_NS) {
-+		    mnt = susfs_alloc_sus_vfsmnt(old->mnt_devname);
-+			goto bypass_orig_flow;
-+		}
 +		// We quickly check if the mount dev name is KSU first, go assign fake mnt_id if so
 +		if (!strcmp(old->mnt_devname, "KSU")) {
 +			mnt = susfs_alloc_sus_vfsmnt(old->mnt_devname);
@@ -828,11 +823,11 @@ index 6135217cb..1f96acaed 100644
  	if (!mnt)
  		return ERR_PTR(-ENOMEM);
  
-@@ -1145,6 +1414,15 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1145,6 +1409,15 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	mnt->mnt.mnt_root = dget(root);
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
-+/*
++
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	// If caller process is zygote and not doing unshare, so we just reorder the mnt_id
 +	if (likely(susfs_is_current_zygote_domain()) && !(flag & CL_ZYGOTE_COPY_MNT_NS)) {
@@ -840,11 +835,11 @@ index 6135217cb..1f96acaed 100644
 +		mnt->mnt_id = current->susfs_last_fake_mnt_id++;
 +	}
 +#endif
-+*/
++
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -1859,6 +2137,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1859,6 +2132,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  	p = mnt;
  	list_for_each_entry(r, &mnt->mnt_mounts, mnt_child) {
  		struct mount *s;
@@ -852,7 +847,7 @@ index 6135217cb..1f96acaed 100644
  		if (!is_subdir(r->mnt_mountpoint, dentry))
  			continue;
  
-@@ -1890,7 +2169,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1890,7 +2164,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  				goto out;
  			lock_mount_hash();
  			list_add_tail(&q->mnt_list, &res->mnt_list);
@@ -861,7 +856,7 @@ index 6135217cb..1f96acaed 100644
  			unlock_mount_hash();
  		}
  	}
-@@ -2339,6 +2618,27 @@ static int do_loopback(struct path *path, const char *old_name,
+@@ -2339,6 +2613,27 @@ static int do_loopback(struct path *path, const char *old_name,
  		umount_tree(mnt, UMOUNT_SYNC);
  		unlock_mount_hash();
  	}
@@ -889,7 +884,7 @@ index 6135217cb..1f96acaed 100644
  out2:
  	unlock_mount(mp);
  out:
-@@ -2935,6 +3235,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
+@@ -2935,6 +3230,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
  	else
  		retval = do_new_mount(&path, type_page, sb_flags, mnt_flags,
  				      dev_name, data_page);
@@ -905,7 +900,7 @@ index 6135217cb..1f96acaed 100644
  dput_out:
  	path_put(&path);
  	return retval;
-@@ -3012,7 +3321,12 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3012,7 +3316,12 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	struct mount *old;
  	struct mount *new;
  	int copy_flags;
@@ -919,7 +914,7 @@ index 6135217cb..1f96acaed 100644
  	BUG_ON(!ns);
  
  	if (likely(!(flags & CLONE_NEWNS))) {
-@@ -3031,6 +3345,12 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3031,6 +3340,12 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -932,7 +927,7 @@ index 6135217cb..1f96acaed 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3067,6 +3387,32 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3067,6 +3382,32 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -965,7 +960,7 @@ index 6135217cb..1f96acaed 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3607,3 +3953,37 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3607,3 +3948,37 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
