@@ -1,6 +1,6 @@
-From 94c8066cd603358fe1632cbe14f01ff8b6474029 Mon Sep 17 00:00:00 2001
+From 7d8e13237b55942b0de964298e832a1d09ecbe8d Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sat, 4 Oct 2025 10:32:43 +0000
+Date: Sat, 4 Oct 2025 10:52:54 +0000
 Subject: [PATCH] susfs 1.5.11
 
 ---
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..2bbdc8c8a 100644
+index 6135217cb..6e0263ea4 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,40 @@
@@ -616,7 +616,7 @@ index 6135217cb..2bbdc8c8a 100644
 +		ida_remove(&susfs_ksu_mnt_group_ida, id);
 +		if (susfs_mnt_group_start > id)
 +			susfs_mnt_group_start = id;
-+		mnt->id = 0;
++		mnt->mnt_group_id = 0;
 +		return;
 +	}
 +#endif
@@ -770,8 +770,8 @@ index 6135217cb..2bbdc8c8a 100644
 +			if (susfs_mnt_id_start > id)
 +			    susfs_mnt_id_start = id;
 +		    spin_unlock(&mnt_id_lock);
-+			id = old->mnt_id;
-+			mnt->mnt.susfs_mnt_id_backup = id;
++			mnt->mnt_id = old->mnt_id;
++			mnt->mnt.susfs_mnt_id_backup = DEFAULT_KSU_MNT_ID;
 +			goto bypass_orig_flow;
 +		}
 +		// else we just go assign fake mnt_id
