@@ -1,6 +1,6 @@
-From 7d8e13237b55942b0de964298e832a1d09ecbe8d Mon Sep 17 00:00:00 2001
+From 61df4765c75ad2b7d2a4cfb1ff542c578eca87b7 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sat, 4 Oct 2025 10:52:54 +0000
+Date: Sat, 4 Oct 2025 11:06:18 +0000
 Subject: [PATCH] susfs 1.5.11
 
 ---
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..6e0263ea4 100644
+index 6135217cb..23bc27316 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,40 @@
@@ -762,9 +762,9 @@ index 6135217cb..6e0263ea4 100644
 +	// First we must check for ksu process because of magic mount
 +	if (susfs_is_current_ksu_domain()) {
 +		// if it is unsharing, we reuse the old->mnt_id
-+		int id = mnt->mnt_id;
 +		if (flag & CL_COPY_MNT_NS) {
 +			mnt = susfs_alloc_sus_vfsmnt(old->mnt_devname);
++			int id = mnt->mnt_id;
 +			spin_lock(&mnt_id_lock);
 +			ida_remove(&susfs_ksu_mnt_id_ida, id);
 +			if (susfs_mnt_id_start > id)
