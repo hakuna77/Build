@@ -1,6 +1,6 @@
-From 316c94297870e668d98d4b64862b6a83fc9fc4a0 Mon Sep 17 00:00:00 2001
+From 5238b32e7f3d5235352ba64204b96c5bc94a9c55 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sat, 4 Oct 2025 20:30:01 +0000
+Date: Sat, 4 Oct 2025 20:38:06 +0000
 Subject: [PATCH] susfs v1.5.11
 
 ---
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..7d810c615 100644
+index 6135217cb..1f96acaed 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,40 @@
@@ -936,7 +936,7 @@ index 6135217cb..7d810c615 100644
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
-+
++/*
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +/*unused for test
 +	// current->susfs_last_fake_mnt_id -> to record last valid fake mnt_id to zygote pid
