@@ -1,6 +1,6 @@
-From e2f2fb871859a7ff1989776bdde40b4f1241ee15 Mon Sep 17 00:00:00 2001
+From 36badc9fbf82c93adc612636992d63115a37e58f Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sat, 4 Oct 2025 23:03:01 +0000
+Date: Sat, 4 Oct 2025 23:27:25 +0000
 Subject: [PATCH] susfs v1.5.11
 
 ---
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..05babb19e 100644
+index 6135217cb..a809903c7 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,40 @@
@@ -985,7 +985,7 @@ index 6135217cb..05babb19e 100644
 +	// Assign the 'last_entry_mnt_id' to 'current->susfs_last_fake_mnt_id' for later use.
 +	// should be fine here assuming zygote is forking/unsharing app in one single thread.
 +	// Or should we put a lock here?
-+	current->susfs_last_fake_mnt_id = first_mnt_id
++	current->susfs_last_fake_mnt_id = first_mnt_id;
 +	put_mnt_ns(mnt_ns);
 +}
 +#endif
