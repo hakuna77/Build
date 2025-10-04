@@ -1,12 +1,12 @@
-From 7fd074e280a1e3c945655b3da10f3bfbdf3f574c Mon Sep 17 00:00:00 2001
+From 539e99aff971fecab67548b24fc4aa358899e98e Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Fri, 3 Oct 2025 21:25:41 +0000
+Date: Sat, 4 Oct 2025 00:46:51 +0000
 Subject: [PATCH] susfs 1.5.11
 
 ---
  fs/Makefile               |    2 +
  fs/namei.c                |  262 +++++++-
- fs/namespace.c            |  369 ++++++++++-
+ fs/namespace.c            |  370 ++++++++++-
  fs/notify/fdinfo.c        |   53 ++
  fs/proc/cmdline.c         |   10 +
  fs/proc/fd.c              |   18 +
@@ -22,7 +22,7 @@ Subject: [PATCH] susfs 1.5.11
  include/linux/susfs_def.h |   87 +++
  kernel/kallsyms.c         |   33 +
  kernel/sys.c              |    6 +
- 18 files changed, 2717 insertions(+), 5 deletions(-)
+ 18 files changed, 2718 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..dd4082ad1 100644
+index 6135217cb..93a55f911 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,40 @@
@@ -739,11 +739,12 @@ index 6135217cb..dd4082ad1 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &root->d_sb->s_mounts);
  	unlock_mount_hash();
-@@ -1093,7 +1281,78 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1093,7 +1281,79 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	struct mount *mnt;
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	int id = mnt->mnt_id;
 +	char *src_path = NULL, *path_ptr = NULL;
 +
 +	// We won't check it anymore if boot-completed stage is triggered.
@@ -757,12 +758,12 @@ index 6135217cb..dd4082ad1 100644
 +		if (flag & CL_COPY_MNT_NS) {
 +			mnt = susfs_alloc_sus_vfsmnt(old->mnt_devname);
 +			spin_lock(&mnt_id_lock);
-+			ida_remove(&susfs_ksu_mnt_id_ida, mnt->mnt_id);
-+			if (susfs_mnt_id_start > mnt->mnt_id)
-+			    susfs_mnt_id_start = mnt->mnt_id;
++			ida_remove(&susfs_ksu_mnt_id_ida, id);
++			if (susfs_mnt_id_start > id)
++			    susfs_mnt_id_start = id;
 +		    spin_unlock(&mnt_id_lock);
-+			mnt->mnt_id = old->mnt_id;
-+			mnt->mnt.susfs_mnt_id_backup = DEFAULT_KSU_MNT_ID;
++			id = old->mnt_id;
++			mnt->mnt.susfs_mnt_id_backup = id;
 +			goto bypass_orig_flow;
 +		}
 +		// else we just go assign fake mnt_id
@@ -818,7 +819,7 @@ index 6135217cb..dd4082ad1 100644
  	if (!mnt)
  		return ERR_PTR(-ENOMEM);
  
-@@ -1145,6 +1404,15 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1145,6 +1405,15 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	mnt->mnt.mnt_root = dget(root);
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
@@ -834,7 +835,7 @@ index 6135217cb..dd4082ad1 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -1859,6 +2127,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1859,6 +2128,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  	p = mnt;
  	list_for_each_entry(r, &mnt->mnt_mounts, mnt_child) {
  		struct mount *s;
@@ -842,7 +843,7 @@ index 6135217cb..dd4082ad1 100644
  		if (!is_subdir(r->mnt_mountpoint, dentry))
  			continue;
  
-@@ -1890,7 +2159,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1890,7 +2160,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  				goto out;
  			lock_mount_hash();
  			list_add_tail(&q->mnt_list, &res->mnt_list);
@@ -851,7 +852,7 @@ index 6135217cb..dd4082ad1 100644
  			unlock_mount_hash();
  		}
  	}
-@@ -2339,6 +2608,27 @@ static int do_loopback(struct path *path, const char *old_name,
+@@ -2339,6 +2609,27 @@ static int do_loopback(struct path *path, const char *old_name,
  		umount_tree(mnt, UMOUNT_SYNC);
  		unlock_mount_hash();
  	}
@@ -879,7 +880,7 @@ index 6135217cb..dd4082ad1 100644
  out2:
  	unlock_mount(mp);
  out:
-@@ -2935,6 +3225,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
+@@ -2935,6 +3226,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
  	else
  		retval = do_new_mount(&path, type_page, sb_flags, mnt_flags,
  				      dev_name, data_page);
@@ -895,7 +896,7 @@ index 6135217cb..dd4082ad1 100644
  dput_out:
  	path_put(&path);
  	return retval;
-@@ -3012,7 +3311,12 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3012,7 +3312,12 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	struct mount *old;
  	struct mount *new;
  	int copy_flags;
@@ -909,7 +910,7 @@ index 6135217cb..dd4082ad1 100644
  	BUG_ON(!ns);
  
  	if (likely(!(flags & CLONE_NEWNS))) {
-@@ -3031,6 +3335,9 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3031,6 +3336,9 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -919,7 +920,7 @@ index 6135217cb..dd4082ad1 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3067,6 +3374,30 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3067,6 +3375,30 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -950,7 +951,7 @@ index 6135217cb..dd4082ad1 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3607,3 +3938,37 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3607,3 +3939,37 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
