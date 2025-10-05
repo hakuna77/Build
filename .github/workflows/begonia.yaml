@@ -44,6 +44,14 @@ on:
         options:
           - 'true'
           - 'false'
+      manual_hook:
+        description: 'Select Manual Hook'
+        required: true
+        default: '0001-scope-minimized-manual-hooks-v1.4.patch'
+        type: choice
+        options:
+          - '0001-scope-minimized-manual-hooks-v1.4.patch'
+          - '0001-scope-minimized-manual-hooks-v1.5.patch'
       patching_ksun:
         description: 'Enable patch susfs KernelSU-Next?'
         required: true
@@ -52,6 +60,14 @@ on:
         options:
           - 'true'
           - 'false'
+      select_version_patch_susfs:
+        description: 'Select SUSFS PATCH'
+        required: true
+        default: '0001-susfs-v1.5.10-with-tag.patch'
+        type: choice
+        options:
+          - '0001-susfs-v1.5.10-with-tag.patch'
+          - ''
 
 env:
   KERNEL_SOURCE_BRANCH: ${{ github.event.inputs.kernel_source_branch }}
@@ -60,6 +76,8 @@ env:
   REPO_KSU: ${{ github.event.inputs.repo_ksu }}
   PATCHING_SUSFS: ${{ github.event.inputs.patching_susfs }}
   PATCHING_KSUN: ${{ github.event.inputs.patching_ksun }}
+  MANUAL_HOOK: ${{ github.event.inputs.manual_hook }}
+  SELECT_VERSION_PATCH_SUSFS: ${{ github.event.inputs.select_version_patch_susfs }}
   
 jobs:
   build:
@@ -260,7 +278,7 @@ jobs:
           0001-inotify-show-inotify-mask-flags-in-proc-fdinfo.patch \
           0001-BACKPORT-stat-from-k-5.10.y.patch \
           0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
-          0001-scope-minimized-manual-hooks-v1.5.patch \
+          ${{ env.MANUAL_HOOK }} \
           0001-susfs-v1.5.10-for-branch-begonia.patch \
           avc.patch \
           0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch
@@ -300,7 +318,7 @@ jobs:
 
         echo "Applying patch..."
         for patch_file in \
-          0001-susfs-v1.5.10-with-tag.patch
+          ${{ env.SELECT_VERSION_PATCH_SUSFS }}
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
