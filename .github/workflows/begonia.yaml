@@ -85,7 +85,7 @@ env:
   PATCHING_SUSFS: ${{ github.event.inputs.patching_susfs }}
   PATCHING_KSUN: ${{ github.event.inputs.patching_ksun }}
   MANUAL_HOOK: ${{ github.event.inputs.manual_hook }}
-  SELECT_VERSION_PATCH_SUSFS_TO_KERNEL: ${{ github.event.select_version_patch_susfs_to_kernel }}
+  SELECT_VERSION_PATCH_SUSFS_TO_KERNEL: ${{ github.event.inputs.select_version_patch_susfs_to_kernel }}
   SELECT_VERSION_PATCH_SUSFS: ${{ github.event.inputs.select_version_patch_susfs }}
   
 jobs:
