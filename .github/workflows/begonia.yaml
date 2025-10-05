@@ -52,6 +52,14 @@ on:
         options:
           - '0001-scope-minimized-manual-hooks-v1.4.patch'
           - '0001-scope-minimized-manual-hooks-v1.5.patch'
+      select_version_patch_susfs_to_kernel:
+        description: 'Select SUSFS PATCH Into Kernel'
+        required: true
+        default: '0001-susfs-v1.5.10-for-branch-begonia.patch'
+        type: choice
+        options:
+          - '0001-susfs-v1.5.10-for-branch-begonia.patch'
+          - '0001-susfs-v1.5.11.patch'
       patching_ksun:
         description: 'Enable patch susfs KernelSU-Next?'
         required: true
@@ -61,7 +69,7 @@ on:
           - 'true'
           - 'false'
       select_version_patch_susfs:
-        description: 'Select SUSFS PATCH'
+        description: 'Select SUSFS PATCH into KSUN'
         required: true
         default: '0001-susfs-v1.5.10-with-tag.patch'
         type: choice
@@ -77,6 +85,7 @@ env:
   PATCHING_SUSFS: ${{ github.event.inputs.patching_susfs }}
   PATCHING_KSUN: ${{ github.event.inputs.patching_ksun }}
   MANUAL_HOOK: ${{ github.event.inputs.manual_hook }}
+  SELECT_VERSION_PATCH_SUSFS_TO_KERNEL: ${{ github.event.select_version_patch_susfs_to_kernel }}
   SELECT_VERSION_PATCH_SUSFS: ${{ github.event.inputs.select_version_patch_susfs }}
   
 jobs:
@@ -279,7 +288,7 @@ jobs:
           0001-BACKPORT-stat-from-k-5.10.y.patch \
           0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
           ${{ env.MANUAL_HOOK }} \
-          0001-susfs-v1.5.10-for-branch-begonia.patch \
+          ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
           avc.patch \
           0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch
         do
