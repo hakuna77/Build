@@ -1,6 +1,6 @@
-From bab9675a7ef69e5d463a21a40f02f0f6fe97a78c Mon Sep 17 00:00:00 2001
+From 0833d4b58a9b8b482c6af26e331fb27f0f729f68 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Mon, 6 Oct 2025 18:08:27 +0000
+Date: Mon, 6 Oct 2025 18:55:24 +0000
 Subject: [PATCH] susfs v1.5.11
 
 ---
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..98f00ee65 100644
+index 6135217cb..976823bb8 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,39 @@
@@ -547,7 +547,7 @@ index 6135217cb..98f00ee65 100644
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	if (!susfs_is_boot_completed_triggered && mnt->mnt_id >= DEFAULT_KSU_MNT_ID) {
-+		if (!ida_pre_get(&susfs_ksu_mnt_id_ida, GFP_KERNEL))
++		if (!ida_pre_get(&susfs_ksu_mnt_group_ida, GFP_KERNEL))
 +			return -ENOMEM;
 +		// If so, assign a sus mnt_group id DEFAULT_SUS_MNT_GROUP_ID from susfs_mnt_group_ida
 +		res = ida_get_new_above(&susfs_ksu_mnt_group_ida,
