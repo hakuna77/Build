@@ -1,12 +1,12 @@
-From e7d38795e84faff4435960115f5ff78085c1ad29 Mon Sep 17 00:00:00 2001
+From 55ded56e815ec975fc31f270aa26fe4e953aa01d Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Mon, 6 Oct 2025 21:37:44 +0000
+Date: Mon, 6 Oct 2025 23:16:44 +0000
 Subject: [PATCH] susfs v1.5.11
 
 ---
  fs/Makefile               |    2 +
  fs/namei.c                |  262 +++++++-
- fs/namespace.c            |  316 ++++++++-
+ fs/namespace.c            |  317 ++++++++-
  fs/notify/fdinfo.c        |   53 ++
  fs/proc/cmdline.c         |   10 +
  fs/proc/fd.c              |   18 +
@@ -22,7 +22,7 @@ Subject: [PATCH] susfs v1.5.11
  include/linux/susfs_def.h |   87 +++
  kernel/kallsyms.c         |   33 +
  kernel/sys.c              |    6 +
- 18 files changed, 2660 insertions(+), 4 deletions(-)
+ 18 files changed, 2661 insertions(+), 4 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -473,7 +473,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 6135217cb..6ab644369 100644
+index 6135217cb..73a087195 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,39 @@
@@ -586,7 +586,7 @@ index 6135217cb..6ab644369 100644
  	ida_remove(&mnt_group_ida, id);
  	if (mnt_group_start > id)
  		mnt_group_start = id;
-@@ -200,6 +278,111 @@ static void drop_mountpoint(struct fs_pin *p)
+@@ -200,6 +278,112 @@ static void drop_mountpoint(struct fs_pin *p)
  	mntput(&m->mnt);
  }
  
@@ -615,6 +615,7 @@ index 6135217cb..6ab644369 100644
 +		mnt->mnt_count = 1;
 +		mnt->mnt_writers = 0;
 +#endif
++		mnt->mnt.data = NULL;
 +		// Makes ida_free() easier to determine whether it should free the mnt_id or not
 +		mnt->mnt.susfs_mnt_id_backup = DEFAULT_KSU_MNT_ID;
 +
@@ -698,7 +699,7 @@ index 6135217cb..6ab644369 100644
  static struct mount *alloc_vfsmnt(const char *name)
  {
  	struct mount *mnt = kmem_cache_zalloc(mnt_cache, GFP_KERNEL);
-@@ -207,6 +390,7 @@ static struct mount *alloc_vfsmnt(const char *name)
+@@ -207,6 +391,7 @@ static struct mount *alloc_vfsmnt(const char *name)
  		int err;
  
  		err = mnt_alloc_id(mnt);
@@ -706,7 +707,7 @@ index 6135217cb..6ab644369 100644
  		if (err)
  			goto out_free_cache;
  
-@@ -227,6 +411,10 @@ static struct mount *alloc_vfsmnt(const char *name)
+@@ -227,6 +412,10 @@ static struct mount *alloc_vfsmnt(const char *name)
  		mnt->mnt_writers = 0;
  #endif
  		mnt->mnt.data = NULL;
@@ -717,7 +718,7 @@ index 6135217cb..6ab644369 100644
  
  		INIT_HLIST_NODE(&mnt->mnt_hash);
  		INIT_LIST_HEAD(&mnt->mnt_child);
-@@ -1038,7 +1226,24 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
+@@ -1038,7 +1227,24 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
  	if (!type)
  		return ERR_PTR(-ENODEV);
  
@@ -742,7 +743,7 @@ index 6135217cb..6ab644369 100644
  	if (!mnt)
  		return ERR_PTR(-ENOMEM);
  
-@@ -1064,6 +1269,7 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
+@@ -1064,6 +1270,7 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
  	mnt->mnt.mnt_sb = root->d_sb;
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
@@ -750,7 +751,7 @@ index 6135217cb..6ab644369 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &root->d_sb->s_mounts);
  	unlock_mount_hash();
-@@ -1093,7 +1299,38 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1093,7 +1300,38 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	struct mount *mnt;
  	int err;
  
@@ -789,7 +790,7 @@ index 6135217cb..6ab644369 100644
  	if (!mnt)
  		return ERR_PTR(-ENOMEM);
  
-@@ -1145,6 +1382,7 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1145,6 +1383,7 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	mnt->mnt.mnt_root = dget(root);
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
@@ -797,7 +798,7 @@ index 6135217cb..6ab644369 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -1859,6 +2097,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1859,6 +2098,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  	p = mnt;
  	list_for_each_entry(r, &mnt->mnt_mounts, mnt_child) {
  		struct mount *s;
@@ -805,7 +806,7 @@ index 6135217cb..6ab644369 100644
  		if (!is_subdir(r->mnt_mountpoint, dentry))
  			continue;
  
-@@ -1890,7 +2129,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1890,7 +2130,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  				goto out;
  			lock_mount_hash();
  			list_add_tail(&q->mnt_list, &res->mnt_list);
@@ -814,7 +815,7 @@ index 6135217cb..6ab644369 100644
  			unlock_mount_hash();
  		}
  	}
-@@ -2339,6 +2578,30 @@ static int do_loopback(struct path *path, const char *old_name,
+@@ -2339,6 +2579,30 @@ static int do_loopback(struct path *path, const char *old_name,
  		umount_tree(mnt, UMOUNT_SYNC);
  		unlock_mount_hash();
  	}
@@ -845,7 +846,7 @@ index 6135217cb..6ab644369 100644
  out2:
  	unlock_mount(mp);
  out:
-@@ -2935,6 +3198,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
+@@ -2935,6 +3199,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
  	else
  		retval = do_new_mount(&path, type_page, sb_flags, mnt_flags,
  				      dev_name, data_page);
@@ -861,7 +862,7 @@ index 6135217cb..6ab644369 100644
  dput_out:
  	path_put(&path);
  	return retval;
-@@ -3031,6 +3303,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3031,6 +3304,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -872,7 +873,7 @@ index 6135217cb..6ab644369 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3067,6 +3343,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3067,6 +3344,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -880,7 +881,7 @@ index 6135217cb..6ab644369 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3607,3 +3884,40 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3607,3 +3885,40 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
