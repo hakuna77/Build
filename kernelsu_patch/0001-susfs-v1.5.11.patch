@@ -1,6 +1,6 @@
-From e72906b38c6b0ea7fd4d2fb6ccdaed586326e398 Mon Sep 17 00:00:00 2001
+From e902d745898f6ef352fb7668b336637e37207b32 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Tue, 7 Oct 2025 20:27:45 +0000
+Date: Tue, 7 Oct 2025 20:45:45 +0000
 Subject: [PATCH] susfs v1.5.11
 
 ---
@@ -1124,7 +1124,7 @@ index 07120c25..91894c8c 100644
  
  #endif
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index d9924118..674c3c3f 100644
+index d9924118..12bea75e 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
 @@ -13,6 +13,9 @@
@@ -1266,7 +1266,7 @@ index d9924118..674c3c3f 100644
 +#ifndef CONFIG_KSU_SUSFS_SUS_SU
  	if (!ksu_is_allow_uid(current_uid().val))
  		return 0;
-+#endf
++#endif
  
  	pr_info("do_execveat_common su found\n");
 -	memcpy((void *)filename->name, sh, sizeof(sh));
