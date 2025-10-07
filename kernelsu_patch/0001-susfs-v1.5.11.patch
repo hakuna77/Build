@@ -1,6 +1,6 @@
-From e902d745898f6ef352fb7668b336637e37207b32 Mon Sep 17 00:00:00 2001
+From c308ba5b207e9c7eed3ea18ba7bd11e8f53d4ce0 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Tue, 7 Oct 2025 20:45:45 +0000
+Date: Tue, 7 Oct 2025 21:18:41 +0000
 Subject: [PATCH] susfs v1.5.11
 
 ---
@@ -8,13 +8,15 @@ Subject: [PATCH] susfs v1.5.11
  kernel/Makefile          |  10 +
  kernel/allowlist.c       |   8 +-
  kernel/core_hook.c       | 601 ++++++++++++++++++++++++++++++++++++++-
+ kernel/kernel_compat.c   |  10 +
+ kernel/kernel_compat.h   |   1 +
  kernel/ksu.c             |   8 +
  kernel/ksud.c            |   8 +
  kernel/selinux/rules.c   |   9 +
  kernel/selinux/selinux.c |  92 ++++++
  kernel/selinux/selinux.h |  12 +
  kernel/sucompat.c        | 107 +++++--
- 10 files changed, 957 insertions(+), 25 deletions(-)
+ 12 files changed, 968 insertions(+), 25 deletions(-)
 
 diff --git a/kernel/Kconfig b/kernel/Kconfig
 index ab6dd5c9..5254faa7 100644
@@ -918,6 +920,39 @@ index 2ffc72aa..2b2630e9 100644
  
  // Init functons
  
+diff --git a/kernel/kernel_compat.c b/kernel/kernel_compat.c
+index db47f8eb..873da944 100644
+--- a/kernel/kernel_compat.c
++++ b/kernel/kernel_compat.c
+@@ -76,6 +76,16 @@ void ksu_android_ns_fs_check()
+ 	task_unlock(current);
+ }
+ 
++int ksu_access_ok(const void *addr, unsigned long size) {
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0)
++    /* For kernels before 5.0.0, pass the type argument to access_ok. */
++    return access_ok(VERIFY_READ, addr, size);
++#else
++    /* For kernels 5.0.0 and later, ignore the type argument. */
++    return access_ok(addr, size);
++#endif
++}
++
+ struct file *ksu_filp_open_compat(const char *filename, int flags, umode_t mode)
+ {
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_IS_HW_HISI) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
+diff --git a/kernel/kernel_compat.h b/kernel/kernel_compat.h
+index 421c384c..e7f8dfed 100644
+--- a/kernel/kernel_compat.h
++++ b/kernel/kernel_compat.h
+@@ -56,6 +56,7 @@ extern struct key *init_session_keyring;
+ #endif
+ 
+ extern void ksu_android_ns_fs_check();
++extern int ksu_access_ok(const void *addr, unsigned long size);
+ extern struct file *ksu_filp_open_compat(const char *filename, int flags,
+ 					 umode_t mode);
+ extern ssize_t ksu_kernel_read_compat(struct file *p, void *buf, size_t count,
 diff --git a/kernel/ksu.c b/kernel/ksu.c
 index 11864141..7d9db0a6 100644
 --- a/kernel/ksu.c
