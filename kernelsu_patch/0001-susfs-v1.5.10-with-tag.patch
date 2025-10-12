@@ -1,15 +1,16 @@
-From ff8fb6b1992161125d622491a079a98b18093e35 Mon Sep 17 00:00:00 2001
+From 1ccd3b01e5cbf40b2c6492129866d8840136739a Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sat, 27 Sep 2025 11:01:19 +0000
+Date: Sun, 12 Oct 2025 01:17:07 +0000
 Subject: [PATCH] susfs v1.5.10 with tag
 
 ---
  .gitignore               |   3 +
  kernel/Kconfig           | 144 ++++++++++-
- kernel/Makefile          |  25 ++
+ kernel/Makefile          |  29 +++
  kernel/allowlist.c       |   8 +-
- kernel/apk_sign.c        |  17 --
- kernel/core_hook.c       | 529 ++++++++++++++++++++++++++++++++++++++-
+ kernel/apk_sign.c        |  33 ---
+ kernel/core_hook.c       | 536 ++++++++++++++++++++++++++++++++++++++-
+ kernel/kernel_compat.h   |  24 ++
  kernel/ksu.c             |   8 +
  kernel/ksu.h             |   2 +
  kernel/ksud.c            |   8 +
@@ -17,8 +18,9 @@ Subject: [PATCH] susfs v1.5.10 with tag
  kernel/selinux/selinux.c |  92 +++++++
  kernel/selinux/selinux.h |  12 +
  kernel/sucompat.c        |  87 ++++++-
- kernel/throne_tracker.c  |  41 +--
- 14 files changed, 904 insertions(+), 81 deletions(-)
+ kernel/throne_tracker.c  | 421 +++++++++++++++++++-----------
+ kernel/throne_tracker.h  |   2 -
+ 16 files changed, 1203 insertions(+), 215 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 706fd07f..0e6a2c9b 100644
@@ -192,7 +194,7 @@ index 1c1fc24a..5f55fc20 100644
 +
  endmenu
 diff --git a/kernel/Makefile b/kernel/Makefile
-index ac6d5b9e..4a7f9283 100644
+index ac6d5b9e..67e2f1b5 100644
 --- a/kernel/Makefile
 +++ b/kernel/Makefile
 @@ -16,6 +16,15 @@ ccflags-y += -I$(objtree)/security/selinux -include $(srctree)/include/uapi/asm-
@@ -211,7 +213,18 @@ index ac6d5b9e..4a7f9283 100644
  # .git is a text file while the module is imported by 'git submodule add'.
  ifeq ($(shell test -e $(srctree)/$(src)/../.git; echo $$?),0)
  $(shell cd $(srctree)/$(src); /usr/bin/env PATH="$$PATH":/usr/bin:/usr/local/bin [ -f ../.git/shallow ] && git fetch --unshallow)
-@@ -113,7 +122,23 @@ $(shell sed -i '/^extern void __init mnt_init/a int path_umount(struct path *pat
+@@ -49,6 +58,10 @@ ifeq ($(shell grep "ssize_t kernel_write" $(srctree)/fs/read_write.c | grep -q "
+ ccflags-y += -DKSU_KERNEL_WRITE
+ endif
+ 
++ifeq ($(shell grep -A1 "^int vfs_getattr" $(srctree)/fs/stat.c | grep -q "query_flags"; echo $$?),0)
++ccflags-y += -DKSU_HAS_NEW_VFS_GETATTR
++endif
++
+ ifndef KSU_NEXT_MANAGER_SIZE
+ KSU_NEXT_MANAGER_SIZE := 0x3e6
+ endif
+@@ -113,7 +126,23 @@ $(shell sed -i '/^extern void __init mnt_init/a int path_umount(struct path *pat
  $(info -- KSU_NEXT: adding 'int path_umount(struct path *path, int flags);' to $(srctree)/fs/internal.h)
  endif
  
@@ -276,7 +289,7 @@ index bcdac3f0..c59be97c 100644
  	return ksu_queue_work(&ksu_save_work);
  }
 diff --git a/kernel/apk_sign.c b/kernel/apk_sign.c
-index 2925a2ff..00046a40 100644
+index 2925a2ff..42109648 100644
 --- a/kernel/apk_sign.c
 +++ b/kernel/apk_sign.c
 @@ -190,23 +190,6 @@ static __always_inline bool check_v2_signature(char *path,
@@ -303,8 +316,31 @@ index 2925a2ff..00046a40 100644
  	struct file *fp = ksu_filp_open_compat(path, O_RDONLY, 0);
  	if (IS_ERR(fp)) {
  		pr_err("open %s error.\n", path);
+@@ -336,22 +319,6 @@ module_param_cb(ksu_debug_manager_uid, &expected_size_ops,
+ 
+ bool is_manager_apk(char *path)
+ {
+-	int tries = 0;
+-
+-	while (tries++ < 10) {
+-		if (!is_lock_held(path))
+-			break;
+-
+-		pr_info("%s: waiting for %s\n", __func__, path);
+-		msleep(100);
+-	}
+-
+-	// let it go, if retry fails, check_v2_signature will fail to open it anyway
+-	if (tries == 10) {
+-		pr_info("%s: timeout for %s\n", __func__, path);
+-		return false;
+-	}
+-
+ 	// set debug info to print size and hash to kernel log
+ 	pr_info("%s: expected size: %u, expected hash: %s\n",
+ 		path, expected_manager_size, expected_manager_hash);
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index d0c5c13d..ca0d2558 100644
+index d0c5c13d..f35b8ce5 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
 @@ -36,6 +36,10 @@
@@ -402,7 +438,21 @@ index d0c5c13d..ca0d2558 100644
  extern void ksu_sucompat_init();
  extern void ksu_sucompat_exit();
  
-@@ -361,6 +436,15 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -287,6 +362,13 @@ static bool is_system_bin_su(void)
+ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+ 		     unsigned long arg4, unsigned long arg5)
+ {
++#ifdef CONFIG_KSU_SUSFS
++	// - We straight up check if process is supposed to be umounted, return 0 if so
++	// - This is to prevent side channel attack as much as possible
++	if (likely(susfs_is_current_non_root_user_app_proc())) {
++		return 0;
++	}
++#endif
+ 	// if success, we modify the arg5 as result!
+ 	u32 *result = (u32 *)arg5;
+ 	u32 reply_ok = KERNEL_SU_OPTION;
+@@ -361,6 +443,15 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  		return 0;
  	}
  
@@ -418,7 +468,7 @@ index d0c5c13d..ca0d2558 100644
  	if (arg2 == CMD_GET_MANAGER_UID) {
  		uid_t manager_uid = ksu_get_manager_uid();
  		if (copy_to_user(arg3, &manager_uid, sizeof(manager_uid))) {
-@@ -394,6 +478,9 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -394,6 +485,9 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  			if (!post_fs_data_lock) {
  				post_fs_data_lock = true;
  				pr_info("post-fs-data triggered\n");
@@ -428,7 +478,7 @@ index d0c5c13d..ca0d2558 100644
  				on_post_fs_data();
  			}
  			break;
-@@ -509,6 +596,362 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -509,6 +603,362 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  	}
  #endif
  
@@ -791,7 +841,7 @@ index d0c5c13d..ca0d2558 100644
  	// all other cmds are for 'root manager'
  	if (!from_manager) {
  		return 0;
-@@ -574,6 +1017,12 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -574,6 +1024,12 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  		}
  
  		if (enabled) {
@@ -804,7 +854,7 @@ index d0c5c13d..ca0d2558 100644
  			ksu_sucompat_init();
  		} else {
  			ksu_sucompat_exit();
-@@ -601,6 +1050,11 @@ static bool is_non_appuid(kuid_t uid)
+@@ -601,6 +1057,11 @@ static bool is_non_appuid(kuid_t uid)
  	return appid < FIRST_APPLICATION_UID;
  }
  
@@ -816,7 +866,7 @@ index d0c5c13d..ca0d2558 100644
  static bool should_umount(struct path *path)
  {
  	if (!path) {
-@@ -613,11 +1067,15 @@ static bool should_umount(struct path *path)
+@@ -613,11 +1074,15 @@ static bool should_umount(struct path *path)
  		return false;
  	}
  
@@ -832,7 +882,7 @@ index d0c5c13d..ca0d2558 100644
  }
  
  static int ksu_umount_mnt(struct path *path, int flags)
-@@ -630,7 +1088,11 @@ static int ksu_umount_mnt(struct path *path, int flags)
+@@ -630,7 +1095,11 @@ static int ksu_umount_mnt(struct path *path, int flags)
  #endif
  }
  
@@ -844,7 +894,7 @@ index d0c5c13d..ca0d2558 100644
  {
  	struct path path;
  	int err = kern_path(mnt, 0, &path);
-@@ -650,12 +1112,35 @@ static void try_umount(const char *mnt, bool check_mnt, int flags)
+@@ -650,12 +1119,35 @@ static void try_umount(const char *mnt, bool check_mnt, int flags)
  		return;
  	}
  
@@ -880,7 +930,7 @@ index d0c5c13d..ca0d2558 100644
  int ksu_handle_setuid(struct cred *new, const struct cred *old)
  {
  	// this hook is used for umounting overlayfs for some uid, if there isn't any module mounted, just ignore it!
-@@ -675,6 +1160,21 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -675,6 +1167,21 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  		return 0;
  	}
  
@@ -902,7 +952,7 @@ index d0c5c13d..ca0d2558 100644
  	if (is_non_appuid(new_uid)) {
  #ifdef CONFIG_KSU_DEBUG
  		pr_info("handle setuid ignore non application uid: %d\n", new_uid.val);
-@@ -687,6 +1187,15 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -687,6 +1194,15 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  #ifdef CONFIG_KSU_DEBUG
  		pr_info("handle umount for unsupported application uid: %d\n", new_uid.val);
  #endif
@@ -918,7 +968,7 @@ index d0c5c13d..ca0d2558 100644
  		goto do_umount;
  	}
  
-@@ -709,7 +1218,11 @@ do_umount:
+@@ -709,7 +1225,11 @@ do_umount:
  	// check old process's selinux context, if it is not zygote, ignore it!
  	// because some su apps may setuid to untrusted_app but they are in global mount namespace
  	// when we umount for such process, that is a disaster!
@@ -930,7 +980,7 @@ index d0c5c13d..ca0d2558 100644
  		pr_info("handle umount ignore non zygote child: %d\n",
  			current->pid);
  		return 0;
-@@ -720,6 +1233,19 @@ do_umount:
+@@ -720,6 +1240,19 @@ do_umount:
  		current->pid);
  #endif
  
@@ -950,7 +1000,7 @@ index d0c5c13d..ca0d2558 100644
  	// fixme: use `collect_mounts` and `iterate_mount` to iterate all mountpoint and
  	// filter the mountpoint whose target is `/data/adb`
  	try_umount("/odm", true, 0);
-@@ -739,6 +1265,7 @@ do_umount:
+@@ -739,6 +1272,7 @@ do_umount:
  	// try umount lsposed dex2oat bins
  	try_umount("/apex/com.android.art/bin/dex2oat64", false, MNT_DETACH);
  	try_umount("/apex/com.android.art/bin/dex2oat32", false, MNT_DETACH);
@@ -958,6 +1008,41 @@ index d0c5c13d..ca0d2558 100644
  
  	return 0;
  }
+diff --git a/kernel/kernel_compat.h b/kernel/kernel_compat.h
+index 9049b6c1..f951ddc9 100644
+--- a/kernel/kernel_compat.h
++++ b/kernel/kernel_compat.h
+@@ -5,6 +5,30 @@
+ #include <linux/version.h>
+ #include "ss/policydb.h"
+ #include "linux/key.h"
++#include <linux/list.h>
++
++/**
++ * list_count_nodes - count the number of nodes in a list
++ * the head of the list
++ * 
++ * Returns the number of nodes in the list
++ */
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
++static inline size_t list_count_nodes(const struct list_head *head)
++{
++	const struct list_head *pos;
++	size_t count = 0;
++
++	if (!head)
++		return 0;
++
++	list_for_each(pos, head) {
++		count++;
++	}
++	
++	return count;
++}
++#endif
+ 
+ /*
+  * Adapt to Huawei HISI kernel without affecting other kernels ,
 diff --git a/kernel/ksu.c b/kernel/ksu.c
 index b6bb1230..ac2450b8 100644
 --- a/kernel/ksu.c
@@ -1342,10 +1427,20 @@ index 742c8dcc..c889e973 100644
 +}
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_SU
 diff --git a/kernel/throne_tracker.c b/kernel/throne_tracker.c
-index c9d487c8..dc1f7ee7 100644
+index c9d487c8..3e80dcde 100644
 --- a/kernel/throne_tracker.c
 +++ b/kernel/throne_tracker.c
-@@ -13,13 +13,9 @@
+@@ -5,6 +5,9 @@
+ #include <linux/string.h>
+ #include <linux/types.h>
+ #include <linux/version.h>
++#include <linux/stat.h>
++#include <linux/namei.h>
++#include <asm/atomic.h>
+ 
+ #include "allowlist.h"
+ #include "klog.h" // IWYU pragma: keep
+@@ -13,13 +16,25 @@
  #include "throne_tracker.h"
  #include "kernel_compat.h"
  
@@ -1353,14 +1448,264 @@ index c9d487c8..dc1f7ee7 100644
 -#include <linux/sched.h>
 -
  uid_t ksu_manager_uid = KSU_INVALID_UID;
++static uid_t locked_manager_uid = KSU_INVALID_UID;
++
++static atomic_t pkg_lock = ATOMIC_INIT(0);
++static atomic_t scan_lock = ATOMIC_INIT(0);
++
++#define SYSTEM_PACKAGES_LIST_PATH "/data/system/packages.list.tmp"
++#define USER_DATA_PATH "/data/user_de/0"
++#define USER_DATA_PATH_LEN 288
  
 -static struct task_struct *throne_thread;
 -#define SYSTEM_PACKAGES_LIST_PATH "/data/system/packages.list"
-+#define SYSTEM_PACKAGES_LIST_PATH "/data/system/packages.list.tmp"
++struct uid_scan_stats {
++	size_t errors_encountered;
++};
++
++struct user_data_context {
++	struct dir_context ctx;
++	struct list_head *uid_list;
++	struct uid_scan_stats *stats;
++};
  
  struct uid_data {
  	struct list_head list;
-@@ -296,7 +292,7 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
+@@ -79,18 +94,23 @@ static void crown_manager(const char *apk, struct list_head *uid_data)
+ #ifdef KSU_MANAGER_PACKAGE
+ 	// pkg is `/<real package>`
+ 	if (strncmp(pkg, KSU_MANAGER_PACKAGE, sizeof(KSU_MANAGER_PACKAGE))) {
+-		pr_info("manager package is inconsistent with kernel build: %s\n",
++		pr_info("manager package inconsistent: %s\n",
+ 			KSU_MANAGER_PACKAGE);
+ 		return;
+ 	}
+ #endif
+-	struct list_head *list = (struct list_head *)uid_data;
+ 	struct uid_data *np;
+-
+-	list_for_each_entry (np, list, list) {
++	list_for_each_entry(np, uid_data, list) {
+ 		if (strncmp(np->package, pkg, KSU_MAX_PACKAGE_NAME) == 0) {
+-			pr_info("Crowning manager: %s(uid=%d)\n", pkg, np->uid);
+-			ksu_set_manager_uid(np->uid);
++			// unlock previously locked UID if different
++			if (locked_manager_uid != KSU_INVALID_UID && locked_manager_uid != np->uid) {
++				pr_info("Unlocking previous manager UID: %d\n", locked_manager_uid);
++				ksu_invalidate_manager_uid();  // unlock old one
++				locked_manager_uid = KSU_INVALID_UID;
++			}
++			pr_info("Crowning new manager: %s (uid=%d)\n", pkg, np->uid);
++			ksu_set_manager_uid(np->uid);   // throne new UID
++			locked_manager_uid = np->uid;   // store locked UID
+ 			break;
+ 		}
+ 	}
+@@ -132,6 +152,154 @@ struct my_dir_context {
+ #define FILLDIR_ACTOR_STOP -EINVAL
+ #endif
+ 
++FILLDIR_RETURN_TYPE user_data_actor(struct dir_context *ctx, const char *name,
++				     int namelen, loff_t off, u64 ino,
++				     unsigned int d_type)
++{
++	struct user_data_context *my_ctx =
++		container_of(ctx, struct user_data_context, ctx);
++
++	if (!my_ctx || !my_ctx->uid_list)
++		return FILLDIR_ACTOR_STOP;
++
++	if (!strncmp(name, "..", namelen) || !strncmp(name, ".", namelen))
++		return FILLDIR_ACTOR_CONTINUE;
++
++	if (d_type != DT_DIR)
++		return FILLDIR_ACTOR_CONTINUE;
++
++	if (namelen >= KSU_MAX_PACKAGE_NAME) {
++		pr_warn("Package name too long: %.*s\n", namelen, name);
++		if (my_ctx->stats)
++			my_ctx->stats->errors_encountered++;
++		return FILLDIR_ACTOR_CONTINUE;
++	}
++
++	char package_path[USER_DATA_PATH_LEN];
++	if (snprintf(package_path, sizeof(package_path), "%s/%.*s",
++		     USER_DATA_PATH, namelen, name) >= sizeof(package_path)) {
++		pr_err("Path too long for package: %.*s\n", namelen, name);
++		if (my_ctx->stats)
++			my_ctx->stats->errors_encountered++;
++		return FILLDIR_ACTOR_CONTINUE;
++	}
++
++	struct path path;
++	int err = kern_path(package_path, LOOKUP_FOLLOW, &path);
++	if (err) {
++		pr_debug("Package path lookup failed: %s (err: %d)\n", package_path, err);
++		if (my_ctx->stats)
++			my_ctx->stats->errors_encountered++;
++		return FILLDIR_ACTOR_CONTINUE;
++	}
++
++	struct kstat stat;
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(KSU_HAS_NEW_VFS_GETATTR)
++	err = vfs_getattr(&path, &stat, STATX_UID, AT_STATX_SYNC_AS_STAT);
++#else
++	err = vfs_getattr(&path, &stat);
++#endif
++	path_put(&path);
++
++	if (err) {
++		pr_debug("Failed to get attributes for: %s (err: %d)\n", package_path, err);
++		if (my_ctx->stats)
++			my_ctx->stats->errors_encountered++;
++		return FILLDIR_ACTOR_CONTINUE;
++	}
++
++	uid_t uid = from_kuid(&init_user_ns, stat.uid);
++	if (uid == (uid_t)-1) {
++		pr_warn("Invalid UID for package: %.*s\n", namelen, name);
++		if (my_ctx->stats)
++			my_ctx->stats->errors_encountered++;
++		return FILLDIR_ACTOR_CONTINUE;
++	}
++
++	struct uid_data *data = kzalloc(sizeof(struct uid_data), GFP_ATOMIC);
++	if (!data) {
++		pr_err("Failed to allocate memory for package: %.*s\n", namelen, name);
++		if (my_ctx->stats)
++			my_ctx->stats->errors_encountered++;
++		return FILLDIR_ACTOR_CONTINUE;
++	}
++
++	data->uid = uid;
++	size_t copy_len = min(namelen, KSU_MAX_PACKAGE_NAME - 1);
++	strncpy(data->package, name, copy_len);
++	data->package[copy_len] = '\0';
++
++	list_add_tail(&data->list, my_ctx->uid_list);
++
++	return FILLDIR_ACTOR_CONTINUE;
++}
++
++/*
++ * small helper to check if lock is held
++ * false - file is stable
++ * true - file is being deleted/renamed
++ * possibly optional
++ *
++ */
++bool is_lock_held(const char *path) 
++{
++	struct path kpath;
++
++	// kern_path returns 0 on success
++	if (kern_path(path, 0, &kpath))
++		return true;
++
++	// just being defensive
++	if (!kpath.dentry) {
++		path_put(&kpath);
++		return true;
++	}
++
++	if (!spin_trylock(&kpath.dentry->d_lock)) {
++		pr_info("%s: lock held, bail out!\n", __func__);
++		path_put(&kpath);
++		return true;
++	}
++	// we hold it ourselves here!
++
++	spin_unlock(&kpath.dentry->d_lock);
++	path_put(&kpath);
++	return false;
++}
++
++static int scan_user_data_for_uids(struct list_head *uid_list)
++{
++	struct file *dir_file;
++	struct uid_scan_stats stats = {0};
++	int ret = 0;
++
++	if (!uid_list) {
++		return -EINVAL;
++	}
++
++	dir_file = ksu_filp_open_compat(USER_DATA_PATH, O_RDONLY, 0);
++	if (IS_ERR(dir_file)) {
++		pr_err("Failed to open %s, err: (%ld)\n", USER_DATA_PATH, PTR_ERR(dir_file));
++		return PTR_ERR(dir_file);
++	}
++
++	struct user_data_context ctx = {
++		.ctx.actor = user_data_actor,
++		.uid_list = uid_list,
++		.stats = &stats
++	};
++
++	ret = iterate_dir(dir_file, &ctx.ctx);
++	filp_close(dir_file, NULL);
++
++	// if 0 errors, that means everything were fine.
++	if (stats.errors_encountered > 0) {
++		pr_info("Got %zu error(s) while scanning %s directory.\n",
++			stats.errors_encountered, USER_DATA_PATH);
++	}
++	return ret;
++}
++
+ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
+ 			     int namelen, loff_t off, u64 ino,
+ 			     unsigned int d_type)
+@@ -220,39 +388,6 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
+ 	return FILLDIR_ACTOR_CONTINUE;
+ }
+ 
+-/*
+- * small helper to check if lock is held
+- * false - file is stable
+- * true - file is being deleted/renamed
+- * possibly optional
+- *
+- */
+-bool is_lock_held(const char *path) 
+-{
+-	struct path kpath;
+-
+-	// kern_path returns 0 on success
+-	if (kern_path(path, 0, &kpath))
+-		return true;
+-
+-	// just being defensive
+-	if (!kpath.dentry) {
+-		path_put(&kpath);
+-		return true;
+-	}
+-
+-	if (!spin_trylock(&kpath.dentry->d_lock)) {
+-		pr_info("%s: lock held, bail out!\n", __func__);
+-		path_put(&kpath);
+-		return true;
+-	}
+-	// we hold it ourselves here!
+-
+-	spin_unlock(&kpath.dentry->d_lock);
+-	path_put(&kpath);
+-	return false;
+-}
+-
+ // compat: https://elixir.bootlin.com/linux/v3.9/source/include/linux/fs.h#L771
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0)
+ #define S_MAGIC_COMPAT(x) ((x)->f_inode->i_sb->s_magic)
+@@ -260,7 +395,7 @@ bool is_lock_held(const char *path)
+ #define S_MAGIC_COMPAT(x) ((x)->f_path.dentry->d_inode->i_sb->s_magic)
+ #endif
+ 
+-void search_manager(const char *path, int depth, struct list_head *uid_data)
++static void search_manager(const char *path, int depth, struct list_head *uid_data)
+ {
+ 	int i, stop = 0;
+ 	struct list_head data_path_list;
+@@ -296,12 +431,12 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
  			struct file *file;
  
  			if (!stop) {
@@ -1369,16 +1714,205 @@ index c9d487c8..dc1f7ee7 100644
  				if (IS_ERR(file)) {
  					pr_err("Failed to open directory: %s, err: %ld\n", pos->dirpath, PTR_ERR(file));
  					goto skip_iterate;
-@@ -355,7 +351,7 @@ static bool is_uid_exist(uid_t uid, char *package, void *data)
+ 				}
+-				
++
+ 				// grab magic on first folder, which is /data/app
+ 				if (!data_app_magic) {
+ 					if (S_MAGIC_COMPAT(file)) {
+@@ -355,144 +490,122 @@ static bool is_uid_exist(uid_t uid, char *package, void *data)
  	return exist;
  }
  
 -static void track_throne_function()
 +void track_throne()
  {
++	struct list_head uid_list;
++	struct uid_data *np, *n;
  	struct file *fp;
- 	int tries = 0;
-@@ -462,37 +458,6 @@ out:
+-	int tries = 0;
++	int ret = 0;
++	INIT_LIST_HEAD(&uid_list);
+ 
+-	while (tries++ < 10) {
+-		if (!is_lock_held(SYSTEM_PACKAGES_LIST_PATH)) {
+-			fp = ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
+-			if (!IS_ERR(fp)) 
+-				break;
++	pr_info("Scanning %s directory..\n", USER_DATA_PATH);
++	ret = scan_user_data_for_uids(&uid_list);
++
++	if (ret < 0) {
++		pr_warn("Failed to scan %s, falling back to %s\n",
++			USER_DATA_PATH, SYSTEM_PACKAGES_LIST_PATH);
++
++		fp = ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
++		if (IS_ERR(fp)) {
++			pr_err("%s: open " SYSTEM_PACKAGES_LIST_PATH " failed: %ld\n",
++			       __func__, PTR_ERR(fp));
++			return;
+ 		}
+-		
+-		pr_info("%s: waiting for %s\n", __func__, SYSTEM_PACKAGES_LIST_PATH);
+-		msleep(100); // migth as well add a delay
+-	};
+-	
+-	if (IS_ERR(fp)) {
+-		pr_err("%s: open " SYSTEM_PACKAGES_LIST_PATH " failed: %ld\n", __func__, PTR_ERR(fp));
+-		return;
+-	} else
+-		pr_info("%s: %s found!\n", __func__, SYSTEM_PACKAGES_LIST_PATH);
+ 
+-	struct list_head uid_list;
+-	INIT_LIST_HEAD(&uid_list);
++		if (atomic_read(&pkg_lock) != 1) {
++			pr_info("%s: locking to only read %s\n", __func__, SYSTEM_PACKAGES_LIST_PATH);
++			atomic_set(&pkg_lock, 1);
++		}
+ 
+-	char chr = 0;
+-	loff_t pos = 0;
+-	loff_t line_start = 0;
+-	char buf[KSU_MAX_PACKAGE_NAME];
+-	for (;;) {
+-		ssize_t count =
+-			ksu_kernel_read_compat(fp, &chr, sizeof(chr), &pos);
+-		if (count != sizeof(chr))
+-			break;
+-		if (chr != '\n')
+-			continue;
++		char chr = 0;
++		loff_t pos = 0;
++		loff_t line_start = 0;
++		char buf[KSU_MAX_PACKAGE_NAME];
++		for (;;) {
++			ssize_t count = ksu_kernel_read_compat(fp, &chr, sizeof(chr), &pos);
++			if (count != sizeof(chr))
++				break;
++			if (chr != '\n')
++				continue;
+ 
+-		count = ksu_kernel_read_compat(fp, buf, sizeof(buf),
+-					       &line_start);
++			count = ksu_kernel_read_compat(fp, buf, sizeof(buf), &line_start);
+ 
+-		struct uid_data *data =
+-			kzalloc(sizeof(struct uid_data), GFP_ATOMIC);
+-		if (!data) {
+-			filp_close(fp, 0);
+-			goto out;
+-		}
++			struct uid_data *data = kzalloc(sizeof(struct uid_data), GFP_ATOMIC);
++			if (!data) {
++				filp_close(fp, 0);
++				goto out;
++			}
+ 
+-		char *tmp = buf;
+-		const char *delim = " ";
+-		char *package = strsep(&tmp, delim);
+-		char *uid = strsep(&tmp, delim);
+-		if (!uid || !package) {
+-			pr_err("update_uid: package or uid is NULL!\n");
+-			break;
++			char *tmp = buf;
++			const char *delim = " ";
++			char *package = strsep(&tmp, delim);
++			char *uid_str = strsep(&tmp, delim);
++			if (!uid_str || !package) {
++				pr_err("update_uid: package or uid is NULL!\n");
++				kfree(data);
++				break;
++			}
++
++			u32 res;
++			if (kstrtou32(uid_str, 10, &res)) {
++				pr_err("update_uid: uid parse err\n");
++				kfree(data);
++				break;
++			}
++
++			data->uid = res;
++			strncpy(data->package, package, KSU_MAX_PACKAGE_NAME);
++			list_add_tail(&data->list, &uid_list);
++
++			// reset line start
++			line_start = pos;
+ 		}
++		filp_close(fp, 0);
++	} else {
++		pr_info("Scanned %zu package(s) from user data directory.\n",
++			list_count_nodes(&uid_list));
+ 
+-		u32 res;
+-		if (kstrtou32(uid, 10, &res)) {
+-			pr_err("update_uid: uid parse err\n");
+-			break;
++		if (atomic_read(&scan_lock) != 1) {
++			pr_info("%s: locking to only read %s directory.\n",
++				__func__, USER_DATA_PATH);
++			atomic_set(&scan_lock, 1);
+ 		}
+-		data->uid = res;
+-		strncpy(data->package, package, KSU_MAX_PACKAGE_NAME);
+-		list_add_tail(&data->list, &uid_list);
+-		// reset line start
+-		line_start = pos;
+ 	}
+-	filp_close(fp, 0);
+ 
+-	// now update uid list
+-	struct uid_data *np;
+-	struct uid_data *n;
+-
+-	// first, check if manager_uid exist!
+-	bool manager_exist = false;
+-	list_for_each_entry (np, &uid_list, list) {
+-		// if manager is installed in work profile, the uid in packages.list is still equals main profile
+-		// don't delete it in this case!
+-		int manager_uid = ksu_get_manager_uid() % 100000;
+-		if (np->uid == manager_uid) {
++	// check if manager UID exists
++    bool manager_exist = false;
++	int current_manager_uid = ksu_get_manager_uid() % 100000;
++
++	list_for_each_entry(np, &uid_list, list) {
++		if (np->uid == current_manager_uid) {
+ 			manager_exist = true;
+ 			break;
+ 		}
+ 	}
+ 
++	if (!manager_exist && locked_manager_uid != KSU_INVALID_UID) {
++		pr_info("Manager APK removed, unlocking previous UID: %d\n", locked_manager_uid);
++		ksu_invalidate_manager_uid();
++		locked_manager_uid = KSU_INVALID_UID;
++	}
++
+ 	if (!manager_exist) {
+-		if (ksu_is_manager_uid_valid()) {
+-			pr_info("manager is uninstalled, invalidate it!\n");
+-			ksu_invalidate_manager_uid();
+-			goto prune;
+-		}
+-		pr_info("Searching manager...\n");
++		pr_info("Searching for manager...\n");
+ 		search_manager("/data/app", 2, &uid_list);
+-		pr_info("Search manager finished\n");
++		pr_info("Manager search finished\n");
+ 	}
+ 
+-prune:
+-	// then prune the allowlist
++	// prune the allowlist
+ 	ksu_prune_allowlist(is_uid_exist, &uid_list);
++
+ out:
+ 	// free uid_list
+-	list_for_each_entry_safe (np, n, &uid_list, list) {
++	list_for_each_entry_safe(np, n, &uid_list, list) {
+ 		list_del(&np->list);
+ 		kfree(np);
  	}
  }
  
@@ -1416,6 +1950,17 @@ index c9d487c8..dc1f7ee7 100644
  void ksu_throne_tracker_init()
  {
  	// nothing to do
+diff --git a/kernel/throne_tracker.h b/kernel/throne_tracker.h
+index f33e4cb9..5d7f4770 100644
+--- a/kernel/throne_tracker.h
++++ b/kernel/throne_tracker.h
+@@ -7,6 +7,4 @@ void ksu_throne_tracker_exit();
+ 
+ void track_throne();
+ 
+-bool is_lock_held(const char *path);
+-
+ #endif
 -- 
 2.34.1
 
