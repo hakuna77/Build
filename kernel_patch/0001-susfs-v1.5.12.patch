@@ -1,6 +1,6 @@
-From 7448ff59f36ff7ff3a3246c4bf714cf04d054b47 Mon Sep 17 00:00:00 2001
+From 27986aebf1e03cece6d2c5071533b6e0ad4391e6 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Mon, 13 Oct 2025 20:28:06 +0000
+Date: Mon, 13 Oct 2025 22:26:33 +0000
 Subject: [PATCH] susfs v1.5.12
 
 ---
@@ -3257,7 +3257,7 @@ index 000000000..3563c934d
 +#endif
 diff --git a/include/linux/susfs_def.h b/include/linux/susfs_def.h
 new file mode 100644
-index 000000000..da3f0439d
+index 000000000..21d5c2c80
 --- /dev/null
 +++ b/include/linux/susfs_def.h
 @@ -0,0 +1,87 @@
@@ -3302,8 +3302,8 @@ index 000000000..da3f0439d
 +#define SUS_SU_WITH_OVERLAY 1 /* deprecated */
 +#define SUS_SU_WITH_HOOKS 2
 +
-+#define DEFAULT_KSU_MNT_ID 500000 /* used by mount->mnt_id */
-+#define DEFAULT_KSU_MNT_GROUP_ID 5000 /* used by mount->mnt_group_id */
++#define DEFAULT_KSU_MNT_ID 100000 /* used by mount->mnt_id */
++#define DEFAULT_KSU_MNT_GROUP_ID 1000 /* used by mount->mnt_group_id */
 +
 +/*
 + * mount->mnt.susfs_mnt_id_backup => storing original mount's mnt_id
