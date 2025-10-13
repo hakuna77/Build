@@ -290,6 +290,7 @@ jobs:
           0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
           ${{ env.MANUAL_HOOK }} \
           ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
+          0001-stat-fix-inconsistency-between-struct-stat-and-struc.patch \
           avc.patch \
           0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch
         do
