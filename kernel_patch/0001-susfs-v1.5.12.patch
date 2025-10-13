@@ -1,6 +1,6 @@
-From bd5805fd2bff9b40f13678f145746a4693d76883 Mon Sep 17 00:00:00 2001
+From 8911b2ca4db83afabc79e9ecb28c1f03bced0402 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Mon, 13 Oct 2025 09:59:27 +0000
+Date: Mon, 13 Oct 2025 10:33:38 +0000
 Subject: [PATCH] susfs v1.5.12
 
 ---
@@ -18,11 +18,11 @@ Subject: [PATCH] susfs v1.5.12
  fs/susfs.c                | 1290 +++++++++++++++++++++++++++++++++++++
  include/linux/mount.h     |    3 +
  include/linux/sched.h     |    4 +
- include/linux/susfs.h     |  193 ++++++
+ include/linux/susfs.h     |  192 ++++++
  include/linux/susfs_def.h |   87 +++
  kernel/kallsyms.c         |   33 +
  kernel/sys.c              |    6 +
- 18 files changed, 2623 insertions(+), 4 deletions(-)
+ 18 files changed, 2622 insertions(+), 4 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -3059,10 +3059,10 @@ index ae20f52f1..67a53b8c3 100644
  	/* CPU-specific state of this task: */
 diff --git a/include/linux/susfs.h b/include/linux/susfs.h
 new file mode 100644
-index 000000000..c1e62402a
+index 000000000..3563c934d
 --- /dev/null
 +++ b/include/linux/susfs.h
-@@ -0,0 +1,193 @@
+@@ -0,0 +1,192 @@
 +#ifndef KSU_SUSFS_H
 +#define KSU_SUSFS_H
 +
@@ -3210,7 +3210,6 @@ index 000000000..c1e62402a
 +/* sus_mount */
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +int susfs_add_sus_mount(struct st_susfs_sus_mount* __user user_info);
-+#endif // #ifdef CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +
 +/* sus_kstat */
