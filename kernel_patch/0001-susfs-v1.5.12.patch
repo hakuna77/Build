@@ -1,6 +1,6 @@
-From 655654689c5a16d87e99676bc85fd3d7fb436804 Mon Sep 17 00:00:00 2001
+From 8911b2ca4db83afabc79e9ecb28c1f03bced0402 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Mon, 13 Oct 2025 12:30:16 +0000
+Date: Mon, 13 Oct 2025 10:33:38 +0000
 Subject: [PATCH] susfs v1.5.12
 
 ---
@@ -1734,7 +1734,7 @@ index ca1084cbe..0c984d4fc 100644
  	return err;
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
-index 000000000..0447fe03e
+index 000000000..1b3eb4935
 --- /dev/null
 +++ b/fs/susfs.c
 @@ -0,0 +1,1290 @@
@@ -2321,8 +2321,8 @@ index 000000000..0447fe03e
 +	}
 +	if ((!strncmp(pathname, "/data/adb/modules", 17) ||
 +		 !strncmp(pathname, "/debug_ramdisk", 14) ||
-+		 !strncmp(pathname, "/system", 7) ||
 +		 !strncmp(pathname, "/system_ext", 11) ||
++		 !strncmp(pathname, "/system", 7) ||
 +		 !strncmp(pathname, "/vendor", 7) ||
 +		 !strncmp(pathname, "/product", 8) ||
 +		 !strncmp(pathname, "/odm", 4)) &&
