@@ -61,6 +61,7 @@ on:
           - '0001-susfs-v1.5.10-for-branch-begonia.patch'
           - '0001-susfs-v1.5.11.patch'
           - '0001-susfs-v1.5.12.patch'
+          - '0001-susfs-v1.5.12-test.patch'
       patching_ksun:
         description: 'Enable patch susfs KernelSU-Next?'
         required: true
