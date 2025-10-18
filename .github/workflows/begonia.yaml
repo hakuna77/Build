@@ -287,7 +287,6 @@ jobs:
           0002-BACKPORT-ptrace-Move-setting-clearing.patch \
           0003-BACKPORT-fs-namespace.c-path_umount-5.10.9.patch \
           0001-inotify-show-inotify-mask-flags-in-proc-fdinfo.patch \
-          0001-BACKPORT-stat-from-k-5.10.y.patch \
           0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
           ${{ env.MANUAL_HOOK }} \
           ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
