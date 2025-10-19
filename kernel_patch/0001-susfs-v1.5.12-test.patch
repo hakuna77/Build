@@ -1,6 +1,6 @@
-From 7e246b7bdf3087bf7a4ae5c74f9d265d7e861775 Mon Sep 17 00:00:00 2001
+From eb4a87b2b3143b6cdda19f4fd58eb3ef6abfb833 Mon Sep 17 00:00:00 2001
 From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Sun, 19 Oct 2025 13:05:55 +0000
+Date: Sun, 19 Oct 2025 13:16:50 +0000
 Subject: [PATCH] susfs v1.5.12 test
 
 ---
@@ -1132,7 +1132,7 @@ index 96fc70225..cd4225ff8 100644
  	show_fd_locks(m, file, files);
  	if (seq_has_overflowed(m))
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
-index 924dc8249..ae6b75295 100644
+index 924dc8249..aad92b2df 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
 @@ -19,7 +19,9 @@
@@ -1199,7 +1199,7 @@ index 924dc8249..ae6b75295 100644
 +		__show_smap(m, &mss);
 +		seq_puts(m, "VmFlags: mr mw me");
 +		seq_putc(m, '\n');
-+		return 0
++		return 0;
 +	}
 +#endif
  
