@@ -78,6 +78,7 @@ on:
         options:
           - '0001-susfs-v1.5.10-with-tag.patch'
           - '0001-susfs-v1.5.11.patch'
+          - '0001-susfs-v1.5.12.patch'
 
 env:
   KERNEL_SOURCE_BRANCH: ${{ github.event.inputs.kernel_source_branch }}
