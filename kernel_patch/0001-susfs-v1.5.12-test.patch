@@ -1,6 +1,6 @@
-From 1b494f5d11430856bd49f8e5716c2f2901280715 Mon Sep 17 00:00:00 2001
-From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Mon, 20 Oct 2025 14:37:25 +0000
+From 49f1ae7bd7125a6729a461c827c04e5caa2492a2 Mon Sep 17 00:00:00 2001
+From: hakuna77 <akuntrial045@gmail.com>
+Date: Thu, 23 Oct 2025 19:19:33 +0000
 Subject: [PATCH] susfs v1.5.12 test
 
 ---
@@ -11,7 +11,7 @@ Subject: [PATCH] susfs v1.5.12 test
  fs/proc/base.c            |   31 +
  fs/proc/cmdline.c         |   10 +
  fs/proc/fd.c              |   18 +
- fs/proc/task_mmu.c        |   69 +-
+ fs/proc/task_mmu.c        |   71 +-
  fs/proc_namespace.c       |   25 +
  fs/readdir.c              |  279 +++++++-
  fs/stat.c                 |   18 +
@@ -23,7 +23,7 @@ Subject: [PATCH] susfs v1.5.12 test
  include/linux/susfs_def.h |   90 +++
  kernel/kallsyms.c         |   33 +
  kernel/sys.c              |    6 +
- 19 files changed, 2755 insertions(+), 3 deletions(-)
+ 19 files changed, 2757 insertions(+), 3 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1132,7 +1132,7 @@ index 96fc70225..cd4225ff8 100644
  	show_fd_locks(m, file, files);
  	if (seq_has_overflowed(m))
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
-index 924dc8249..ad56b6389 100644
+index 924dc8249..3613fc8a7 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
 @@ -19,7 +19,9 @@
@@ -1181,7 +1181,7 @@ index 924dc8249..ad56b6389 100644
  		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
  	}
  
-@@ -855,6 +876,24 @@ static int show_smap(struct seq_file *m, void *v)
+@@ -855,6 +876,26 @@ static int show_smap(struct seq_file *m, void *v)
  	struct mem_size_stats mss;
  
  	memset(&mss, 0, sizeof(mss));
@@ -1195,7 +1195,9 @@ index 924dc8249..ad56b6389 100644
 +		   "Size:           %8lu kB\n"
 +		   "KernelPageSize: %8lu kB\n"
 +		   "MMUPageSize:    %8lu kB\n",
-+		   (vma->vm_end - vma->vm_start) >> 10, 4, 4);
++		   (vma->vm_end - vma->vm_start) >> 10,
++		   vma_kernel_pagesize(vma) >> 10,
++		   vma_mmu_pagesize(vma) >> 10);
 +
 +		__show_smap(m, &mss);
 +		seq_puts(m, "VmFlags: mr mw me");
@@ -1206,7 +1208,7 @@ index 924dc8249..ad56b6389 100644
  
  	smap_gather_stats(vma, &mss);
  
-@@ -878,6 +917,9 @@ static int show_smap(struct seq_file *m, void *v)
+@@ -878,6 +919,9 @@ static int show_smap(struct seq_file *m, void *v)
  	arch_show_smap(m, vma);
  	show_smap_vma_flags(m, vma);
  
@@ -1216,7 +1218,7 @@ index 924dc8249..ad56b6389 100644
  	m_cache_vma(m, vma);
  
  	return 0;
-@@ -908,7 +950,19 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
+@@ -908,7 +952,19 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
  	hold_task_mempolicy(priv);
  
  	for (vma = priv->mm->mmap; vma;) {
@@ -1236,7 +1238,7 @@ index 924dc8249..ad56b6389 100644
  		last_vma_end = vma->vm_end;
  
  		/*
-@@ -1607,6 +1661,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1607,6 +1663,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  	unsigned long start_vaddr;
  	unsigned long end_vaddr;
  	int ret = 0, copied = 0;
@@ -1246,7 +1248,7 @@ index 924dc8249..ad56b6389 100644
  
  	if (!mm || !mmget_not_zero(mm))
  		goto out;
-@@ -1665,6 +1722,16 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1665,6 +1724,16 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  		down_read(&mm->mmap_sem);
  		ret = walk_page_range(start_vaddr, end, &pagemap_walk);
  		up_read(&mm->mmap_sem);
