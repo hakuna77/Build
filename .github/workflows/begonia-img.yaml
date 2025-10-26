@@ -157,8 +157,6 @@ jobs:
             CUSTOM_ANYKERNEL3_BRANCH
             ENABLE_CCACHE
             NEED_DTBO
-            BUILD_BOOT_IMG
-            SOURCE_BOOT_IMAGE
             KSU_EXPECTED_SIZE
             KSU_EXPECTED_HASH
             REMOVE_UNUSED_PACKAGES
