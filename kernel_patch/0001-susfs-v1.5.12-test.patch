@@ -1,6 +1,6 @@
-From 49f1ae7bd7125a6729a461c827c04e5caa2492a2 Mon Sep 17 00:00:00 2001
+From a6d44e6d3d4a0a87f600de6f64e1e74e06bdc1c3 Mon Sep 17 00:00:00 2001
 From: hakuna77 <akuntrial045@gmail.com>
-Date: Thu, 23 Oct 2025 19:19:33 +0000
+Date: Sun, 26 Oct 2025 01:04:47 +0000
 Subject: [PATCH] susfs v1.5.12 test
 
 ---
@@ -8,7 +8,7 @@ Subject: [PATCH] susfs v1.5.12 test
  fs/namei.c                |  262 +++++++-
  fs/namespace.c            |  301 +++++++++
  fs/notify/fdinfo.c        |   53 ++
- fs/proc/base.c            |   31 +
+ fs/proc/base.c            |   28 +
  fs/proc/cmdline.c         |   10 +
  fs/proc/fd.c              |   18 +
  fs/proc/task_mmu.c        |   71 +-
@@ -16,14 +16,15 @@ Subject: [PATCH] susfs v1.5.12 test
  fs/readdir.c              |  279 +++++++-
  fs/stat.c                 |   18 +
  fs/statfs.c               |   21 +
- fs/susfs.c                | 1330 +++++++++++++++++++++++++++++++++++++
+ fs/susfs.c                | 1338 +++++++++++++++++++++++++++++++++++++
  include/linux/mount.h     |    3 +
  include/linux/sched.h     |    4 +
- include/linux/susfs.h     |  203 ++++++
- include/linux/susfs_def.h |   90 +++
+ include/linux/susfs.h     |  204 ++++++
+ include/linux/susfs_def.h |   91 +++
  kernel/kallsyms.c         |   33 +
  kernel/sys.c              |    6 +
- 19 files changed, 2757 insertions(+), 3 deletions(-)
+ security/selinux/avc.c    |   20 +
+ 20 files changed, 2784 insertions(+), 3 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1000,7 +1001,7 @@ index c62a87ee3..8970b5c7b 100644
  			   inode_mark->wd, inode->i_ino, inode->i_sb->s_dev,
  			   inotify_mark_user_mask(mark));
 diff --git a/fs/proc/base.c b/fs/proc/base.c
-index 31726ba17..d17232403 100644
+index dc65fe528..e2244ec44 100644
 --- a/fs/proc/base.c
 +++ b/fs/proc/base.c
 @@ -94,6 +94,10 @@
@@ -1024,7 +1025,7 @@ index 31726ba17..d17232403 100644
  
  	if (!mm)
  		return 0;
-@@ -917,6 +924,22 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
+@@ -917,6 +924,19 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
  
  	while (count > 0) {
  		int this_len = min_t(int, count, PAGE_SIZE);
@@ -1038,16 +1039,13 @@ index 31726ba17..d17232403 100644
 +				} else {
 +					copied = -EIO;
 +				}
-+				*ppos = addr;
-+				mmput(mm);
-+				goto free;
 +			}
 +		}
 +#endif
  
  		if (write && copy_from_user(page, buf, this_len)) {
  			copied = -EFAULT;
-@@ -2287,6 +2310,14 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
+@@ -2287,6 +2307,14 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
  				vma = vma->vm_next) {
  			if (!vma->vm_file)
  				continue;
@@ -1876,10 +1874,10 @@ index ca1084cbe..0c984d4fc 100644
  	return err;
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
-index 000000000..d2f21376b
+index 000000000..7cf9606a8
 --- /dev/null
 +++ b/fs/susfs.c
-@@ -0,0 +1,1330 @@
+@@ -0,0 +1,1338 @@
 +#include <linux/version.h>
 +#include <linux/cred.h>
 +#include <linux/fs.h>
@@ -1905,6 +1903,7 @@ index 000000000..d2f21376b
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +extern void try_umount(const char *mnt, bool check_mnt, int flags, uid_t uid);
 +#endif
++extern bool susfs_is_avc_log_spoofing_enabled;
 +
 +#ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
 +bool susfs_is_log_enabled __read_mostly = true;
@@ -3196,6 +3195,13 @@ index 000000000..d2f21376b
 +	return err;
 +}
 +
++/* susfs avc log spoofing */
++void susfs_set_avc_log_spoofing(bool enabled) {
++	spin_lock(&susfs_spin_lock);
++	susfs_is_avc_log_spoofing_enabled = enabled;
++	spin_unlock(&susfs_spin_lock);
++	SUSFS_LOGI("enabled: %d\n", enabled);
++}
 +
 +/* susfs_init */
 +void susfs_init(void) {
@@ -3241,10 +3247,10 @@ index ae20f52f1..67a53b8c3 100644
  	/* CPU-specific state of this task: */
 diff --git a/include/linux/susfs.h b/include/linux/susfs.h
 new file mode 100644
-index 000000000..e29047489
+index 000000000..7d44e4c22
 --- /dev/null
 +++ b/include/linux/susfs.h
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,204 @@
 +#ifndef KSU_SUSFS_H
 +#define KSU_SUSFS_H
 +
@@ -3443,6 +3449,7 @@ index 000000000..e29047489
 +#endif
 +
 +int susfs_get_enabled_features(char __user* buf, size_t bufsize);
++void susfs_set_avc_log_spoofing(bool enabled);
 +
 +/* susfs_init */
 +void susfs_init(void);
@@ -3450,10 +3457,10 @@ index 000000000..e29047489
 +#endif
 diff --git a/include/linux/susfs_def.h b/include/linux/susfs_def.h
 new file mode 100644
-index 000000000..ccb080f63
+index 000000000..f48245d3d
 --- /dev/null
 +++ b/include/linux/susfs_def.h
-@@ -0,0 +1,90 @@
+@@ -0,0 +1,91 @@
 +#ifndef KSU_SUSFS_DEF_H
 +#define KSU_SUSFS_DEF_H
 +
@@ -3484,6 +3491,7 @@ index 000000000..ccb080f63
 +#define CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE 0x555e4
 +#define CMD_SUSFS_IS_SUS_SU_READY 0x555f0
 +#define CMD_SUSFS_SUS_SU 0x60000
++#define CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING 0x60010
 +#define CMD_SUSFS_ADD_SUS_MAP 0x60020
 +
 +#define SUSFS_MAX_LEN_PATHNAME 256 // 256 should address many paths already unless you are doing some strange experimental stuff, then set your own desired length
@@ -3620,6 +3628,51 @@ index 03a70f8ef..d932358c8 100644
  	up_read(&uts_sem);
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
  		return -EFAULT;
+diff --git a/security/selinux/avc.c b/security/selinux/avc.c
+index 59fa20b53..903ad43d4 100644
+--- a/security/selinux/avc.c
++++ b/security/selinux/avc.c
+@@ -44,6 +44,13 @@
+ #define avc_cache_stats_incr(field)	do {} while (0)
+ #endif
+ 
++#ifdef CONFIG_KSU_SUSFS
++extern u32 susfs_ksu_sid;
++extern u32 susfs_kernel_sid;
++bool susfs_is_avc_log_spoofing_enabled = false;
++#endif
++
++
+ struct avc_entry {
+ 	u32			ssid;
+ 	u32			tsid;
+@@ -187,6 +194,16 @@ static void avc_dump_query(struct audit_buffer *ab, struct selinux_state *state,
+ 	}
+ 
+ 	rc = security_sid_to_context(state, tsid, &scontext, &scontext_len);
++#ifdef CONFIG_KSU_SUSFS
++	if (unlikely(tsid == susfs_ksu_sid && susfs_is_avc_log_spoofing_enabled)) {
++		if (rc)
++			audit_log_format(ab, " tsid=%d", susfs_kernel_sid);
++		else
++			audit_log_format(ab, " tcontext=%s", "u:r:kernel:s0");
++		goto bypass_orig_flow;
++	}
++#endif
++
+ 	if (rc)
+ 		audit_log_format(ab, " tsid=%d", tsid);
+ 	else {
+@@ -194,6 +211,9 @@ static void avc_dump_query(struct audit_buffer *ab, struct selinux_state *state,
+ 		kfree(scontext);
+ 	}
+ 
++#ifdef CONFIG_KSU_SUSFS
++bypass_orig_flow:
++#endif
+ 	BUG_ON(!tclass || tclass >= ARRAY_SIZE(secclass_map));
+ 	audit_log_format(ab, " tclass=%s", secclass_map[tclass-1].name);
+ }
 -- 
 2.34.1
 

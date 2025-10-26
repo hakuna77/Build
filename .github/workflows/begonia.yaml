@@ -291,10 +291,10 @@ jobs:
           0001-inotify-show-inotify-mask-flags-in-proc-fdinfo.patch \
           0001-BACKPORT-stat-from-k-5.10.y.patch \
           0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
+          0001-BACKPORT-proc-less-memory-for-proc-map_files-readdir.patch \
           ${{ env.MANUAL_HOOK }} \
           ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
           0001-stat-fix-inconsistency-between-struct-stat-and-struc.patch \
-          avc.patch \
           0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch
         do
           if patch -p1 < "$patch_file"; then
