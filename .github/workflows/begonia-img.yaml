@@ -90,11 +90,12 @@ on:
           - 'false'
       source_boot_image:
         description: 'SELECT SOURCE BOOT IMAGE'
-        required: true
+        required: false
         default: 'https://raw.githubusercontent.com/hakuna77/Build/main/boot/boot-V12.5.6.0.img'
         type: choice
         options:
           - 'https://raw.githubusercontent.com/hakuna77/Build/main/boot/boot-V12.5.6.0.img'
+          - ''
 
 
 env:
