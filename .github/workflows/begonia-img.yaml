@@ -88,14 +88,6 @@ on:
         options:
           - 'true'
           - 'false'
-      source_boot_image:
-        description: 'SELECT SOURCE BOOT IMAGE'
-        required: false
-        default: 'https://raw.githubusercontent.com/hakuna77/Build/main/boot/boot-V12.5.6.0.img'
-        type: choice
-        options:
-          - 'https://raw.githubusercontent.com/hakuna77/Build/main/boot/boot-V12.5.6.0.img'
-          - ''
 
 
 env:
@@ -109,7 +101,6 @@ env:
   SELECT_VERSION_PATCH_SUSFS_TO_KERNEL: ${{ github.event.inputs.select_version_patch_susfs_to_kernel }}
   SELECT_VERSION_PATCH_SUSFS: ${{ github.event.inputs.select_version_patch_susfs }}
   BUILD_BOOT_IMG: ${{ github.event.inputs.build_boot_img }}
-  SOURCE_BOOT_IMAGE: ${{ github.event.inputs.source_boot_image }}
   
 jobs:
   build:
@@ -157,6 +148,7 @@ jobs:
             CUSTOM_ANYKERNEL3_BRANCH
             ENABLE_CCACHE
             NEED_DTBO
+            SOURCE_BOOT_IMAGE
             KSU_EXPECTED_SIZE
             KSU_EXPECTED_HASH
             REMOVE_UNUSED_PACKAGES
