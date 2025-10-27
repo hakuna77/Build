@@ -1,0 +1,49 @@
+From 3ce5d50024ab1da838e4fd95f5d6506d23a0cefe Mon Sep 17 00:00:00 2001
+From: hakuna77 <akuntrial045@gmail.com>
+Date: Mon, 27 Oct 2025 17:32:43 +0000
+Subject: [PATCH] backport test
+
+---
+ fs/namespace.c | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 7ae059333..296218311 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -1695,7 +1695,7 @@ static void namespace_unlock(void)
+ 	if (likely(hlist_empty(&head)))
+ 		return;
+ 
+-	synchronize_rcu();
++	synchronize_rcu_expedited();
+ 
+ 	group_pin_kill(&head);
+ }
+@@ -1957,6 +1957,7 @@ static int can_umount(const struct path *path, int flags)
+ {
+ 	struct mount *mnt = real_mount(path->mnt);
+ 
++	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
+ 	if (!may_mount())
+ 		return -EPERM;
+ 	if (path->dentry != path->mnt->mnt_root)
+@@ -2853,9 +2854,12 @@ static int do_new_mount(struct path *path, const char *fstype, int sb_flags,
+ 		return -ENODEV;
+ 
+ 	mnt = vfs_kern_mount(type, sb_flags, name, data);
+-	if (!IS_ERR(mnt) && (type->fs_flags & FS_HAS_SUBTYPE) &&
+-	    !mnt->mnt_sb->s_subtype)
+-		mnt = fs_set_subtype(mnt, fstype);
++	if (!IS_ERR(mnt) && (type->fs_flags & FS_HAS_SUBTYPE)) {
++		down_write(&mnt->mnt_sb->s_umount);
++		if (!mnt->mnt_sb->s_subtype)
++			mnt = fs_set_subtype(mnt, fstype);
++		up_write(&mnt->mnt_sb->s_umount);
++	}
+ 
+ 	put_filesystem(type);
+ 	if (IS_ERR(mnt))
+-- 
+2.34.1
+
