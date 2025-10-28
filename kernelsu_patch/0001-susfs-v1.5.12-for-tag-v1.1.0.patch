@@ -1,6 +1,6 @@
-From efe52f77de844e4c920c8d026efaec90ee277753 Mon Sep 17 00:00:00 2001
+From 3e987bf162adbccaea879bbc5ef547aa6e6aa205 Mon Sep 17 00:00:00 2001
 From: hakuna77 <akuntrial045@gmail.com>
-Date: Tue, 28 Oct 2025 15:37:35 +0000
+Date: Tue, 28 Oct 2025 16:12:09 +0000
 Subject: [PATCH] susfs v1.5.12 for tag v1.1.0
 
 ---
@@ -10,7 +10,7 @@ Subject: [PATCH] susfs v1.5.12 for tag v1.1.0
  kernel/allowlist.c       |   8 +-
  kernel/apk_sign.c        |  17 --
  kernel/core_hook.c       | 643 +++++++++++++++++++++++++++++++++++++--
- kernel/kernel_compat.c   |  10 +
+ kernel/kernel_compat.c   |  19 +-
  kernel/kernel_compat.h   |   1 +
  kernel/ksu.c             |   8 +
  kernel/ksu.h             |   2 +
@@ -20,7 +20,7 @@ Subject: [PATCH] susfs v1.5.12 for tag v1.1.0
  kernel/selinux/selinux.h |  12 +
  kernel/sucompat.c        |  84 ++++-
  kernel/throne_tracker.c  |  41 +--
- 16 files changed, 1013 insertions(+), 97 deletions(-)
+ 16 files changed, 1013 insertions(+), 106 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 706fd07f..e38b0406 100644
@@ -1098,7 +1098,7 @@ index d0c5c13d..9689d230 100644
  // Init functons
  
 diff --git a/kernel/kernel_compat.c b/kernel/kernel_compat.c
-index df642680..3dafb3ac 100644
+index df642680..473539e4 100644
 --- a/kernel/kernel_compat.c
 +++ b/kernel/kernel_compat.c
 @@ -76,6 +76,16 @@ void ksu_android_ns_fs_check()
@@ -1118,6 +1118,22 @@ index df642680..3dafb3ac 100644
  struct file *ksu_filp_open_compat(const char *filename, int flags, umode_t mode)
  {
  #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_IS_HW_HISI) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
+@@ -178,15 +188,6 @@ long ksu_strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr,
+ }
+ #endif
+ 
+-int ksu_access_ok(const void *addr, unsigned long size)
+-{
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+-	return access_ok(addr, size);
+-#else
+-	return access_ok(VERIFY_READ, addr, size);
+-#endif
+-}
+-
+ long ksu_strncpy_from_user_retry(char *dst, const void __user *unsafe_addr,
+ 				   long count)
+ {
 diff --git a/kernel/kernel_compat.h b/kernel/kernel_compat.h
 index 9049b6c1..d75ebb00 100644
 --- a/kernel/kernel_compat.h
