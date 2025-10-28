@@ -80,6 +80,7 @@ on:
           - '0001-susfs-v1.5.10-sus_map.patch'
           - '0001-susfs-v1.5.11.patch'
           - '0001-susfs-v1.5.12.patch'
+          - '0001-susfs-v1.5.12-for-tag-v1.1.0.patch'
       build_boot_img:
         description: 'enable BUILD BOOT IMG'
         required: true
