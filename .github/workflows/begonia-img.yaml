@@ -28,14 +28,16 @@ on:
           - 'next-susfs'
           - 'v1.1.0'
           - 'Mr.Groox'
+          - 'main'
       repo_ksu:
         description: 'Repo for KernelSU (owner/repo)'
         required: false
         default: 'KernelSU-Next'
         type: choice
         options:
-          - 'KernelSU-Next'
-          - 'JJ-Coffee'
+          - 'KernelSU-Next/KernelSU-Next'
+          - 'JJ-Coffee/KernelSU-Next'
+          - 'tiann/KernelSU
       patching_susfs:
         description: 'Enable patch susfs Kernel?'
         required: true
@@ -81,6 +83,7 @@ on:
           - '0001-susfs-v1.5.11.patch'
           - '0001-susfs-v1.5.12.patch'
           - '0001-susfs-v1.5.12-for-tag-v1.1.0.patch'
+          - '10_enable_susfs_for_ksu.patch'
       build_boot_img:
         description: 'enable BUILD BOOT IMG'
         required: true
@@ -331,16 +334,28 @@ jobs:
       if: env.ENABLE_KERNELSU == 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        curl -LSs "https://raw.githubusercontent.com/${{ env.REPO_KSU }}/KernelSU-Next/${{ env.KERNELSU_BRANCH_OR_TAG }}/kernel/setup.sh" | bash -s ${{ env.KERNELSU_BRANCH_OR_TAG }}
-        KSU_VERSION=$(cd KernelSU-Next && expr $(/usr/bin/git rev-list --count HEAD) + 10200)
+        curl -LSs "https://raw.githubusercontent.com/${{ env.REPO_KSU }}/${{ env.KERNELSU_BRANCH_OR_TAG }}/kernel/setup.sh" | bash -s ${{ env.KERNELSU_BRANCH_OR_TAG }}
+        if [ -d "KernelSU-Next" ]; then
+          KSU_DIR="KernelSU-Next"
+        elif [ -d "KernelSU" ]; then
+          KSU_DIR="KernelSU"
+        else
+          echo "❌ No KernelSU directory found! Available directories:"
+          ls -la
+          exit 1
+        fi
+        
+        KSU_VERSION=$(cd $KSU_DIR && expr $(/usr/bin/git rev-list --count HEAD) + 10200)
         echo "UPLOADNAME=-KernelSU_$KSU_VERSION" >> $GITHUB_ENV
+        echo "KSU_DIR=$KSU_DIR" >> $GITHUB_ENV
         
     - name: Patching KSUN
       if: env.PATCHING_KSUN == 'true'
       run: |
-        cp kernelsu_patch/*.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
+        KSU_DIR="${{ env.KSU_DIR }}"
+        cp kernelsu_patch/*.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/$KSU_DIR
         
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU-Next
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/$KSU_DIR
 
         echo "Applying patch..."
         for patch_file in \
