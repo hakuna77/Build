@@ -84,6 +84,7 @@ on:
           - '0001-susfs-v1.5.12.patch'
           - '0001-susfs-v1.5.12-for-tag-v1.1.0.patch'
           - '10_enable_susfs_for_ksu.patch'
+          - 'susfscom.patch'
       build_boot_img:
         description: 'enable BUILD BOOT IMG'
         required: true
