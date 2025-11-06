@@ -37,6 +37,7 @@ on:
         options:
           - 'KernelSU-Next/KernelSU-Next'
           - 'JJ-Coffee/KernelSU-Next'
+          - 'hakuna77/KernelSU-Next'
           - 'tiann/KernelSU'
       patching_susfs:
         description: 'Enable patch susfs Kernel?'
