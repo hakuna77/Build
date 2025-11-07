@@ -92,10 +92,10 @@ env:
   KERNELSU_BRANCH_OR_TAG: ${{ github.event.inputs.kernelsu_branch_or_tag }}
   REPO_KSU: ${{ github.event.inputs.repo_ksu }}
   PATCHING_SUSFS: ${{ github.event.inputs.patching_susfs }}
-  ADD_KPM: ${{ github.event.inputs.add_kpm }}
   MANUAL_HOOK: ${{ github.event.inputs.manual_hook }}
+  SELECT_VERSION_PATCH_SUSFS_TO_KERNEL: ${{ github.event.inputs.select_version_patch_susfs_to_kernel }}
+  ADD_KPM: ${{ github.event.inputs.add_kpm }}
   PATCHING_KPM: ${{ github.event.inputs.patching_kpm }}
-  SELECT_VERSION_PATCH_SUSFS: ${{ github.event.inputs.select_version_patch_susfs }}
   BUILD_BOOT_IMG: ${{ github.event.inputs.build_boot_img }}
   
 jobs:
