@@ -26,6 +26,7 @@ on:
         options:
           - 'susfs-main'
           - 'main'
+          - 'nongki'
       repo_ksu:
         description: 'Repo for KernelSU (owner/repo)'
         required: false
