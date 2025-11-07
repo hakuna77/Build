@@ -30,10 +30,11 @@ on:
       repo_ksu:
         description: 'Repo for KernelSU (owner/repo)'
         required: false
-        default: 'SukiSU-Ultra/SukiSU-Ultra'
+        default: 'hakuna77/SukiSU-Ultra'
         type: choice
         options:
           - 'SukiSU-Ultra/SukiSU-Ultra'
+          - 'hakuna77/SukiSU-Ultra'
       patching_susfs:
         description: 'Enable patch susfs Kernel?'
         required: true
