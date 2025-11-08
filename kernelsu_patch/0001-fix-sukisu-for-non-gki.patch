@@ -1,21 +1,48 @@
-From 83465ebd6419cfd5221c081c3ec62e3526a98464 Mon Sep 17 00:00:00 2001
+From 7ed295688cac3958ff970f77219e141b22f57528 Mon Sep 17 00:00:00 2001
 From: hakuna77 <akuntrial045@gmail.com>
-Date: Sat, 8 Nov 2025 17:43:01 +0000
+Date: Sat, 8 Nov 2025 19:14:05 +0000
 Subject: [PATCH] fix sukisu for non-gki
 
 ---
- kernel/allowlist.c       |  5 ++++-
+ kernel/Makefile          |  3 +++
+ kernel/allowlist.c       | 10 +++++++++-
  kernel/file_wrapper.c    | 24 ++++++++++++------------
  kernel/ksud.c            |  4 ++++
  kernel/selinux/selinux.c |  8 ++++++++
- kernel/supercalls.c      |  8 +++++++-
- 5 files changed, 35 insertions(+), 14 deletions(-)
+ kernel/supercalls.c      | 15 +++++++++++++--
+ 6 files changed, 49 insertions(+), 15 deletions(-)
 
+diff --git a/kernel/Makefile b/kernel/Makefile
+index d70c52e5..94054155 100644
+--- a/kernel/Makefile
++++ b/kernel/Makefile
+@@ -139,6 +139,9 @@ $(shell sed -i '/^extern void __init mnt_init/a int path_umount(struct path *pat
+ $(info -- KernelSU: SusFS: Adding 'int path_umount(struct path *path, int flags);' to $(srctree)/fs/internal.h)
+ endif
+ endif
++ifeq ($(shell grep -q "anon_inode_getfd_secure" $(srctree)/fs/anon_inodes.c; echo $$?),0)
++ccflags-y += -DKSU_HAS_GETFD_SECURE
++endif
+ # Checks Samsung UH drivers
+ ifeq ($(shell grep -q "CONFIG_KDP_CRED" $(srctree)/kernel/cred.c; echo $$?),0)
+ ccflags-y += -DSAMSUNG_UH_DRIVER_EXIST
 diff --git a/kernel/allowlist.c b/kernel/allowlist.c
-index 947048f2..439f6dbf 100644
+index 947048f2..4eed2f44 100644
 --- a/kernel/allowlist.c
 +++ b/kernel/allowlist.c
-@@ -419,8 +419,11 @@ void persistent_allow_list()
+@@ -10,6 +10,11 @@
+ #include <linux/slab.h>
+ #include <linux/types.h>
+ #include <linux/version.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
++#include <linux/sched/task.h>
++#else
++#include <linux/sched.h>
++#endif
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+ #include <linux/compiler_types.h>
+ #endif
+@@ -419,8 +424,11 @@ void persistent_allow_list()
          goto put_task;
      }
      cb->func = do_persistent_allow_list;
@@ -140,10 +167,27 @@ index 57c2be1b..4e2cdab5 100644
          return false;
      }
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index 897c7634..5fef0335 100644
+index 897c7634..3e8e4ca9 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
-@@ -393,7 +393,13 @@ static int do_get_wrapper_fd(void __user *arg) {
+@@ -382,10 +382,15 @@ static int do_get_wrapper_fd(void __user *arg) {
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
+ #define getfd_secure anon_inode_create_getfd
+-#else
++#elif defined(KSU_HAS_GETFD_SECURE)
+ #define getfd_secure anon_inode_getfd_secure
+ #endif
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0) || defined(KSU_HAS_GETFD_SECURE)
+     ret = getfd_secure("[ksu_fdwrapper]", &data->ops, data, f->f_flags, NULL);
++#else
++    ret = anon_inode_getfd("[ksu_fdwrapper]", &data->ops, data, f->f_flags);
++#endif
+     if (ret < 0) {
+         pr_err("ksu_fdwrapper: getfd failed: %d\n", ret);
+         goto put_wrapper_data;
+@@ -393,7 +398,13 @@ static int do_get_wrapper_fd(void __user *arg) {
      struct file* pf = fget(ret);
  
      struct inode* wrapper_inode = file_inode(pf);
