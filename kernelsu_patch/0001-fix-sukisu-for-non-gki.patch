@@ -1,13 +1,14 @@
-From c1efc06f519af2be5960d9180ced5085f976083e Mon Sep 17 00:00:00 2001
+From a0efcbfa4d723193cb17dc0379219928a2131725 Mon Sep 17 00:00:00 2001
 From: hakuna77 <akuntrial045@gmail.com>
-Date: Sat, 8 Nov 2025 15:25:43 +0000
+Date: Sat, 8 Nov 2025 15:43:04 +0000
 Subject: [PATCH] fix sukisu for non-gki
 
 ---
  kernel/allowlist.c       | 5 ++++-
+ kernel/ksud.c            | 4 ++++
  kernel/selinux/selinux.c | 8 ++++++++
  kernel/supercalls.c      | 8 +++++++-
- 3 files changed, 19 insertions(+), 2 deletions(-)
+ 4 files changed, 23 insertions(+), 2 deletions(-)
 
 diff --git a/kernel/allowlist.c b/kernel/allowlist.c
 index 947048f2..439f6dbf 100644
@@ -26,6 +27,22 @@ index 947048f2..439f6dbf 100644
  put_task:
      put_task_struct(tsk);
  }
+diff --git a/kernel/ksud.c b/kernel/ksud.c
+index fefad007..f4a9fba5 100644
+--- a/kernel/ksud.c
++++ b/kernel/ksud.c
+@@ -214,7 +214,11 @@ first_app_process:
+         rcu_read_lock();
+         init_task = rcu_dereference(current->parent);
+         if (init_task) {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+             task_work_add(init_task, &on_post_fs_data_cb, TWA_RESUME);
++#else
++            task_work_add(init_task, &on_post_fs_data_cb, true);
++#endif
+         }
+         rcu_read_unlock();
+ 
 diff --git a/kernel/selinux/selinux.c b/kernel/selinux/selinux.c
 index 57c2be1b..4e2cdab5 100644
 --- a/kernel/selinux/selinux.c
