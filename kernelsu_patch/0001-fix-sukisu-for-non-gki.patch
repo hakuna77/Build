@@ -1,12 +1,12 @@
-From dff2b439c98cbed938027f913f86354976858166 Mon Sep 17 00:00:00 2001
+From 992963200d3f97c29b58c06f07ba034b7da4eaa8 Mon Sep 17 00:00:00 2001
 From: hakuna77 <akuntrial045@gmail.com>
-Date: Sat, 8 Nov 2025 10:36:53 +0000
+Date: Sat, 8 Nov 2025 13:28:35 +0000
 Subject: [PATCH] fix sukisu for non-gki
 
 ---
  kernel/selinux/selinux.c | 8 ++++++++
- kernel/supercalls.c      | 6 ++++++
- 2 files changed, 14 insertions(+)
+ kernel/supercalls.c      | 8 +++++++-
+ 2 files changed, 15 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/selinux/selinux.c b/kernel/selinux/selinux.c
 index 57c2be1b..4e2cdab5 100644
@@ -37,19 +37,20 @@ index 57c2be1b..4e2cdab5 100644
          return false;
      }
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index d933b8a6..c13db486 100644
+index 897c7634..5fef0335 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
-@@ -389,7 +389,13 @@ static int do_proxy_file(void __user *arg) {
-     }
+@@ -393,7 +393,13 @@ static int do_get_wrapper_fd(void __user *arg) {
+     struct file* pf = fget(ret);
  
-     struct inode* proxy_inode = file_inode(pf);
+     struct inode* wrapper_inode = file_inode(pf);
+-    struct inode_security_struct *sec = selinux_inode(wrapper_inode);
 +#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) ||                           \
 +	defined(KSU_OPTIONAL_SELINUX_INODE)
-     struct inode_security_struct *sec = selinux_inode(proxy_inode);
++	struct inode_security_struct *sec = selinux_inode(wrapper_inode);
 +#else
 +	struct inode_security_struct *sec =
-+		(struct inode_security_struct *)proxy_inode->i_security;
++		(struct inode_security_struct *)wrapper_inode->i_security;
 +#endif
      if (sec) {
          sec->sid = ksu_file_sid;
