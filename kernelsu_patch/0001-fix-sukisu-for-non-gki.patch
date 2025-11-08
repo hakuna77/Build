@@ -1,0 +1,59 @@
+From dff2b439c98cbed938027f913f86354976858166 Mon Sep 17 00:00:00 2001
+From: hakuna77 <akuntrial045@gmail.com>
+Date: Sat, 8 Nov 2025 10:36:53 +0000
+Subject: [PATCH] fix sukisu for non-gki
+
+---
+ kernel/selinux/selinux.c | 8 ++++++++
+ kernel/supercalls.c      | 6 ++++++
+ 2 files changed, 14 insertions(+)
+
+diff --git a/kernel/selinux/selinux.c b/kernel/selinux/selinux.c
+index 57c2be1b..4e2cdab5 100644
+--- a/kernel/selinux/selinux.c
++++ b/kernel/selinux/selinux.c
+@@ -116,7 +116,11 @@ bool is_task_ksu_domain(const struct cred* cred)
+     if (!cred) {
+         return false;
+     }
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+     const struct task_security_struct *tsec = selinux_cred(cred);
++#else
++    const struct task_security_struct *tsec = cred->security;
++#endif
+     if (!tsec) {
+         return false;
+     }
+@@ -140,7 +144,11 @@ bool is_zygote(const struct cred* cred)
+     if (!cred) {
+         return false;
+     }
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+     const struct task_security_struct * tsec = selinux_cred(cred);
++#else
++    const struct task_security_struct * tsec = cred->security;
++#endif
+     if (!tsec) {
+         return false;
+     }
+diff --git a/kernel/supercalls.c b/kernel/supercalls.c
+index d933b8a6..c13db486 100644
+--- a/kernel/supercalls.c
++++ b/kernel/supercalls.c
+@@ -389,7 +389,13 @@ static int do_proxy_file(void __user *arg) {
+     }
+ 
+     struct inode* proxy_inode = file_inode(pf);
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) ||                           \
++	defined(KSU_OPTIONAL_SELINUX_INODE)
+     struct inode_security_struct *sec = selinux_inode(proxy_inode);
++#else
++	struct inode_security_struct *sec =
++		(struct inode_security_struct *)proxy_inode->i_security;
++#endif
+     if (sec) {
+         sec->sid = ksu_file_sid;
+     }
+-- 
+2.34.1
+
