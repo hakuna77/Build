@@ -394,7 +394,7 @@ jobs:
                 echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             fi
         fi
-        if [ ${{ env.ADD_KPROBES_CONFIG }} = true && ${{ env.ENABLE_KERNELSU }} = true ]; then
+        if [ "${{ env.ADD_KPROBES_CONFIG }}" = "true" ] && [ "${{ env.ENABLE_KERNELSU }}" = "true" ]; then
             echo "CONFIG_MODULES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_HAVE_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
