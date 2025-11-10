@@ -393,6 +393,7 @@ jobs:
                 echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
                 echo "CONFIG_KSU_KPROBES_HOOK=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
                 echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+                echo "CONFIG_KSU_MULTI_MANAGER_SUPPORT=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             fi
         fi
         if [ "${{ env.ADD_KPROBES_CONFIG }}" = "true" ] && [ "${{ env.ENABLE_KERNELSU }}" = "true" ]; then
