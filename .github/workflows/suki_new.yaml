@@ -25,6 +25,7 @@ on:
         type: choice
         options:
           - 'susfs-main'
+          - 'susfs-To_be_updated'
           - 'main'
           - 'nongki'
       repo_ksu:
