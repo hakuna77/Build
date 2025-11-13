@@ -308,10 +308,7 @@ jobs:
             0001-BACKPORT-proc-less-memory-for-proc-map_files-readdir.patch \
             ${{ env.MANUAL_HOOK }} \
             ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
-            0001-stat-fix-inconsistency-between-struct-stat-and-struc.patch \
-            0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch \
-            0001-backport-test.patch \
-            0001-backport-move_mount.patch
+            0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch
           do
             if patch -p1 < "$patch_file"; then
               echo "✅ $patch_file applied successfully."
@@ -326,7 +323,7 @@ jobs:
           for patch_file in \
             0001-BACKPORT-proc-less-memory-for-proc-map_files-readdir.patch \
             ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
-            0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch \
+            0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch
           do
             if patch -p1 < "$patch_file"; then
               echo "✅ $patch_file applied successfully."
