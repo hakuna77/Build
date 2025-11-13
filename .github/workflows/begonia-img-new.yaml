@@ -373,17 +373,32 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/$KSU_DIR
 
         echo "Applying patch..."
-        for patch_file in \
-          0001-fix-pkg_observer-for-k4.14.patch \
-          ${{ env.SELECT_VERSION_PATCH_SUSFS }}
-        do
-          if patch -p1 < "$patch_file"; then
-            echo "✅ $patch_file applied successfully."
-          else
-            echo "❌ Patch failed to apply!"
-            exit 1
-          fi
-        done
+        
+        if [ "${{ env.KERNELSU_BRANCH_OR_TAG }}" == "v1.1.0" ]; then
+          for patch_file in \
+            ${{ env.SELECT_VERSION_PATCH_SUSFS }}
+          do
+            if patch -p1 < "$patch_file"; then
+              echo "✅ $patch_file applied successfully."
+            else
+              echo "❌ Patch failed to apply!"
+              exit 1
+            fi
+          done
+        
+        else
+          for patch_file in \
+            0001-fix-pkg_observer-for-k4.14.patch \
+            ${{ env.SELECT_VERSION_PATCH_SUSFS }}
+          do
+            if patch -p1 < "$patch_file"; then
+              echo "✅ $patch_file applied successfully."
+            else
+              echo "❌ Patch failed to apply!"
+              exit 1
+            fi
+          done
+        fi
 
     - name: Setup Configuration for Kernel
       run: |
