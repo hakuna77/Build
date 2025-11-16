@@ -559,7 +559,8 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         tools/unpack_bootimg.py --boot_img boot-source.img
-        cp android-kernel/out/arch/${{ env.ARCH }}/boot/${{ env.KERNEL_IMAGE_NAME }} out/kernel
+        cp android-kernel/out/arch/${{ env.ARCH }}/boot/Image.gz out/kernel
+        cp android-kernel/out/arch/${{ env.ARCH }}/boot/dts/mediatek/mt6785.dtb out/dtb
         tools/mkbootimg.py ${{ env.FORMAT_MKBOOTING }} -o boot.img
         if [ -f boot.img ]; then
             echo "MAKE_BOOT_IMAGE_IS_OK=true" >> $GITHUB_ENV
