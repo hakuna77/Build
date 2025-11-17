@@ -1,7 +1,7 @@
-From a6d44e6d3d4a0a87f600de6f64e1e74e06bdc1c3 Mon Sep 17 00:00:00 2001
-From: hakuna77 <akuntrial045@gmail.com>
-Date: Sun, 26 Oct 2025 01:04:47 +0000
-Subject: [PATCH] susfs v1.5.12 test
+From c55ecd9d997c26a7cbdd79e9fad1837e31ef37e9 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Mon, 17 Nov 2025 16:36:32 +0700
+Subject: [PATCH] susfs v1.5.12 update
 
 ---
  fs/Makefile               |    2 +
@@ -1784,7 +1784,7 @@ index 0c357663e..51ef27ba4 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (error >= 0)
 diff --git a/fs/stat.c b/fs/stat.c
-index 9eab850ad..8df042fc2 100644
+index 71bb5a4c5..1131e6b8e 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,9 @@
@@ -1797,7 +1797,7 @@ index 9eab850ad..8df042fc2 100644
  
  #include <linux/uaccess.h>
  #include <asm/unistd.h>
-@@ -33,8 +36,23 @@
+@@ -30,8 +33,23 @@
   * found on the VFS inode structure.  This is the default if no getattr inode
   * operation is supplied.
   */
@@ -3629,7 +3629,7 @@ index 03a70f8ef..d932358c8 100644
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
  		return -EFAULT;
 diff --git a/security/selinux/avc.c b/security/selinux/avc.c
-index 59fa20b53..903ad43d4 100644
+index 59fa20b53..375f2a0e5 100644
 --- a/security/selinux/avc.c
 +++ b/security/selinux/avc.c
 @@ -44,6 +44,13 @@
@@ -3638,7 +3638,7 @@ index 59fa20b53..903ad43d4 100644
  
 +#ifdef CONFIG_KSU_SUSFS
 +extern u32 susfs_ksu_sid;
-+extern u32 susfs_kernel_sid;
++extern u32 susfs_priv_app_sid;
 +bool susfs_is_avc_log_spoofing_enabled = false;
 +#endif
 +
@@ -3653,9 +3653,9 @@ index 59fa20b53..903ad43d4 100644
 +#ifdef CONFIG_KSU_SUSFS
 +	if (unlikely(tsid == susfs_ksu_sid && susfs_is_avc_log_spoofing_enabled)) {
 +		if (rc)
-+			audit_log_format(ab, " tsid=%d", susfs_kernel_sid);
++			audit_log_format(ab, " tsid=%d", susfs_priv_app_sid);
 +		else
-+			audit_log_format(ab, " tcontext=%s", "u:r:kernel:s0");
++			audit_log_format(ab, " tcontext=%s", "u:r:priv_app:s0:c512,c768");
 +		goto bypass_orig_flow;
 +	}
 +#endif
@@ -3674,5 +3674,5 @@ index 59fa20b53..903ad43d4 100644
  	audit_log_format(ab, " tclass=%s", secclass_map[tclass-1].name);
  }
 -- 
-2.34.1
+2.51.2
 
