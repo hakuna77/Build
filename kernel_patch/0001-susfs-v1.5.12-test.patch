@@ -1,6 +1,6 @@
-From c55ecd9d997c26a7cbdd79e9fad1837e31ef37e9 Mon Sep 17 00:00:00 2001
+From 0d17f129470aaaf647b2541d4e570098f790c63f Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 17 Nov 2025 16:36:32 +0700
+Date: Wed, 19 Nov 2025 08:13:48 +0700
 Subject: [PATCH] susfs v1.5.12 update
 
 ---
@@ -8,7 +8,7 @@ Subject: [PATCH] susfs v1.5.12 update
  fs/namei.c                |  262 +++++++-
  fs/namespace.c            |  301 +++++++++
  fs/notify/fdinfo.c        |   53 ++
- fs/proc/base.c            |   28 +
+ fs/proc/base.c            |   31 +
  fs/proc/cmdline.c         |   10 +
  fs/proc/fd.c              |   18 +
  fs/proc/task_mmu.c        |   71 +-
@@ -24,7 +24,7 @@ Subject: [PATCH] susfs v1.5.12 update
  kernel/kallsyms.c         |   33 +
  kernel/sys.c              |    6 +
  security/selinux/avc.c    |   20 +
- 20 files changed, 2784 insertions(+), 3 deletions(-)
+ 20 files changed, 2787 insertions(+), 3 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1001,7 +1001,7 @@ index c62a87ee3..8970b5c7b 100644
  			   inode_mark->wd, inode->i_ino, inode->i_sb->s_dev,
  			   inotify_mark_user_mask(mark));
 diff --git a/fs/proc/base.c b/fs/proc/base.c
-index dc65fe528..e2244ec44 100644
+index dc65fe528..262f43bd5 100644
 --- a/fs/proc/base.c
 +++ b/fs/proc/base.c
 @@ -94,6 +94,10 @@
@@ -1025,7 +1025,7 @@ index dc65fe528..e2244ec44 100644
  
  	if (!mm)
  		return 0;
-@@ -917,6 +924,19 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
+@@ -917,6 +924,22 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
  
  	while (count > 0) {
  		int this_len = min_t(int, count, PAGE_SIZE);
@@ -1039,13 +1039,16 @@ index dc65fe528..e2244ec44 100644
 +				} else {
 +					copied = -EIO;
 +				}
++				*ppos = addr;
++				mmput(mm);
++				goto free;
 +			}
 +		}
 +#endif
  
  		if (write && copy_from_user(page, buf, this_len)) {
  			copied = -EFAULT;
-@@ -2287,6 +2307,14 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
+@@ -2287,6 +2310,14 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
  				vma = vma->vm_next) {
  			if (!vma->vm_file)
  				continue;
