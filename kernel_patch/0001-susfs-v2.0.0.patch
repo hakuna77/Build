@@ -1,6 +1,6 @@
-From 872501abd59acd58a36fee64a5f74c4e52388d2d Mon Sep 17 00:00:00 2001
+From ceaf29916a7ae6935fe930f7de7b51550c7649d1 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Fri, 21 Nov 2025 04:11:21 +0700
+Date: Fri, 21 Nov 2025 05:03:41 +0700
 Subject: [PATCH] susfs v2.0.0
 
 ---
@@ -16,7 +16,7 @@ Subject: [PATCH] susfs v2.0.0
  fs/readdir.c              |  279 +++++++-
  fs/stat.c                 |   18 +
  fs/statfs.c               |   16 +
- fs/susfs.c                | 1281 +++++++++++++++++++++++++++++++++++++
+ fs/susfs.c                | 1285 +++++++++++++++++++++++++++++++++++++
  include/linux/mount.h     |    3 +
  include/linux/sched.h     |    4 +
  include/linux/susfs.h     |  245 +++++++
@@ -24,7 +24,7 @@ Subject: [PATCH] susfs v2.0.0
  kernel/kallsyms.c         |   33 +
  kernel/sys.c              |   14 +
  security/selinux/avc.c    |   20 +
- 20 files changed, 2748 insertions(+), 3 deletions(-)
+ 20 files changed, 2752 insertions(+), 3 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1834,10 +1834,10 @@ index ca1084cbe..638abca3c 100644
  
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
-index 000000000..ee7e8d387
+index 000000000..d80a420c9
 --- /dev/null
 +++ b/fs/susfs.c
-@@ -0,0 +1,1281 @@
+@@ -0,0 +1,1285 @@
 +#include <linux/version.h>
 +#include <linux/cred.h>
 +#include <linux/fs.h>
@@ -2090,51 +2090,49 @@ index 000000000..ee7e8d387
 +	if (copy_to_user(&((struct st_susfs_sus_path __user*)*user_info)->err, &info.err, sizeof(info.err))) {
 +		info.err = -EFAULT;
 +	}
-+	SUSFS_LOGI("CMD_SUSFS_ADD_SUS_PATH_LOOP -> ret: %d\n", info.err);
++	SUSFS_LOGI("CMD_SUSFS_ADD_SUS_PATH -> ret: %d\n", info.err);
 +}
 +
-+int susfs_add_sus_path_loop(struct st_susfs_sus_path* __user user_info) {
++void susfs_add_sus_path_loop(void __user **user_info) {
 +	struct st_susfs_sus_path_list *cursor = NULL, *temp = NULL;
 +	struct st_susfs_sus_path_list *new_list = NULL;
-+	struct st_susfs_sus_path info;
++	struct st_susfs_sus_path info = {0};
 +	struct path path;
 +	struct inode *inode = NULL;
 +	char *resolved_pathname = NULL, *tmp_buf = NULL;
-+	int err = 0;
 +
-+	err = copy_from_user(&info, user_info, sizeof(info));
-+	if (err) {
-+		SUSFS_LOGE("failed copying from userspace\n");
-+		return err;
++	if (copy_from_user(&info, (struct st_susfs_sus_path __user*)*user_info, sizeof(info))) {
++		info.err = -EFAULT;
++		goto out_copy_to_user;
 +	}
 +
-+	err = kern_path(info.target_pathname, 0, &path);
-+	if (err) {
++	info.err = kern_path(info.target_pathname, 0, &path);
++	if (info.err) {
 +		SUSFS_LOGE("Failed opening file '%s'\n", info.target_pathname);
-+		return err;
++		goto out_copy_to_user;
 +	}
 +
 +	if (!path.dentry->d_inode) {
-+		err = -EINVAL;
++		info.err = -EINVAL;
 +		goto out_path_put_path;
 +	}
 +	inode = d_inode(path.dentry);
 +
 +	tmp_buf = kmalloc(PAGE_SIZE, GFP_KERNEL);
 +	if (!tmp_buf) {
-+		err = -ENOMEM;
++		info.err = -ENOMEM;
 +		goto out_path_put_path;
 +	}
 +
 +	resolved_pathname = d_path(&path, tmp_buf, PAGE_SIZE);
 +	SUSFS_LOGI("resolved_pathname: %s\n", resolved_pathname);
 +	if (!resolved_pathname) {
-+		err = -ENOMEM;
++		info.err = -ENOMEM;
 +		goto out_kfree_tmp_buf;
 +	}
 +
 +	if (susfs_starts_with(resolved_pathname, "/storage/")) {
-+		err = -EINVAL;
++		info.err = -EINVAL;
 +		SUSFS_LOGE("path starts with /storage and /sdcard cannot be added by add_sus_path_loop\n");
 +		goto out_kfree_tmp_buf;
 +	}
@@ -2155,7 +2153,7 @@ index 000000000..ee7e8d387
 +	}
 +	new_list = kmalloc(sizeof(struct st_susfs_sus_path_list), GFP_KERNEL);
 +	if (!new_list) {
-+		err = -ENOMEM;
++		info.err = -ENOMEM;
 +		goto out_kfree_tmp_buf;
 +	}
 +	new_list->info.target_ino = info.target_ino;
@@ -2174,11 +2172,16 @@ index 000000000..ee7e8d387
 +	set_bit(AS_FLAGS_SUS_PATH, &inode->i_mapping->flags);
 +	SUSFS_LOGI("pathname: '%s', ino: '%lu', is flagged as AS_FLAGS_SUS_PATH\n", resolved_pathname, info.target_ino);
 +	spin_unlock(&inode->i_lock);
++	info.err = 0;
 +out_kfree_tmp_buf:
 +	kfree(tmp_buf);
 +out_path_put_path:
 +	path_put(&path);
-+	return err;
++out_copy_to_user:
++	if (copy_to_user(&((struct st_susfs_sus_path __user*)*user_info)->err, &info.err, sizeof(info.err))) {
++		info.err = -EFAULT;
++	}
++	SUSFS_LOGI("CMD_SUSFS_ADD_SUS_PATH_LOOP -> ret: %d\n", info.err);
 +}
 +
 +void susfs_run_sus_path_loop(uid_t uid) {
@@ -2337,7 +2340,6 @@ index 000000000..ee7e8d387
 +	}
 +	SUSFS_LOGI("CMD_SUSFS_UMOUNT_FOR_ZYGOTE_ISO_SERVICE -> ret: %d\n", info.err);
 +}
-+
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +
 +/* sus_kstat */
@@ -2381,6 +2383,7 @@ index 000000000..ee7e8d387
 +	if (copy_from_user(&info, (struct st_susfs_sus_kstat __user*)*user_info, sizeof(info))) {
 +		info.err = -EFAULT;
 +		goto out_copy_to_user;
++	}
 +
 +	if (strlen(info.target_pathname) == 0) {
 +		info.err = -EINVAL;
@@ -2624,7 +2627,6 @@ index 000000000..ee7e8d387
 +	char *pathname = NULL, *dpath = NULL;
 +	size_t new_pathname_len = 0;
 +
-+
 +#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
 +	if (path->dentry->d_inode->i_mapping->flags & BIT_SUS_KSTAT) {
 +		SUSFS_LOGI("skip adding path to try_umount list as its inode is flagged BIT_SUS_KSTAT already\n");
@@ -2643,6 +2645,7 @@ index 000000000..ee7e8d387
 +		SUSFS_LOGE("dpath is NULL\n");
 +		goto out_free_pathname;
 +	}
++
 +	// - Important to check if it is from a magic mount, if so, then we need only
 +	//   the path which is directory only, others should be skipped.
 +	// - We need to strip out "/debug_ramdisk/workdir" here since there will be
@@ -2726,7 +2729,7 @@ index 000000000..ee7e8d387
 +}
 +#endif // #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +
-+/* set_log */
++/* enable_log */
 +#ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
 +static DEFINE_SPINLOCK(susfs_spin_lock_enable_log);
 +
@@ -2816,6 +2819,7 @@ index 000000000..ee7e8d387
 +#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
 +static DEFINE_SPINLOCK(susfs_spin_lock_open_redirect);
 +static DEFINE_HASHTABLE(OPEN_REDIRECT_HLIST, 10);
++
 +static int susfs_update_open_redirect_inode(struct st_susfs_open_redirect_hlist *new_entry) {
 +	struct path path_target;
 +	struct inode *inode_target;
@@ -2892,7 +2896,6 @@ index 000000000..ee7e8d387
 +				new_entry->target_ino, new_entry->target_pathname, new_entry->redirected_pathname);
 +	}
 +	spin_unlock(&susfs_spin_lock_open_redirect);
-+	return 0;
 +	info.err = 0;
 +out_copy_to_user:
 +	if (copy_to_user(&((struct st_susfs_open_redirect __user*)*user_info)->err, &info.err, sizeof(info.err))) {
@@ -2949,13 +2952,13 @@ index 000000000..ee7e8d387
 +		info.err = -EFAULT;
 +	}
 +	SUSFS_LOGI("CMD_SUSFS_ADD_SUS_MAP -> ret: %d\n", info.err);
-+
 +}
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MAP
 +
 +/* susfs avc log spoofing */
 +static DEFINE_SPINLOCK(susfs_spin_lock_set_avc_log_spoofing);
 +extern bool susfs_is_avc_log_spoofing_enabled;
++
 +void susfs_set_avc_log_spoofing(void __user **user_info) {
 +	struct st_susfs_avc_log_spoofing info = {0};
 +
@@ -3005,6 +3008,7 @@ index 000000000..ee7e8d387
 +	}
 +
 +	buf_ptr = info->enabled_features;
++
 +#ifdef CONFIG_KSU_SUSFS_SUS_PATH
 +	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_SUS_PATH\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
 +	if (info->err) goto out_copy_to_user;
