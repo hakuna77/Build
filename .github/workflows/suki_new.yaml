@@ -339,8 +339,12 @@ jobs:
           exit 1
         fi
         
-        KSU_VERSION=$(cd $KSU_DIR && expr $(/usr/bin/git rev-list --count HEAD) + 10200)
-        echo "UPLOADNAME=-KernelSU_$KSU_VERSION" >> $GITHUB_ENV
+        KSU_GITHUB_VERSION_COMMIT=$(curl -sI "https://api.github.com/repos/SukiSU-Ultra/SukiSU-Ultra/commits?sha=main&per_page=1" \
+          | grep -i "link:" \
+          | sed -n 's/.*page=\([0-9]*\)>; rel="last".*/\1/p')
+        
+        KSU_VERSION=$((40000 + KSU_GITHUB_VERSION_COMMIT - 2815))
+        echo "UPLOADNAME=-SUKISU-ULTRA_$KSU_VERSION" >> $GITHUB_ENV
         echo "KSU_DIR=$KSU_DIR" >> $GITHUB_ENV
         
     - name: Patching SUKISU
