@@ -393,7 +393,7 @@ jobs:
         
         else
           for patch_file in \
-            0001-fix-pkg_observer-for-k4.14.patch \
+            #0001-fix-pkg_observer-for-k4.14.patch \
             ${{ env.SELECT_VERSION_PATCH_SUSFS }}
           do
             if patch -p1 < "$patch_file"; then
