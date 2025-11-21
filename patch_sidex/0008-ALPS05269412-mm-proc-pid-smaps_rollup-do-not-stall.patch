@@ -1,0 +1,41 @@
+From f321efe35018eedeeff27db91554351680d653d9 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Sat, 22 Nov 2025 03:19:36 +0700
+Subject: [PATCH 08/15] [ALPS05269412] mm: /proc/pid/smaps_rollup: do not stall
+  other accesses
+
+---
+ fs/proc/task_mmu.c | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
+index d49c4b13f..f2757f00b 100644
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -887,6 +887,23 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
+ 	for (vma = priv->mm->mmap; vma; vma = vma->vm_next) {
+ 		smap_gather_stats(vma, &mss);
+ 		last_vma_end = vma->vm_end;
++
++		/*
++		 * Release mmap_sem temporarily if someone wants to
++		 * access it for write request.
++		 */
++		if (rwsem_is_contended(&mm->mmap_sem)) {
++			up_read(&mm->mmap_sem);
++			down_read(&mm->mmap_sem);
++
++			/* Try to find whether current vma is available */
++			vma = find_vma(mm, last_vma_end - 1);
++			if (vma && vma->vm_start <= last_vma_end)
++				continue;
++
++			/* Current vma is not available, just break */
++			break;
++		}
+ 	}
+ 
+ 	show_vma_header_prefix(m, priv->mm->mmap->vm_start,
+-- 
+2.51.2
+

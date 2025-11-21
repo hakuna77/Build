@@ -1,0 +1,118 @@
+From c4b1f0e6e8cc52c4360fb81af20faff83000e0fc Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Sat, 22 Nov 2025 02:38:39 +0700
+Subject: [PATCH 03/15] BACKPORT: procfs: add seq_put_hex_ll to speed up
+ /proc/pid/maps
+
+---
+ fs/proc/task_mmu.c       | 21 ++++++++++--------
+ fs/seq_file.c            | 46 ++++++++++++++++++++++++++++++++++++++++
+ include/linux/seq_file.h |  3 +++
+ 3 files changed, 61 insertions(+), 9 deletions(-)
+
+diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
+index e09d3985b..a6c966e50 100644
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -330,15 +330,18 @@ static void show_vma_header_prefix(struct seq_file *m,
+ 				   dev_t dev, unsigned long ino)
+ {
+ 	seq_setwidth(m, 25 + sizeof(void *) * 6 - 1);
+-	seq_printf(m, "%08lx-%08lx %c%c%c%c %08llx %02x:%02x %lu ",
+-		   start,
+-		   end,
+-		   flags & VM_READ ? 'r' : '-',
+-		   flags & VM_WRITE ? 'w' : '-',
+-		   flags & VM_EXEC ? 'x' : '-',
+-		   flags & VM_MAYSHARE ? 's' : 'p',
+-		   pgoff,
+-		   MAJOR(dev), MINOR(dev), ino);
++	seq_put_hex_ll(m, NULL, start, 8);
++	seq_put_hex_ll(m, "-", end, 8);
++	seq_putc(m, ' ');
++	seq_putc(m, flags & VM_READ ? 'r' : '-');
++	seq_putc(m, flags & VM_WRITE ? 'w' : '-');
++	seq_putc(m, flags & VM_EXEC ? 'x' : '-');
++	seq_putc(m, flags & VM_MAYSHARE ? 's' : 'p');
++	seq_put_hex_ll(m, " ", pgoff, 8);
++	seq_put_hex_ll(m, " ", MAJOR(dev), 2);
++	seq_put_hex_ll(m, ":", MINOR(dev), 2);
++	seq_put_decimal_ull(m, " ", ino);
++	seq_putc(m, ' ');
+ }
+ 
+ static void
+diff --git a/fs/seq_file.c b/fs/seq_file.c
+index ae45aba30..4114a7ce4 100644
+--- a/fs/seq_file.c
++++ b/fs/seq_file.c
+@@ -739,6 +739,52 @@ void seq_put_decimal_ull(struct seq_file *m, const char *delimiter,
+ }
+ EXPORT_SYMBOL(seq_put_decimal_ull);
+ 
++/**
++ * seq_put_hex_ll - put a number in hexadecimal notation
++ * @m: seq_file identifying the buffer to which data should be written
++ * @delimiter: a string which is printed before the number
++ * @v: the number
++ * @width: a minimum field width
++ *
++ * seq_put_hex_ll(m, "", v, 8) is equal to seq_printf(m, "%08llx", v)
++ *
++ * This routine is very quick when you show lots of numbers.
++ * In usual cases, it will be better to use seq_printf(). It's easier to read.
++ */
++void seq_put_hex_ll(struct seq_file *m, const char *delimiter,
++				unsigned long long v, unsigned int width)
++{
++	unsigned int len;
++	int i;
++
++	if (delimiter && delimiter[0]) {
++		if (delimiter[1] == 0)
++			seq_putc(m, delimiter[0]);
++		else
++			seq_puts(m, delimiter);
++	}
++
++	/* If x is 0, the result of __builtin_clzll is undefined */
++	if (v == 0)
++		len = 1;
++	else
++		len = (sizeof(v) * 8 - __builtin_clzll(v) + 3) / 4;
++
++	if (len < width)
++		len = width;
++
++	if (m->count + len > m->size) {
++		seq_set_overflow(m);
++		return;
++	}
++
++	for (i = len - 1; i >= 0; i--) {
++		m->buf[m->count + i] = hex_asc[0xf & v];
++		v = v >> 4;
++	}
++	m->count += len;
++}
++
+ void seq_put_decimal_ll(struct seq_file *m, const char *delimiter, long long num)
+ {
+ 	int len;
+diff --git a/include/linux/seq_file.h b/include/linux/seq_file.h
+index 84a56082e..23d6a92ce 100644
+--- a/include/linux/seq_file.h
++++ b/include/linux/seq_file.h
+@@ -123,6 +123,9 @@ void seq_put_decimal_ull_width(struct seq_file *m, const char *delimiter,
+ void seq_put_decimal_ull(struct seq_file *m, const char *delimiter,
+ 			 unsigned long long num);
+ void seq_put_decimal_ll(struct seq_file *m, const char *delimiter, long long num);
++void seq_put_hex_ll(struct seq_file *m, const char *delimiter,
++		    unsigned long long v, unsigned int width);
++
+ void seq_escape(struct seq_file *m, const char *s, const char *esc);
+ 
+ void seq_hex_dump(struct seq_file *m, const char *prefix_str, int prefix_type,
+-- 
+2.51.2
+

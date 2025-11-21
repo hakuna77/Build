@@ -1,0 +1,28 @@
+From a238949ce1f8c1d852d7b3a85cd368227a3149d3 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Sat, 22 Nov 2025 03:24:15 +0700
+Subject: [PATCH 12/15] mm/pkeys: Add an empty arch_pkeys_enabled()
+
+---
+ include/linux/pkeys.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/include/linux/pkeys.h b/include/linux/pkeys.h
+index c4060af28..0b826161d 100644
+--- a/include/linux/pkeys.h
++++ b/include/linux/pkeys.h
+@@ -40,6 +40,11 @@ static inline int arch_set_user_pkey_access(struct task_struct *tsk, int pkey,
+ 	return 0;
+ }
+ 
++static inline bool arch_pkeys_enabled(void)
++{
++	return false;
++}
++
+ static inline void copy_init_pkru_to_fpregs(void)
+ {
+ }
+-- 
+2.51.2
+

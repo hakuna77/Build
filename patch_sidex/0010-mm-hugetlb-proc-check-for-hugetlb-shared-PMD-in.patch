@@ -1,0 +1,58 @@
+From 336a5a5ff22f25d9be086d7b8e05223374a8f866 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Sat, 22 Nov 2025 03:22:04 +0700
+Subject: [PATCH 10/15] mm: hugetlb: proc: check for hugetlb shared PMD in 
+ /proc/PID/smaps
+
+---
+ fs/proc/task_mmu.c      |  4 +---
+ include/linux/hugetlb.h | 13 +++++++++++++
+ 2 files changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
+index 577a6b5c0..1d8b9cb69 100644
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -750,9 +750,7 @@ static int smaps_hugetlb_range(pte_t *pte, unsigned long hmask,
+ 			page = device_private_entry_to_page(swpent);
+ 	}
+ 	if (page) {
+-		int mapcount = page_mapcount(page);
+-
+-		if (mapcount >= 2)
++		if (page_mapcount(page) >= 2 || hugetlb_pmd_shared(pte))
+ 			mss->shared_hugetlb += huge_page_size(hstate_vma(vma));
+ 		else
+ 			mss->private_hugetlb += huge_page_size(hstate_vma(vma));
+diff --git a/include/linux/hugetlb.h b/include/linux/hugetlb.h
+index 50a072350..069bebdea 100644
+--- a/include/linux/hugetlb.h
++++ b/include/linux/hugetlb.h
+@@ -7,6 +7,7 @@
+ #include <linux/fs.h>
+ #include <linux/hugetlb_inline.h>
+ #include <linux/cgroup.h>
++#include <linux/page_ref.h>
+ #include <linux/list.h>
+ #include <linux/kref.h>
+ #include <asm/pgtable.h>
+@@ -620,4 +621,16 @@ static inline spinlock_t *huge_pte_lock(struct hstate *h,
+ 	return ptl;
+ }
+ 
++#ifdef CONFIG_ARCH_WANT_HUGE_PMD_SHARE
++static inline bool hugetlb_pmd_shared(pte_t *pte)
++{
++	return page_count(virt_to_page(pte)) > 1;
++}
++#else
++static inline bool hugetlb_pmd_shared(pte_t *pte)
++{
++	return false;
++}
++#endif
++
+ #endif /* _LINUX_HUGETLB_H */
+-- 
+2.51.2
+

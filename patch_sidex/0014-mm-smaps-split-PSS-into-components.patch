@@ -1,0 +1,287 @@
+From d035b5967f6a8d31fe3fb1fd089387f23eaed4c9 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Sat, 22 Nov 2025 03:26:28 +0700
+Subject: [PATCH 14/15] mm: smaps: split PSS into components
+
+---
+ Documentation/ABI/testing/procfs-smaps_rollup | 14 ++-
+ Documentation/filesystems/proc.txt            | 41 +++++++--
+ fs/proc/task_mmu.c                            | 92 +++++++++++++------
+ 3 files changed, 105 insertions(+), 42 deletions(-)
+
+diff --git a/Documentation/ABI/testing/procfs-smaps_rollup b/Documentation/ABI/testing/procfs-smaps_rollup
+index 0a54ed0d6..274df44d8 100644
+--- a/Documentation/ABI/testing/procfs-smaps_rollup
++++ b/Documentation/ABI/testing/procfs-smaps_rollup
+@@ -3,18 +3,28 @@ Date:		August 2017
+ Contact:	Daniel Colascione <dancol@google.com>
+ Description:
+ 		This file provides pre-summed memory information for a
+-		process.  The format is identical to /proc/pid/smaps,
++		process.  The format is almost identical to /proc/pid/smaps,
+ 		except instead of an entry for each VMA in a process,
+ 		smaps_rollup has a single entry (tagged "[rollup]")
+ 		for which each field is the sum of the corresponding
+ 		fields from all the maps in /proc/pid/smaps.
+-		For more details, see the procfs man page.
++		Additionally, the fields Pss_Anon, Pss_File and Pss_Shmem
++		are not present in /proc/pid/smaps.  These fields represent
++		the sum of the Pss field of each type (anon, file, shmem).
++		For more details, see Documentation/filesystems/proc.txt
++		and the procfs man page.
+ 
+ 		Typical output looks like this:
+ 
+ 		00100000-ff709000 ---p 00000000 00:00 0		 [rollup]
++		Size:               1192 kB
++		KernelPageSize:        4 kB
++		MMUPageSize:           4 kB
+ 		Rss:		     884 kB
+ 		Pss:		     385 kB
++		Pss_Anon:	     301 kB
++		Pss_File:	      80 kB
++		Pss_Shmem:	       4 kB
+ 		Shared_Clean:	     696 kB
+ 		Shared_Dirty:	       0 kB
+ 		Private_Clean:	     120 kB
+diff --git a/Documentation/filesystems/proc.txt b/Documentation/filesystems/proc.txt
+index 76bfa2515..d6f1aa927 100644
+--- a/Documentation/filesystems/proc.txt
++++ b/Documentation/filesystems/proc.txt
+@@ -146,9 +146,11 @@ Table 1-1: Process specific entries in /proc
+ 		symbol the task is blocked in - or "0" if not blocked.
+  pagemap	Page table
+  stack		Report full stack trace, enable via CONFIG_STACKTRACE
+- smaps		an extension based on maps, showing the memory consumption of
++ smaps		An extension based on maps, showing the memory consumption of
+ 		each mapping and flags associated with it
+- numa_maps	an extension based on maps, showing the memory locality and
++ smaps_rollup	Accumulated smaps stats for all mappings of the process.  This
++		can be derived from smaps, but is faster and more convenient
++ numa_maps	An extension based on maps, showing the memory locality and
+ 		binding policy as well as mem usage (in pages) of each mapping.
+ ..............................................................................
+ 
+@@ -349,7 +351,7 @@ Table 1-4: Contents of the stat files (as of 2.6.30-rc7)
+   exit_code     the thread's exit_code in the form reported by the waitpid system call
+ ..............................................................................
+ 
+-The /proc/PID/maps file containing the currently mapped memory regions and
++The /proc/PID/maps file contains the currently mapped memory regions and
+ their access permissions.
+ 
+ The format is:
+@@ -402,11 +404,14 @@ is not associated with a file:
+  or if empty, the mapping is anonymous.
+ 
+ The /proc/PID/smaps is an extension based on maps, showing the memory
+-consumption for each of the process's mappings. For each of mappings there
+-is a series of lines such as the following:
++consumption for each of the process's mappings. For each mapping (aka Virtual
++Memory Area, or VMA) there is a series of lines such as the following:
+ 
+ 08048000-080bc000 r-xp 00000000 03:02 13130      /bin/bash
++
+ Size:               1084 kB
++KernelPageSize:        4 kB
++MMUPageSize:           4 kB
+ Rss:                 892 kB
+ Pss:                 374 kB
+ Shared_Clean:        892 kB
+@@ -428,11 +433,14 @@ Locked:                0 kB
+ VmFlags: rd ex mr mw me dw
+ Name:           name from userspace
+ 
+-the first of these lines shows the same information as is displayed for the
+-mapping in /proc/PID/maps.  The remaining lines show the size of the mapping
+-(size), the amount of the mapping that is currently resident in RAM (RSS), the
+-process' proportional share of this mapping (PSS), the number of clean and
+-dirty private pages in the mapping.
++The first of these lines shows the same information as is displayed for the
++mapping in /proc/PID/maps.  Following lines show the size of the mapping
++(size); the size of each page allocated when backing a VMA (KernelPageSize),
++which is usually the same as the size in the page table entries; the page size
++used by the MMU when backing a VMA (in most cases, the same as KernelPageSize);
++the amount of the mapping that is currently resident in RAM (RSS); the
++process' proportional share of this mapping (PSS); and the number of clean and
++dirty shared and private pages in the mapping.
+ 
+ The "proportional set size" (PSS) of a process is the count of pages it has
+ in memory, where each page is divided by the number of processes sharing it.
+@@ -518,6 +526,19 @@ guarantees:
+ 2) If there is something at a given vaddr during the entirety of the
+    life of the smaps/maps walk, there will be some output for it.
+ 
++The /proc/PID/smaps_rollup file includes the same fields as /proc/PID/smaps,
++but their values are the sums of the corresponding values for all mappings of
++the process.  Additionally, it contains these fields:
++
++Pss_Anon
++Pss_File
++Pss_Shmem
++
++They represent the proportional shares of anonymous, file, and shmem pages, as
++described for smaps above.  These fields are omitted in smaps since each
++mapping identifies the type (anon, file, or shmem) of all pages it contains.
++Thus all information in smaps_rollup can be derived from smaps, but at a
++significantly higher cost.
+ 
+ The /proc/PID/clear_refs is used to reset the PG_Referenced and ACCESSED/YOUNG
+ bits on both physical and virtual pages associated with a process, and the
+diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
+index 86780f3bd..15645cc03 100644
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -476,17 +476,53 @@ struct mem_size_stats {
+ 	unsigned long shared_hugetlb;
+ 	unsigned long private_hugetlb;
+ 	u64 pss;
++	u64 pss_anon;
++	u64 pss_file;
++	u64 pss_shmem;
+ 	u64 pss_locked;
+ 	u64 swap_pss;
+ 	bool check_shmem_swap;
+ };
+ 
++static void smaps_page_accumulate(struct mem_size_stats *mss,
++		struct page *page, unsigned long size, unsigned long pss,
++		bool dirty, bool locked, bool private)
++{
++	mss->pss += pss;
++
++	if (PageAnon(page))
++		mss->pss_anon += pss;
++	else if (PageSwapBacked(page))
++		mss->pss_shmem += pss;
++	else
++		mss->pss_file += pss;
++
++	if (locked)
++		mss->pss_locked += pss;
++
++	if (dirty || PageDirty(page)) {
++		if (private)
++			mss->private_dirty += size;
++		else
++			mss->shared_dirty += size;
++	} else {
++		if (private)
++			mss->private_clean += size;
++		else
++			mss->shared_clean += size;
++	}
++}
++
+ static void smaps_account(struct mem_size_stats *mss, struct page *page,
+ 		bool compound, bool young, bool dirty, bool locked)
+ {
+ 	int i, nr = compound ? 1 << compound_order(page) : 1;
+ 	unsigned long size = nr * PAGE_SIZE;
+ 
++	/*
++	 * First accumulate quantities that depend only on |size| and the type
++	 * of the compound page.
++	 */
+ 	if (PageAnon(page)) {
+ 		mss->anonymous += size;
+ 		if (!PageSwapBacked(page) && !dirty && !PageDirty(page))
+@@ -499,42 +535,25 @@ static void smaps_account(struct mem_size_stats *mss, struct page *page,
+ 		mss->referenced += size;
+ 
+ 	/*
++	 * Then accumulate quantities that may depend on sharing, or that may
++	 * differ page-by-page.
++	 *
+ 	 * page_count(page) == 1 guarantees the page is mapped exactly once.
+ 	 * If any subpage of the compound page mapped with PTE it would elevate
+ 	 * page_count().
+ 	 */
+ 	if (page_count(page) == 1) {
+-		if (dirty || PageDirty(page))
+-			mss->private_dirty += size;
+-		else
+-			mss->private_clean += size;
+-		mss->pss += (u64)size << PSS_SHIFT;
+-		if (locked)
+-			mss->pss_locked += (u64)size << PSS_SHIFT;
++		smaps_page_accumulate(mss, page, size, size << PSS_SHIFT, dirty,
++			locked, true);
+ 		return;
+ 	}
+-
+ 	for (i = 0; i < nr; i++, page++) {
+ 		int mapcount = page_mapcount(page);
+-		unsigned long pss = (PAGE_SIZE << PSS_SHIFT);
+-
+-		if (mapcount >= 2) {
+-			if (dirty || PageDirty(page))
+-				mss->shared_dirty += PAGE_SIZE;
+-			else
+-				mss->shared_clean += PAGE_SIZE;
+-			mss->pss += pss / mapcount;
+-			if (locked)
+-				mss->pss_locked += pss / mapcount;
+-		} else {
+-			if (dirty || PageDirty(page))
+-				mss->private_dirty += PAGE_SIZE;
+-			else
+-				mss->private_clean += PAGE_SIZE;
+-			mss->pss += pss;
+-			if (locked)
+-				mss->pss_locked += pss;
+-		}
++		unsigned long pss = PAGE_SIZE << PSS_SHIFT;
++		if (mapcount >= 2)
++			pss /= mapcount;
++		smaps_page_accumulate(mss, page, PAGE_SIZE, pss, dirty, locked,
++				      mapcount < 2);
+ 	}
+ }
+ 
+@@ -808,10 +827,23 @@ static void smap_gather_stats(struct vm_area_struct *vma,
+ 		seq_put_decimal_ull_width(m, str, (val) >> 10, 8)
+ 
+ /* Show the contents common for smaps and smaps_rollup */
+-static void __show_smap(struct seq_file *m, const struct mem_size_stats *mss)
++static void __show_smap(struct seq_file *m, const struct mem_size_stats *mss,
++	bool rollup_mode)
+ {
+ 	SEQ_PUT_DEC("Rss:            ", mss->resident);
+ 	SEQ_PUT_DEC(" kB\nPss:            ", mss->pss >> PSS_SHIFT);
++	if (rollup_mode) {
++		/*
++		 * These are meaningful only for smaps_rollup, otherwise two of
++		 * them are zero, and the other one is the same as Pss.
++		 */
++		SEQ_PUT_DEC(" kB\nPss_Anon:       ",
++			mss->pss_anon >> PSS_SHIFT);
++		SEQ_PUT_DEC(" kB\nPss_File:       ",
++			mss->pss_file >> PSS_SHIFT);
++		SEQ_PUT_DEC(" kB\nPss_Shmem:      ",
++			mss->pss_shmem >> PSS_SHIFT);
++	}
+ 	SEQ_PUT_DEC(" kB\nShared_Clean:   ", mss->shared_clean);
+ 	SEQ_PUT_DEC(" kB\nShared_Dirty:   ", mss->shared_dirty);
+ 	SEQ_PUT_DEC(" kB\nPrivate_Clean:  ", mss->private_clean);
+@@ -848,7 +880,7 @@ static int show_smap(struct seq_file *m, void *v)
+ 	SEQ_PUT_DEC(" kB\nMMUPageSize:    ", vma_mmu_pagesize(vma));
+ 	seq_puts(m, " kB\n");
+ 
+-	__show_smap(m, &mss);
++	__show_smap(m, &mss, false);
+ 
+ 	if (arch_pkeys_enabled())
+ 		seq_printf(m, "ProtectionKey:  %8u\n", vma_pkey(vma));
+@@ -943,7 +975,7 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
+ 	seq_pad(m, ' ');
+ 	seq_puts(m, "[rollup]\n");
+ 
+-	__show_smap(m, &mss);
++	__show_smap(m, &mss, true);
+ 
+ 	release_task_mempolicy(priv);
+ 	up_read(&mm->mmap_sem);
+-- 
+2.51.2
+

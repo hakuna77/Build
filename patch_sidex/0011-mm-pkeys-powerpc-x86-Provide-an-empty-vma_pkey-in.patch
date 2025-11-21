@@ -1,0 +1,46 @@
+From 6d692a8c8fc4aa1353b4f0e3d16fc4582acadd1c Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Sat, 22 Nov 2025 03:23:09 +0700
+Subject: [PATCH 11/15] mm/pkeys, powerpc, x86: Provide an empty vma_pkey() in 
+ linux/pkeys.h
+
+---
+ arch/x86/include/asm/mmu_context.h | 5 -----
+ include/linux/pkeys.h              | 5 +++++
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/arch/x86/include/asm/mmu_context.h b/arch/x86/include/asm/mmu_context.h
+index 7ebcbd1d8..b06a3615a 100644
+--- a/arch/x86/include/asm/mmu_context.h
++++ b/arch/x86/include/asm/mmu_context.h
+@@ -313,11 +313,6 @@ static inline int vma_pkey(struct vm_area_struct *vma)
+ 
+ 	return (vma->vm_flags & vma_pkey_mask) >> VM_PKEY_SHIFT;
+ }
+-#else
+-static inline int vma_pkey(struct vm_area_struct *vma)
+-{
+-	return 0;
+-}
+ #endif
+ 
+ /*
+diff --git a/include/linux/pkeys.h b/include/linux/pkeys.h
+index 0794ca78c..c4060af28 100644
+--- a/include/linux/pkeys.h
++++ b/include/linux/pkeys.h
+@@ -14,6 +14,11 @@
+ #define PKEY_DEDICATED_EXECUTE_ONLY 0
+ #define ARCH_VM_PKEY_FLAGS 0
+ 
++static inline int vma_pkey(struct vm_area_struct *vma)
++{
++	return 0;
++}
++
+ static inline bool mm_pkey_is_allocated(struct mm_struct *mm, int pkey)
+ {
+ 	return (pkey == 0);
+-- 
+2.51.2
+

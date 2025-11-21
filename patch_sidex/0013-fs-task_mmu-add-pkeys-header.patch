@@ -1,0 +1,24 @@
+From a803a7b3b6549e11f4371bb023d6b2a4ad4f6f7c Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Sat, 22 Nov 2025 03:25:38 +0700
+Subject: [PATCH 13/15] fs/task_mmu: add pkeys header
+
+---
+ fs/proc/task_mmu.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
+index 1d8b9cb69..86780f3bd 100644
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -19,6 +19,7 @@
+ #include <linux/shmem_fs.h>
+ #include <linux/uaccess.h>
+ #include <linux/mm_inline.h>
++#include <linux/pkeys.h>
+ 
+ #include <asm/elf.h>
+ #include <asm/tlb.h>
+-- 
+2.51.2
+
