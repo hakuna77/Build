@@ -292,7 +292,7 @@ jobs:
         
         echo "Applying patch_sidex patches (FIRST PRIORITY)..."
         
-        for sidex_patch in $(ls patch_sidex*.patch 2>/dev/null | sort); do
+        for sidex_patch in $(ls $GITHUB_WORKSPACE/patch_sidex/*.patch 2>/dev/null | sort); do
           echo "➡️ Applying $sidex_patch"
           if patch -p1 < "$sidex_patch"; then
             echo "   ✅ $sidex_patch applied."
