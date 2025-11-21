@@ -479,8 +479,8 @@ jobs:
         chmod +x patch_linux
         ./patch_linux
         if [ $? -eq 0 ]; then
-          rm -f Image
-          mv oImage Image
+          mv -f Image Imageori
+          mv -f oImage Image
           echo "✅ Image file repair complete"
         else
           echo "❌ KPM Patch Failed, Use Original Image"
@@ -491,7 +491,7 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/arch/arm64/boot
         rm -f Image.gz
         rm -f Image.gz-dtb
-        gzip -c Image > Image.gz
+        gzip -n -9 -c Image > Image.gz
         cat Image.gz dts/mediatek/mt6785.dtb > Image.gz-dtb
         echo "✅ Repacked Image.gz-dtb with mt6785.dtb"
         
@@ -570,6 +570,13 @@ jobs:
       with:
         name: ${{ env.KERNEL_IMAGE_NAME }}${{ env.LOCALVERSION }}${{ env.UPLOADNAME }}-${{ env.DEVICE }}-${{ env.BUILD_TIME }}
         path: kernel_workspace/android-kernel/out/arch/${{ env.ARCH }}/boot/${{ env.KERNEL_IMAGE_NAME }}
+        
+    - name: Upload all output
+      if: env.CHECK_FILE_IS_OK == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: Kernel-Out${{ env.LOCALVERSION }}${{ env.UPLOADNAME }}-${{ env.DEVICE }}-${{ env.BUILD_TIME }}
+        path: kernel_workspace/android-kernel/out/arch/${{ env.ARCH }}/boot/
 
     - name: Upload AnyKernel3
       if: env.CHECK_FILE_IS_OK == 'true'
