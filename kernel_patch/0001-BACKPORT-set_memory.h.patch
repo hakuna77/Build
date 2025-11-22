@@ -1,0 +1,232 @@
+From 747f399871c09f38184012a8de9b41bda708af44 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Sat, 22 Nov 2025 08:04:06 +0700
+Subject: [PATCH] BACKPORT: set_memory.h
+
+---
+ arch/arm/net/bpf_jit_32.c        |  1 +
+ arch/arm64/net/bpf_jit_comp.c    |  1 +
+ arch/s390/kernel/ftrace.c        |  1 +
+ arch/s390/kernel/machine_kexec.c |  1 +
+ arch/s390/mm/pageattr.c          |  1 +
+ arch/s390/mm/vmem.c              |  1 +
+ arch/s390/net/bpf_jit_comp.c     |  1 +
+ arch/x86/kernel/kprobes/core.c   |  1 +
+ arch/x86/kernel/kprobes/opt.c    |  1 +
+ arch/x86/mm/init_64.c            |  1 +
+ arch/x86/net/bpf_jit_comp.c      |  1 +
+ arch/x86/realmode/init.c         |  1 +
+ include/linux/filter.h           |  2 ++
+ include/linux/set_memory.h       | 28 +++++++++++++++++++++++++++-
+ kernel/cfi.c                     |  1 +
+ 15 files changed, 42 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm/net/bpf_jit_32.c b/arch/arm/net/bpf_jit_32.c
+index e13aca6e6..ca56bc503 100644
+--- a/arch/arm/net/bpf_jit_32.c
++++ b/arch/arm/net/bpf_jit_32.c
+@@ -20,6 +20,7 @@
+ #include <linux/if_vlan.h>
+ 
+ #include <asm/cacheflush.h>
++#include <linux/set_memory.h>
+ #include <asm/hwcap.h>
+ #include <asm/opcodes.h>
+ 
+diff --git a/arch/arm64/net/bpf_jit_comp.c b/arch/arm64/net/bpf_jit_comp.c
+index 7f4b0b4a6..126a69aa8 100644
+--- a/arch/arm64/net/bpf_jit_comp.c
++++ b/arch/arm64/net/bpf_jit_comp.c
+@@ -26,6 +26,7 @@
+ 
+ #include <asm/byteorder.h>
+ #include <asm/cacheflush.h>
++#include <linux/set_memory.h>
+ #include <asm/debug-monitors.h>
+ #include <asm/set_memory.h>
+ 
+diff --git a/arch/s390/kernel/ftrace.c b/arch/s390/kernel/ftrace.c
+index dc76d813e..bc76b8a1b 100644
+--- a/arch/s390/kernel/ftrace.c
++++ b/arch/s390/kernel/ftrace.c
+@@ -18,6 +18,7 @@
+ #include <trace/syscall.h>
+ #include <asm/asm-offsets.h>
+ #include <asm/cacheflush.h>
++#include <linux/set_memory.h>
+ #include <asm/set_memory.h>
+ #include "entry.h"
+ 
+diff --git a/arch/s390/kernel/machine_kexec.c b/arch/s390/kernel/machine_kexec.c
+index d6f7782e7..a1231ae91 100644
+--- a/arch/s390/kernel/machine_kexec.c
++++ b/arch/s390/kernel/machine_kexec.c
+@@ -26,6 +26,7 @@
+ #include <asm/elf.h>
+ #include <asm/asm-offsets.h>
+ #include <asm/cacheflush.h>
++#include <linux/set_memory.h>
+ #include <asm/os_info.h>
+ #include <asm/set_memory.h>
+ #include <asm/switch_to.h>
+diff --git a/arch/s390/mm/pageattr.c b/arch/s390/mm/pageattr.c
+index c44171588..c44bcd2b1 100644
+--- a/arch/s390/mm/pageattr.c
++++ b/arch/s390/mm/pageattr.c
+@@ -6,6 +6,7 @@
+ #include <linux/hugetlb.h>
+ #include <linux/mm.h>
+ #include <asm/cacheflush.h>
++#include <linux/set_memory.h>
+ #include <asm/facility.h>
+ #include <asm/pgtable.h>
+ #include <asm/pgalloc.h>
+diff --git a/arch/s390/mm/vmem.c b/arch/s390/mm/vmem.c
+index f2ada0bc0..6268bd69c 100644
+--- a/arch/s390/mm/vmem.c
++++ b/arch/s390/mm/vmem.c
+@@ -13,6 +13,7 @@
+ #include <linux/slab.h>
+ #include <linux/memblock.h>
+ #include <asm/cacheflush.h>
++#include <linux/set_memory.h>
+ #include <asm/pgalloc.h>
+ #include <asm/pgtable.h>
+ #include <asm/setup.h>
+diff --git a/arch/s390/net/bpf_jit_comp.c b/arch/s390/net/bpf_jit_comp.c
+index b8bd84104..d6b80a680 100644
+--- a/arch/s390/net/bpf_jit_comp.c
++++ b/arch/s390/net/bpf_jit_comp.c
+@@ -24,6 +24,7 @@
+ #include <linux/init.h>
+ #include <linux/bpf.h>
+ #include <asm/cacheflush.h>
++#include <linux/set_memory.h>
+ #include <asm/dis.h>
+ #include <asm/facility.h>
+ #include <asm/nospec-branch.h>
+diff --git a/arch/x86/kernel/kprobes/core.c b/arch/x86/kernel/kprobes/core.c
+index 02665ffef..7f11615e5 100644
+--- a/arch/x86/kernel/kprobes/core.c
++++ b/arch/x86/kernel/kprobes/core.c
+@@ -56,6 +56,7 @@
+ 
+ #include <asm/text-patching.h>
+ #include <asm/cacheflush.h>
++#include <linux/set_memory.h>
+ #include <asm/desc.h>
+ #include <asm/pgtable.h>
+ #include <linux/uaccess.h>
+diff --git a/arch/x86/kernel/kprobes/opt.c b/arch/x86/kernel/kprobes/opt.c
+index f4e4db0cb..038fe3525 100644
+--- a/arch/x86/kernel/kprobes/opt.c
++++ b/arch/x86/kernel/kprobes/opt.c
+@@ -32,6 +32,7 @@
+ 
+ #include <asm/text-patching.h>
+ #include <asm/cacheflush.h>
++#include <linux/set_memory.h>
+ #include <asm/desc.h>
+ #include <asm/pgtable.h>
+ #include <linux/uaccess.h>
+diff --git a/arch/x86/mm/init_64.c b/arch/x86/mm/init_64.c
+index 4937d6f7c..86ce4f59f 100644
+--- a/arch/x86/mm/init_64.c
++++ b/arch/x86/mm/init_64.c
+@@ -51,6 +51,7 @@
+ #include <asm/kdebug.h>
+ #include <asm/numa.h>
+ #include <asm/set_memory.h>
++#include <linux/set_memory.h>
+ #include <asm/init.h>
+ #include <asm/uv/uv.h>
+ #include <asm/setup.h>
+diff --git a/arch/x86/net/bpf_jit_comp.c b/arch/x86/net/bpf_jit_comp.c
+index 0415c0cd4..84961b5bf 100644
+--- a/arch/x86/net/bpf_jit_comp.c
++++ b/arch/x86/net/bpf_jit_comp.c
+@@ -12,6 +12,7 @@
+ #include <linux/filter.h>
+ #include <linux/if_vlan.h>
+ #include <asm/cacheflush.h>
++#include <linux/set_memory.h>
+ #include <asm/set_memory.h>
+ #include <asm/nospec-branch.h>
+ #include <linux/bpf.h>
+diff --git a/arch/x86/realmode/init.c b/arch/x86/realmode/init.c
+index ed84d3917..cb8a476da 100644
+--- a/arch/x86/realmode/init.c
++++ b/arch/x86/realmode/init.c
+@@ -5,6 +5,7 @@
+ #include <linux/mem_encrypt.h>
+ 
+ #include <asm/set_memory.h>
++#include <linux/set_memory.h>
+ #include <asm/pgtable.h>
+ #include <asm/realmode.h>
+ #include <asm/tlbflush.h>
+diff --git a/include/linux/filter.h b/include/linux/filter.h
+index f33f80ee9..9fd2e80b2 100644
+--- a/include/linux/filter.h
++++ b/include/linux/filter.h
+@@ -21,6 +21,8 @@
+ 
+ #include <net/sch_generic.h>
+ 
++#include <linux/set_memory.h>
++
+ #include <uapi/linux/filter.h>
+ #include <uapi/linux/bpf.h>
+ 
+diff --git a/include/linux/set_memory.h b/include/linux/set_memory.h
+index e5140648f..5d14adbc1 100644
+--- a/include/linux/set_memory.h
++++ b/include/linux/set_memory.h
+@@ -17,4 +17,30 @@ static inline int set_memory_x(unsigned long addr,  int numpages) { return 0; }
+ static inline int set_memory_nx(unsigned long addr, int numpages) { return 0; }
+ #endif
+ 
+-#endif /* _LINUX_SET_MEMORY_H_ */
++#ifndef set_mce_nospec
++static inline int set_mce_nospec(unsigned long pfn, bool unmap)
++{
++	return 0;
++}
++#endif
++
++#ifndef clear_mce_nospec
++static inline int clear_mce_nospec(unsigned long pfn)
++{
++	return 0;
++}
++#endif
++
++#ifndef CONFIG_ARCH_HAS_MEM_ENCRYPT
++static inline int set_memory_encrypted(unsigned long addr, int numpages)
++{
++	return 0;
++}
++
++static inline int set_memory_decrypted(unsigned long addr, int numpages)
++{
++	return 0;
++}
++#endif /* CONFIG_ARCH_HAS_MEM_ENCRYPT */
++
++#endif /* _LINUX_SET_MEMORY_H_ */
+\ No newline at end of file
+diff --git a/kernel/cfi.c b/kernel/cfi.c
+index 51ec575bd..179d0c2b3 100644
+--- a/kernel/cfi.c
++++ b/kernel/cfi.c
+@@ -12,6 +12,7 @@
+ #include <linux/spinlock.h>
+ #include <asm/bug.h>
+ #include <asm/cacheflush.h>
++#include <linux/set_memory.h>
+ #include <asm/set_memory.h>
+ 
+ /* Compiler-defined handler names */
+-- 
+2.51.2
+

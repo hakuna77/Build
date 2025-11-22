@@ -304,7 +304,8 @@ jobs:
           0001-BACKPORT-proc-less-memory-for-proc-map_files-readdir.patch \
           ${{ env.MANUAL_HOOK }} \
           ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
-          0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch
+          0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch \
+          0001-BACKPORT-set_memory.h.patch
         do
           if patch -p1 < "$patch_file"; then
             echo "✅ $patch_file applied successfully."
