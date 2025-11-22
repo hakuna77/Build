@@ -490,6 +490,7 @@ jobs:
         fi
 
     - name: Repack Image to Image.gz-dtb
+      if: env.PATCHING_KPM == 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/arch/arm64/boot
         rm -f Image.gz
