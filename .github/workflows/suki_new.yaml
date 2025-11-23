@@ -80,6 +80,7 @@ on:
         type: choice
         options:
           - '0001-fix-sukisu-for-non-gki.patch'
+          - '0001-add-fs.h.patch'
       build_boot_img:
         description: 'enable BUILD BOOT IMG'
         required: true

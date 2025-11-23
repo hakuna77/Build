@@ -1,0 +1,24 @@
+From 583d6d50b6e28e18ce4b0f7eef660a2d22ef5d6a Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Sun, 23 Nov 2025 19:13:51 +0000
+Subject: [PATCH] add fs.h
+
+---
+ kernel/umount_manager.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/kernel/umount_manager.c b/kernel/umount_manager.c
+index 43f122ba..d6a0dcda 100644
+--- a/kernel/umount_manager.c
++++ b/kernel/umount_manager.c
+@@ -5,6 +5,7 @@
+ #include <linux/path.h>
+ #include <linux/mount.h>
+ #include <linux/cred.h>
++#include <linux/fs.h>
+ 
+ #include "klog.h"
+ #include "kernel_umount.h"
+-- 
+2.34.1
+
