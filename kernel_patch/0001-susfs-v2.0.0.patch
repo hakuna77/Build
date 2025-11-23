@@ -1,12 +1,12 @@
-From 39adcbe995defadca88a0bd8db7a27ab77eb07d6 Mon Sep 17 00:00:00 2001
+From 0b3f1f56920d9bca848921a5135f7e9d70f07880 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sun, 23 Nov 2025 11:03:15 +0700
+Date: Sun, 23 Nov 2025 22:10:27 +0700
 Subject: [PATCH] susfs v2.0.0
 
 ---
  fs/Makefile               |    2 +
- fs/namei.c                |  262 ++++++++-
- fs/namespace.c            |  260 +++++++++
+ fs/namei.c                |  262 +++++++++-
+ fs/namespace.c            |  260 ++++++++++
  fs/notify/fdinfo.c        |   53 ++
  fs/proc/base.c            |   31 ++
  fs/proc/cmdline.c         |   10 +
@@ -16,15 +16,15 @@ Subject: [PATCH] susfs v2.0.0
  fs/readdir.c              |  279 +++++++++-
  fs/stat.c                 |   18 +
  fs/statfs.c               |   16 +
- fs/susfs.c                | 1075 +++++++++++++++++++++++++++++++++++++
+ fs/susfs.c                | 1014 +++++++++++++++++++++++++++++++++++++
  include/linux/mount.h     |    3 +
  include/linux/sched.h     |    4 +
- include/linux/susfs.h     |  240 +++++++++
- include/linux/susfs_def.h |   87 +++
+ include/linux/susfs.h     |  227 +++++++++
+ include/linux/susfs_def.h |   87 ++++
  kernel/kallsyms.c         |   33 ++
  kernel/sys.c              |   14 +
  security/selinux/avc.c    |   20 +
- 20 files changed, 2518 insertions(+), 3 deletions(-)
+ 20 files changed, 2444 insertions(+), 3 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1817,10 +1817,10 @@ index ca1084cbe..638abca3c 100644
  
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
-index 000000000..7a617c95b
+index 000000000..eea1cfaf6
 --- /dev/null
 +++ b/fs/susfs.c
-@@ -0,0 +1,1075 @@
+@@ -0,0 +1,1014 @@
 +#include <linux/version.h>
 +#include <linux/cred.h>
 +#include <linux/fs.h>
@@ -2424,62 +2424,6 @@ index 000000000..7a617c95b
 +}
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
 +
-+/* try_umount */
-+#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
-+static DEFINE_SPINLOCK(susfs_spin_lock_try_umount);
-+extern void try_umount(const char *mnt, int flags);
-+static LIST_HEAD(LH_TRY_UMOUNT_PATH);
-+void susfs_add_try_umount(void __user **user_info) {
-+	struct st_susfs_try_umount info = {0};
-+	struct st_susfs_try_umount_list *new_list = NULL;
-+
-+	if (copy_from_user(&info, (struct st_susfs_try_umount __user*)*user_info, sizeof(info))) {
-+		info.err = -EFAULT;
-+		goto out_copy_to_user;
-+	}
-+
-+	if (info.mnt_mode == TRY_UMOUNT_DEFAULT) {
-+		info.mnt_mode = 0;
-+	} else if (info.mnt_mode == TRY_UMOUNT_DETACH) {
-+		info.mnt_mode = MNT_DETACH;
-+	} else {
-+		SUSFS_LOGE("Unsupported mnt_mode: %d\n", info.mnt_mode);
-+		info.err = -EINVAL;
-+		goto out_copy_to_user;
-+	}
-+
-+	new_list = kmalloc(sizeof(struct st_susfs_try_umount_list), GFP_KERNEL);
-+	if (!new_list) {
-+		info.err = -ENOMEM;
-+		goto out_copy_to_user;
-+	}
-+
-+	memcpy(&new_list->info, &info, sizeof(info));
-+
-+	INIT_LIST_HEAD(&new_list->list);
-+	spin_lock(&susfs_spin_lock_try_umount);
-+	list_add_tail(&new_list->list, &LH_TRY_UMOUNT_PATH);
-+	spin_unlock(&susfs_spin_lock_try_umount);
-+	SUSFS_LOGI("target_pathname: '%s', umount options: %d, is successfully added to LH_TRY_UMOUNT_PATH\n", new_list->info.target_pathname, new_list->info.mnt_mode);
-+	info.err = 0;
-+out_copy_to_user:
-+	if (copy_to_user(&((struct st_susfs_try_umount __user*)*user_info)->err, &info.err, sizeof(info.err))) {
-+		info.err = -EFAULT;
-+	}
-+	SUSFS_LOGI("CMD_SUSFS_ADD_TRY_UMOUNT -> ret: %d\n", info.err);
-+}
-+
-+void susfs_try_umount(uid_t uid) {
-+	struct st_susfs_try_umount_list *cursor = NULL;
-+
-+	// We should umount in reversed order
-+	list_for_each_entry_reverse(cursor, &LH_TRY_UMOUNT_PATH, list) {
-+		SUSFS_LOGI("umounting '%s' for uid: %u\n", cursor->info.target_pathname, uid);
-+		try_umount(cursor->info.target_pathname, cursor->info.mnt_mode);
-+	}
-+}
-+#endif // #ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
-+
 +/* spoof_uname */
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +static DEFINE_SPINLOCK(susfs_spin_lock_set_uname);
@@ -2802,11 +2746,6 @@ index 000000000..7a617c95b
 +	if (info->err) goto out_copy_to_user;
 +	buf_ptr = info->enabled_features + copied_size;
 +#endif
-+#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
-+	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_TRY_UMOUNT\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
-+	if (info->err) goto out_copy_to_user;
-+	buf_ptr = info->enabled_features + copied_size;
-+#endif
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_SPOOF_UNAME\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
 +	if (info->err) goto out_copy_to_user;
@@ -2927,10 +2866,10 @@ index ae20f52f1..67a53b8c3 100644
  	/* CPU-specific state of this task: */
 diff --git a/include/linux/susfs.h b/include/linux/susfs.h
 new file mode 100644
-index 000000000..c457e21ad
+index 000000000..8d019eee2
 --- /dev/null
 +++ b/include/linux/susfs.h
-@@ -0,0 +1,240 @@
+@@ -0,0 +1,227 @@
 +#ifndef KSU_SUSFS_H
 +#define KSU_SUSFS_H
 +
@@ -3022,20 +2961,6 @@ index 000000000..c457e21ad
 +};
 +#endif
 +
-+/* try_umount */
-+#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
-+struct st_susfs_try_umount {
-+	char                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
-+	int                     mnt_mode;
-+	int                     err;
-+};
-+
-+struct st_susfs_try_umount_list {
-+	struct list_head                        list;
-+	struct st_susfs_try_umount              info;
-+};
-+#endif
-+
 +/* spoof_uname */
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +struct st_susfs_uname {
@@ -3119,6 +3044,7 @@ index 000000000..c457e21ad
 +void susfs_add_sus_path(void __user **user_info);
 +void susfs_add_sus_path_loop(void __user **user_info);
 +#endif
++
 +/* sus_mount */
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +void susfs_set_hide_sus_mnts_for_all_procs(void __user **user_info);
@@ -3132,30 +3058,30 @@ index 000000000..c457e21ad
 +void susfs_sus_ino_for_generic_fillattr(unsigned long ino, struct kstat *stat);
 +void susfs_sus_ino_for_show_map_vma(unsigned long ino, dev_t *out_dev, unsigned long *out_ino);
 +#endif
-+/* try_umount */
-+#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
-+void susfs_add_try_umount(void __user **user_info);
-+void susfs_try_umount(uid_t uid);
-+#endif // #ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
++
 +/* spoof_uname */
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +void susfs_set_uname(void __user **user_info);
 +void susfs_spoof_uname(struct new_utsname* tmp);
 +#endif
++
 +/* enable_log */
 +#ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
 +void susfs_enable_log(void __user **user_info);
 +#endif
++
 +/* spoof_cmdline_or_bootconfig */
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
 +void susfs_set_cmdline_or_bootconfig(void __user **user_info);
 +int susfs_spoof_cmdline_or_bootconfig(struct seq_file *m);
 +#endif
++
 +/* open_redirect */
 +#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
 +void susfs_add_open_redirect(void __user **user_info);
 +struct filename* susfs_get_redirected_path(unsigned long ino);
 +#endif
++
 +/* sus_map */
 +#ifdef CONFIG_KSU_SUSFS_SUS_MAP
 +void susfs_add_sus_map(void __user **user_info);
@@ -3173,7 +3099,7 @@ index 000000000..c457e21ad
 +#endif
 diff --git a/include/linux/susfs_def.h b/include/linux/susfs_def.h
 new file mode 100644
-index 000000000..dc8b76a70
+index 000000000..e5b2dcbe1
 --- /dev/null
 +++ b/include/linux/susfs_def.h
 @@ -0,0 +1,87 @@
@@ -3197,7 +3123,7 @@ index 000000000..dc8b76a70
 +#define CMD_SUSFS_ADD_SUS_KSTAT 0x55570
 +#define CMD_SUSFS_UPDATE_SUS_KSTAT 0x55571
 +#define CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY 0x55572
-+#define CMD_SUSFS_ADD_TRY_UMOUNT 0x55580
++#define CMD_SUSFS_ADD_TRY_UMOUNT 0x55580 /* deprecated */
 +#define CMD_SUSFS_SET_UNAME 0x55590
 +#define CMD_SUSFS_ENABLE_LOG 0x555a0
 +#define CMD_SUSFS_SET_CMDLINE_OR_BOOTCONFIG 0x555b0
