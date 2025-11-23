@@ -1,6 +1,6 @@
-From 8c1c34c9e6f2f5dab58b2623a10dd523d707976c Mon Sep 17 00:00:00 2001
+From 39adcbe995defadca88a0bd8db7a27ab77eb07d6 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sun, 23 Nov 2025 10:55:25 +0700
+Date: Sun, 23 Nov 2025 11:03:15 +0700
 Subject: [PATCH] susfs v2.0.0
 
 ---
@@ -3173,7 +3173,7 @@ index 000000000..c457e21ad
 +#endif
 diff --git a/include/linux/susfs_def.h b/include/linux/susfs_def.h
 new file mode 100644
-index 000000000..20a839b12
+index 000000000..dc8b76a70
 --- /dev/null
 +++ b/include/linux/susfs_def.h
 @@ -0,0 +1,87 @@
@@ -3220,8 +3220,8 @@ index 000000000..20a839b12
 +#define TRY_UMOUNT_DEFAULT 0 /* used by susfs_try_umount() */
 +#define TRY_UMOUNT_DETACH 1 /* used by susfs_try_umount() */
 +
-+#define DEFAULT_KSU_MNT_ID 100000 /* used by mount->mnt_id */
-+#define DEFAULT_KSU_MNT_GROUP_ID 1000 /* used by mount->mnt_group_id */
++#define DEFAULT_KSU_MNT_ID 300000 /* used by mount->mnt_id */
++#define DEFAULT_KSU_MNT_GROUP_ID 3000 /* used by mount->mnt_group_id */
 +
 +/*
 + * mount->mnt.susfs_mnt_id_backup => storing original mount's mnt_id
