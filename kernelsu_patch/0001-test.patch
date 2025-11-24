@@ -1,17 +1,17 @@
-From 6cb8e8f182817860d1566365f912693f5b1249a9 Mon Sep 17 00:00:00 2001
+From 8e30e089ea0aaab5e46b04c0e67a39b2b67efe65 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 24 Nov 2025 19:16:39 +0000
+Date: Mon, 24 Nov 2025 19:38:53 +0000
 Subject: [PATCH] test
 
 ---
  kernel/Makefile         |  1 -
  kernel/allowlist.c      |  2 ++
- kernel/app_profile.c    | 15 +++++++++------
+ kernel/app_profile.c    | 21 ++++++++++++---------
  kernel/ksu.c            |  4 +++-
  kernel/ksud.c           | 12 ++++++------
  kernel/supercalls.c     |  4 ----
  kernel/umount_manager.c |  1 +
- 7 files changed, 21 insertions(+), 18 deletions(-)
+ 7 files changed, 24 insertions(+), 21 deletions(-)
 
 diff --git a/kernel/Makefile b/kernel/Makefile
 index f6824941..7f6ccf0d 100644
@@ -41,7 +41,7 @@ index 9a68e054..19fbf693 100644
  
  	return result;
 diff --git a/kernel/app_profile.c b/kernel/app_profile.c
-index c7229860..8f98bd8f 100644
+index c7229860..abd4e9ea 100644
 --- a/kernel/app_profile.c
 +++ b/kernel/app_profile.c
 @@ -127,19 +127,23 @@ void disable_seccomp(struct task_struct *tsk)
@@ -73,6 +73,19 @@ index c7229860..8f98bd8f 100644
  
  	struct root_profile *profile = ksu_get_root_profile(cred->uid.val);
  
+@@ -175,9 +179,9 @@ void escape_with_root_profile(void)
+ 
+ 	// Refer to kernel/seccomp.c: seccomp_set_mode_strict
+ 	// When disabling Seccomp, ensure that current->sighand->siglock is held during the operation.
+-	spin_lock_irq(&p->sighand->siglock);
+-	disable_seccomp(p);
+-	spin_unlock_irq(&p->sighand->siglock);
++	spin_lock_irq(&current->sighand->siglock);
++	disable_seccomp();
++	spin_unlock_irq(&current->sighand->siglock);
+ 
+ 	setup_selinux(profile->selinux_domain);
+ #if __SULOG_GATE
 @@ -185,7 +189,6 @@ void escape_with_root_profile(void)
  #endif
  
