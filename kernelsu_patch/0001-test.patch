@@ -1,6 +1,6 @@
-From 8e30e089ea0aaab5e46b04c0e67a39b2b67efe65 Mon Sep 17 00:00:00 2001
+From 7bc8a74b41eb45b5c60a1354973f0311083a3f69 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 24 Nov 2025 19:38:53 +0000
+Date: Mon, 24 Nov 2025 21:08:05 +0000
 Subject: [PATCH] test
 
 ---
@@ -41,7 +41,7 @@ index 9a68e054..19fbf693 100644
  
  	return result;
 diff --git a/kernel/app_profile.c b/kernel/app_profile.c
-index c7229860..abd4e9ea 100644
+index c7229860..ab046861 100644
 --- a/kernel/app_profile.c
 +++ b/kernel/app_profile.c
 @@ -127,19 +127,23 @@ void disable_seccomp(struct task_struct *tsk)
@@ -81,7 +81,7 @@ index c7229860..abd4e9ea 100644
 -	disable_seccomp(p);
 -	spin_unlock_irq(&p->sighand->siglock);
 +	spin_lock_irq(&current->sighand->siglock);
-+	disable_seccomp();
++	disable_seccomp(current);
 +	spin_unlock_irq(&current->sighand->siglock);
  
  	setup_selinux(profile->selinux_domain);
