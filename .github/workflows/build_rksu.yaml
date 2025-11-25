@@ -146,6 +146,7 @@ jobs:
             KSU_EXPECTED_SIZE
             KSU_EXPECTED_HASH
             REMOVE_UNUSED_PACKAGES
+            ENABLE_DEBUG
         )
 
         for CONFIG in "${CONFIG_LIST[@]}"; do
@@ -429,6 +430,9 @@ jobs:
         fi
         if [ ${{ env.DISABLE_CC_WERROR }} = true ]; then
             echo "CONFIG_CC_WERROR=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+        fi
+        if [ ${{ env.ENABLE_DEBUG }} = true ]; then
+            echo "CONFIG_DEBUG_SECTION_MISMATCH=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
         fi
 
     - name: Setup ccache
