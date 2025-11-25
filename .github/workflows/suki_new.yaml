@@ -65,6 +65,7 @@ on:
           - '0001-susfs-v1.5.12.patch'
           - '0001-susfs-v1.5.12-test.patch'
           - '0001-susfs-v2.0.0.patch'
+          - '0001-susfs2.0.0.patch'
       patching_sukisu:
         description: 'Enable patch SUKISU?'
         required: true
@@ -303,7 +304,6 @@ jobs:
           0001-inotify-show-inotify-mask-flags-in-proc-fdinfo.patch \
           0006-BACKPORT-maccess-rename-strncpy_from_unsafe_user-to-.patch \
           0001-BACKPORT-proc-less-memory-for-proc-map_files-readdir.patch \
-          ${{ env.MANUAL_HOOK }} \
           ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
           0001-BACKPORT-seccomp-add-filter_count-field-for-KernelSU.patch
         do
@@ -396,7 +396,6 @@ jobs:
             echo "CONFIG_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_HAVE_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_KPROBE_EVENTS=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-            echo "CONFIG_KRETPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
         fi
         if [ ${{ env.ADD_OVERLAYFS_CONFIG }} = true ]; then
             echo "CONFIG_OVERLAY_FS=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
