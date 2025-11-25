@@ -1,0 +1,25 @@
+From b24cde0c536901d01b959ba114befda1c5c65dfd Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Tue, 25 Nov 2025 08:02:43 +0000
+Subject: [PATCH] fix lsm_hook
+
+---
+ kernel/lsm_hook.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/lsm_hook.c b/kernel/lsm_hook.c
+index bbec0be7..d89e3ff2 100644
+--- a/kernel/lsm_hook.c
++++ b/kernel/lsm_hook.c
+@@ -117,7 +117,7 @@ static const struct lsm_id ksu_lsmid = {
+ };
+ #endif
+ 
+-void ksu_lsm_hook_init(void)
++void __init ksu_lsm_hook_init(void)
+ {
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
+ 	security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks), &ksu_lsmid);
+-- 
+2.34.1
+

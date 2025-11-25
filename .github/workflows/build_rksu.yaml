@@ -66,14 +66,10 @@ on:
       select_version_patch_susfs:
         description: 'Select SUSFS PATCH into KERNELSU'
         required: true
-        default: '0001-susfs-v1.5.10-with-tag.patch'
+        default: '0001-fix-lsm_hook.patch'
         type: choice
         options:
-          - '0001-susfs-v1.5.10-with-tag.patch'
-          - '0001-susfs-v1.5.10-sus_map.patch'
-          - '0001-susfs-v1.5.11.patch'
-          - '0001-susfs-v1.5.12.patch'
-          - '0001-susfs-v1.5.12-for-tag-v1.1.0.patch'
+          - '0001-fix-lsm_hook.patch'
       build_boot_img:
         description: 'enable BUILD BOOT IMG'
         required: true
@@ -378,7 +374,6 @@ jobs:
         
         else
           for patch_file in \
-            0001-fix-pkg_observer-for-k4.14.patch \
             ${{ env.SELECT_VERSION_PATCH_SUSFS }}
           do
             if patch -p1 < "$patch_file"; then
