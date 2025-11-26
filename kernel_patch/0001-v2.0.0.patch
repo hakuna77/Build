@@ -1,36 +1,37 @@
-From 220d697fd170602587e579faa3995c1c3f85fd57 Mon Sep 17 00:00:00 2001
+From 54a138a0c5c2dc3dae49a874cf499879f2c62515 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Wed, 26 Nov 2025 07:01:02 +0700
-Subject: [PATCH] v2.0.0
+Date: Thu, 27 Nov 2025 02:34:39 +0700
+Subject: [PATCH] susfs v2.0.0 :Deprecated cli:
+ umount_for_zygote_iso_service_enabled
 
 ---
- drivers/input/input.c     |   11 +
- fs/Makefile               |    2 +
- fs/devpts/inode.c         |   14 +
- fs/exec.c                 |   27 +
- fs/namei.c                |  262 +++++++++-
- fs/namespace.c            |  260 ++++++++++
- fs/notify/fdinfo.c        |   53 ++
- fs/open.c                 |   21 +
- fs/proc/base.c            |   31 ++
- fs/proc/cmdline.c         |   10 +
- fs/proc/fd.c              |   18 +
- fs/proc/task_mmu.c        |   71 ++-
- fs/proc_namespace.c       |   25 +
- fs/read_write.c           |   11 +
- fs/readdir.c              |  279 +++++++++-
- fs/stat.c                 |   40 ++
- fs/statfs.c               |   16 +
- fs/susfs.c                | 1014 +++++++++++++++++++++++++++++++++++++
- include/linux/mount.h     |    3 +
- include/linux/sched.h     |    4 +
- include/linux/susfs.h     |  227 +++++++++
- include/linux/susfs_def.h |   87 ++++
- kernel/kallsyms.c         |   33 ++
- kernel/reboot.c           |   13 +
- kernel/sys.c              |   14 +
- security/selinux/avc.c    |   20 +
- 26 files changed, 2563 insertions(+), 3 deletions(-)
+ drivers/input/input.c     |  11 +
+ fs/Makefile               |   2 +
+ fs/devpts/inode.c         |  14 +
+ fs/exec.c                 |  27 ++
+ fs/namei.c                | 262 +++++++++-
+ fs/namespace.c            | 260 ++++++++++
+ fs/notify/fdinfo.c        |  53 ++
+ fs/open.c                 |  21 +
+ fs/proc/base.c            |  31 ++
+ fs/proc/cmdline.c         |  10 +
+ fs/proc/fd.c              |  18 +
+ fs/proc/task_mmu.c        |  71 ++-
+ fs/proc_namespace.c       |  25 +
+ fs/read_write.c           |  11 +
+ fs/readdir.c              | 279 ++++++++++-
+ fs/stat.c                 |  40 ++
+ fs/statfs.c               |  16 +
+ fs/susfs.c                | 995 ++++++++++++++++++++++++++++++++++++++
+ include/linux/mount.h     |   3 +
+ include/linux/sched.h     |   4 +
+ include/linux/susfs.h     | 222 +++++++++
+ include/linux/susfs_def.h |  87 ++++
+ kernel/kallsyms.c         |  33 ++
+ kernel/reboot.c           |  13 +
+ kernel/sys.c              |  14 +
+ security/selinux/avc.c    |  20 +
+ 26 files changed, 2539 insertions(+), 3 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -2050,10 +2051,10 @@ index ca1084cbe..638abca3c 100644
  
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
-index 000000000..eea1cfaf6
+index 000000000..de4d97e84
 --- /dev/null
 +++ b/fs/susfs.c
-@@ -0,0 +1,1014 @@
+@@ -0,0 +1,995 @@
 +#include <linux/version.h>
 +#include <linux/cred.h>
 +#include <linux/fs.h>
@@ -2446,25 +2447,6 @@ index 000000000..eea1cfaf6
 +	SUSFS_LOGI("CMD_SUSFS_HIDE_SUS_MNTS_FOR_ALL_PROCS -> ret: %d\n", info.err);
 +}
 +
-+bool susfs_is_umount_for_zygote_iso_service_enabled = false;
-+void susfs_set_umount_for_zygote_iso_service(void __user **user_info) {
-+	struct st_susfs_umount_for_zygote_iso_service info = {0};
-+
-+	if (copy_from_user(&info, (struct st_susfs_umount_for_zygote_iso_service __user*)*user_info, sizeof(info))) {
-+		info.err = -EFAULT;
-+		goto out_copy_to_user;
-+	}
-+	spin_lock(&susfs_spin_lock_sus_mount);
-+	susfs_is_umount_for_zygote_iso_service_enabled = info.enabled;
-+	spin_unlock(&susfs_spin_lock_sus_mount);
-+	SUSFS_LOGI("susfs_is_umount_for_zygote_iso_service_enabled: %d\n", info.enabled);
-+	info.err = 0;
-+out_copy_to_user:
-+	if (copy_to_user(&((struct st_susfs_umount_for_zygote_iso_service __user*)*user_info)->err, &info.err, sizeof(info.err))) {
-+		info.err = -EFAULT;
-+	}
-+	SUSFS_LOGI("CMD_SUSFS_UMOUNT_FOR_ZYGOTE_ISO_SERVICE -> ret: %d\n", info.err);
-+}
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +
 +/* sus_kstat */
@@ -3099,10 +3081,10 @@ index ae20f52f1..67a53b8c3 100644
  	/* CPU-specific state of this task: */
 diff --git a/include/linux/susfs.h b/include/linux/susfs.h
 new file mode 100644
-index 000000000..8d019eee2
+index 000000000..414979d92
 --- /dev/null
 +++ b/include/linux/susfs.h
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,222 @@
 +#ifndef KSU_SUSFS_H
 +#define KSU_SUSFS_H
 +
@@ -3160,10 +3142,6 @@ index 000000000..8d019eee2
 +	int                                     err;
 +};
 +
-+struct st_susfs_umount_for_zygote_iso_service {
-+	bool                                    enabled;
-+	int                                     err;
-+};
 +#endif
 +
 +/* sus_kstat */
@@ -3281,7 +3259,6 @@ index 000000000..8d019eee2
 +/* sus_mount */
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +void susfs_set_hide_sus_mnts_for_all_procs(void __user **user_info);
-+void susfs_set_umount_for_zygote_iso_service(void __user **user_info);
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +
 +/* sus_kstat */
@@ -3332,7 +3309,7 @@ index 000000000..8d019eee2
 +#endif
 diff --git a/include/linux/susfs_def.h b/include/linux/susfs_def.h
 new file mode 100644
-index 000000000..e5b2dcbe1
+index 000000000..3dd923ada
 --- /dev/null
 +++ b/include/linux/susfs_def.h
 @@ -0,0 +1,87 @@
@@ -3352,7 +3329,7 @@ index 000000000..e5b2dcbe1
 +#define CMD_SUSFS_ADD_SUS_PATH_LOOP 0x55553
 +#define CMD_SUSFS_ADD_SUS_MOUNT 0x55560 /* deprecated */
 +#define CMD_SUSFS_HIDE_SUS_MNTS_FOR_ALL_PROCS 0x55561
-+#define CMD_SUSFS_UMOUNT_FOR_ZYGOTE_ISO_SERVICE 0x55562
++#define CMD_SUSFS_UMOUNT_FOR_ZYGOTE_ISO_SERVICE 0x55562 /* deprecated */
 +#define CMD_SUSFS_ADD_SUS_KSTAT 0x55570
 +#define CMD_SUSFS_UPDATE_SUS_KSTAT 0x55571
 +#define CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY 0x55572
