@@ -1,0 +1,50 @@
+From 862d09020768fe431dbfa603caada371fa8fbcfe Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Wed, 26 Nov 2025 06:56:23 +0700
+Subject: [PATCH] BACKPORT: arm/arm64: wire up backported sys_move_mount
+
+---
+ arch/arm/tools/syscall.tbl        | 1 +
+ arch/arm64/include/asm/unistd32.h | 2 ++
+ include/uapi/asm-generic/unistd.h | 2 ++
+ 3 files changed, 5 insertions(+)
+
+diff --git a/arch/arm/tools/syscall.tbl b/arch/arm/tools/syscall.tbl
+index 98a1e28bc..de6847c8f 100644
+--- a/arch/arm/tools/syscall.tbl
++++ b/arch/arm/tools/syscall.tbl
+@@ -413,4 +413,5 @@
+ 396	common	pkey_free		sys_pkey_free
+ 397	common	statx			sys_statx
+ 424	common	pidfd_send_signal	sys_pidfd_send_signal
++429	common	move_mount		sys_move_mount
+ 434	common	pidfd_open		sys_pidfd_open
+diff --git a/arch/arm64/include/asm/unistd32.h b/arch/arm64/include/asm/unistd32.h
+index b81507012..58d56eec5 100644
+--- a/arch/arm64/include/asm/unistd32.h
++++ b/arch/arm64/include/asm/unistd32.h
+@@ -819,6 +819,8 @@ __SYSCALL(__NR_pkey_free, sys_pkey_free)
+ __SYSCALL(__NR_statx, sys_statx)
+ #define __NR_pidfd_send_signal 424
+ __SYSCALL(__NR_pidfd_send_signal, sys_pidfd_send_signal)
++#define __NR_move_mount 429
++__SYSCALL(__NR_move_mount, sys_move_mount)
+ #define __NR_pidfd_open 434
+ __SYSCALL(__NR_pidfd_open, sys_pidfd_open)
+ 
+diff --git a/include/uapi/asm-generic/unistd.h b/include/uapi/asm-generic/unistd.h
+index 119661ff7..7d0dacd05 100644
+--- a/include/uapi/asm-generic/unistd.h
++++ b/include/uapi/asm-generic/unistd.h
+@@ -734,6 +734,8 @@ __SYSCALL(__NR_pkey_free,     sys_pkey_free)
+ __SYSCALL(__NR_statx,     sys_statx)
+ #define __NR_pidfd_send_signal 424
+ __SYSCALL(__NR_pidfd_send_signal, sys_pidfd_send_signal)
++#define __NR_move_mount 429
++__SYSCALL(__NR_move_mount, sys_move_mount)
+ #define __NR_pidfd_open 434
+ __SYSCALL(__NR_pidfd_open, sys_pidfd_open)
+ 
+-- 
+2.51.2
+
