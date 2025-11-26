@@ -1,0 +1,58 @@
+From 89d33aba8db81056d60cbfb818efd0e9e95c6cf3 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Thu, 27 Nov 2025 05:27:48 +0700
+Subject: [PATCH 2/6] locks: print a warning when mount fails due to lack of
+ mand support
+
+---
+ Documentation/filesystems/mandatory-locking.txt | 10 ++++++++++
+ fs/namespace.c                                  | 11 ++++++++---
+ 2 files changed, 18 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/filesystems/mandatory-locking.txt b/Documentation/filesystems/mandatory-locking.txt
+index 0979d1d2c..a251ca331 100644
+--- a/Documentation/filesystems/mandatory-locking.txt
++++ b/Documentation/filesystems/mandatory-locking.txt
+@@ -169,3 +169,13 @@ havoc if they lock crucial files. The way around it is to change the file
+ permissions (remove the setgid bit) before trying to read or write to it.
+ Of course, that might be a bit tricky if the system is hung :-(
+ 
++7. The "mand" mount option
++--------------------------
++Mandatory locking is disabled on all filesystems by default, and must be
++administratively enabled by mounting with "-o mand". That mount option
++is only allowed if the mounting task has the CAP_SYS_ADMIN capability.
++
++Since kernel v4.5, it is possible to disable mandatory locking
++altogether by setting CONFIG_MANDATORY_FILE_LOCKING to "n". A kernel
++with this disabled will reject attempts to mount filesystems with the
++"mand" mount option with the error status EPERM.
+diff --git a/fs/namespace.c b/fs/namespace.c
+index bfbd58acb..6229c6522 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -1713,13 +1713,18 @@ static inline bool may_mount(void)
+ 	return ns_capable(current->nsproxy->mnt_ns->user_ns, CAP_SYS_ADMIN);
+ }
+ 
++#ifdef	CONFIG_MANDATORY_FILE_LOCKING
+ static inline bool may_mandlock(void)
+ {
+-#ifndef	CONFIG_MANDATORY_FILE_LOCKING
+-	return false;
+-#endif
+ 	return capable(CAP_SYS_ADMIN);
+ }
++#else
++static inline bool may_mandlock(void)
++{
++	pr_warn("VFS: \"mand\" mount option not supported");
++	return false;
++}
++#endif
+ 
+ static int can_umount(const struct path *path, int flags)
+ {
+-- 
+2.51.2
+

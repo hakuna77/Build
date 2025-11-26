@@ -1,0 +1,28 @@
+From eace23ea8388347ee5901f7c1088e9a851194b09 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Thu, 27 Nov 2025 06:06:46 +0700
+Subject: [PATCH 6/6] do_change_type(): refuse to operate on unmounted/not ours
+ mounts
+
+---
+ fs/namespace.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 5c48c66b4..e83007cc9 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -2285,6 +2285,10 @@ static int do_change_type(struct path *path, int ms_flags)
+ 		return -EINVAL;
+ 
+ 	namespace_lock();
++	if (!check_mnt(mnt)) {
++		err = -EINVAL;
++		goto out_unlock;
++	}
+ 	if (type == MS_SHARED) {
+ 		err = invent_group_ids(mnt, recurse);
+ 		if (err)
+-- 
+2.51.2
+

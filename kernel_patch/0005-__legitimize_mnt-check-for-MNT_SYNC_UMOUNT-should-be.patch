@@ -1,0 +1,31 @@
+From 06518c6b8f3295f54d9d170af531876217020ce5 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Thu, 27 Nov 2025 06:04:03 +0700
+Subject: [PATCH 5/6] __legitimize_mnt(): check for MNT_SYNC_UMOUNT should be
+ under mount_lock
+
+---
+ fs/namespace.c | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 4784c4e0f..5c48c66b4 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -664,12 +664,8 @@ int __legitimize_mnt(struct vfsmount *bastard, unsigned seq)
+ 	smp_mb();			// see mntput_no_expire() and do_umount()
+ 	if (likely(!read_seqretry(&mount_lock, seq)))
+ 		return 0;
+-	if (bastard->mnt_flags & MNT_SYNC_UMOUNT) {
+-		mnt_add_count(mnt, -1);
+-		return 1;
+-	}
+ 	lock_mount_hash();
+-	if (unlikely(bastard->mnt_flags & MNT_DOOMED)) {
++	if (unlikely(bastard->mnt_flags & (MNT_SYNC_UMOUNT | MNT_DOOMED))) {
+ 		mnt_add_count(mnt, -1);
+ 		unlock_mount_hash();
+ 		return 1;
+-- 
+2.51.2
+

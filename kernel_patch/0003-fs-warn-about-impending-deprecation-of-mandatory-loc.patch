@@ -1,0 +1,30 @@
+From 0aed15725e27a500ead97ad95332306dcd7d61ed Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Thu, 27 Nov 2025 05:29:16 +0700
+Subject: [PATCH 3/6] fs: warn about impending deprecation of mandatory locks
+
+---
+ fs/namespace.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 6229c6522..4d51f2cd3 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -1714,8 +1714,12 @@ static inline bool may_mount(void)
+ }
+ 
+ #ifdef	CONFIG_MANDATORY_FILE_LOCKING
+-static inline bool may_mandlock(void)
++static bool may_mandlock(void)
+ {
++	pr_warn_once("======================================================\n"
++		     "WARNING: the mand mount option is being deprecated and\n"
++		     "         will be removed in v5.15!\n"
++		     "======================================================\n");
+ 	return capable(CAP_SYS_ADMIN);
+ }
+ #else
+-- 
+2.51.2
+
