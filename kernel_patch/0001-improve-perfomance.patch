@@ -1,12 +1,13 @@
-From 84222809e2756c516999efadd021a6be4d6e291c Mon Sep 17 00:00:00 2001
+From 8af97b48bbc86707b93d843247f7e26bf7c87d85 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Thu, 27 Nov 2025 23:04:46 +0700
+Date: Fri, 28 Nov 2025 02:30:56 +0700
 Subject: [PATCH] improve perfomance
 
 ---
- arch/arm64/configs/begonia_user_defconfig     |  10 +-
+ arch/arm64/configs/begonia_user_defconfig     |  16 +-
+ drivers/android/binder.c                      |   2 +-
  drivers/cpufreq/cpufreq.c                     |   4 +
- drivers/misc/mediatek/Kconfig.default         |   4 -
+ drivers/misc/mediatek/Kconfig.default         |   6 -
  drivers/misc/mediatek/Makefile                |   3 +-
  .../power/clkbuf_v1/mt6785/mtk_clkbuf_hw.c    |  68 +-
  .../base/power/clkbuf_v1/mtk_clkbuf_ctl.c     |   2 +-
@@ -114,7 +115,6 @@ Subject: [PATCH] improve perfomance
  .../gpu/gpu_mali/mali_bifrost/Makefile        |   2 +-
  .../gpu/arm/midgard/Kbuild-mtk-custom-env     |   8 +-
  .../gpu/arm/midgard/Kbuild-mtk-custom-env     |   4 +-
- .../s5k3t2_mipi_raw/s5k3t2mipiraw_Sensor.c    |   2 +-
  .../mediatek/imgsensor/src/mt6785/Makefile    |   6 +-
  drivers/misc/mediatek/io_boost/mtk_io_boost.c |   8 +-
  drivers/misc/mediatek/m4u/mt6785/m4u_priv.h   |   6 +-
@@ -131,6 +131,7 @@ Subject: [PATCH] improve perfomance
  .../misc/mediatek/pseudo_m4u/pseudo_m4u_log.h |   4 +-
  .../misc/mediatek/pseudo_m4u/pseudo_m4u_ut.c  |   8 +-
  .../misc/mediatek/selinux_warning/Makefile    |   2 +-
+ .../sensors-1.0/alsps/alspshub/alspshub.c     |   2 +-
  drivers/misc/mediatek/smi/smi_drv.c           |   8 +-
  drivers/misc/mediatek/systracker/Kconfig      |   6 +
  drivers/misc/mediatek/systracker/Makefile     |   3 +-
@@ -170,7 +171,7 @@ Subject: [PATCH] improve perfomance
  .../common/thermal_zones/mtk_ts_charger.c     |  10 +-
  .../common/thermal_zones/mtk_ts_charger2.c    |   2 +-
  .../thermal/common/thermal_zones/mtk_ts_cpu.c |  72 +-
- .../common/thermal_zones/mtk_ts_cpu_noBank.c  |  60 +-
+ .../common/thermal_zones/mtk_ts_cpu_noBank.c  |  62 +-
  .../common/thermal_zones/mtk_ts_dctm.c        |   4 +-
  .../common/thermal_zones/mtk_ts_imgsensor.c   |   6 +-
  .../thermal/common/thermal_zones/mtk_ts_tsx.c |   2 +-
@@ -189,7 +190,7 @@ Subject: [PATCH] improve perfomance
  .../mediatek/trusted_mem/Makefile.configs     |   8 +-
  .../video/mt6785/videox/disp_drv_log.h        |  10 +-
  .../video/mt6785/videox/disp_recovery.c       |   3 +-
- .../video/mt6785/videox/primary_display.c     |  39 +-
+ .../video/mt6785/videox/primary_display.c     |  41 +-
  .../video/mt6853/cmdq/v3/cmdq_helper_ext.h    |   8 +-
  .../video/mt6853/cmdq/v3/cmdq_mdp_common.c    |   2 +-
  drivers/misc/mediatek/vpu/2.0/vpu_algo.c      |  10 +-
@@ -239,16 +240,38 @@ Subject: [PATCH] improve perfomance
  drivers/power/supply/mediatek/mtk_pep_intf.c  |   4 +-
  drivers/thermal/cpu_cooling.c                 |  73 +-
  drivers/thermal/thermal_core.c                | 286 ++++++-
+ include/linux/audit.h                         |   4 +
  include/linux/cpufreq.h                       |   2 +
+ include/linux/lsm_audit.h                     |   8 +
+ kernel/cpu.c                                  |   7 +-
+ kernel/power/process.c                        |   6 +-
+ kernel/power/suspend.c                        |   8 +-
+ kernel/power/wakeup_reason.c                  |   4 +-
  net/ipv6/addrconf.c                           |   4 +-
  net/sched/cls_bpf.c                           |   2 +
- 238 files changed, 2960 insertions(+), 2888 deletions(-)
+ security/selinux/Kconfig                      |   2 +-
+ security/selinux/avc.c                        |  10 +-
+ security/selinux/hooks.c                      |   2 +
+ security/selinux/include/avc.h                |   4 +
+ security/selinux/ss/services.c                |   2 +
+ .../mediatek/common/mtk-afe-platform-driver.c |   4 +-
+ sound/soc/soc-pcm.c                           |   2 +-
+ 252 files changed, 3012 insertions(+), 2913 deletions(-)
 
 diff --git a/arch/arm64/configs/begonia_user_defconfig b/arch/arm64/configs/begonia_user_defconfig
-index e4e9a2788..c09cbef31 100644
+index e4e9a2788..6a293b03e 100644
 --- a/arch/arm64/configs/begonia_user_defconfig
 +++ b/arch/arm64/configs/begonia_user_defconfig
-@@ -209,12 +209,12 @@ CONFIG_TCPC_CLASS=y
+@@ -199,7 +199,7 @@ CONFIG_MTK_SCHED_CPULOAD=y
+ CONFIG_MTK_AURISYS_PHONE_CALL_SUPPORT=y
+ CONFIG_MTK_AUDIODSP_SUPPORT=y
+ CONFIG_MTK_RAM_CONSOLE=y
+-CONFIG_MTK_AEE_FEATURE=y
++# CONFIG_MTK_AEE_FEATURE is not set
+ CONFIG_MTK_RTC=y
+ CONFIG_MTK_USB_TYPEC_U3_MUX=y
+ CONFIG_TCPC_MT6360=y
+@@ -209,13 +209,13 @@ CONFIG_TCPC_CLASS=y
  CONFIG_USB_POWER_DELIVERY=y
  CONFIG_MTK_LOAD_TRACKER=y
  CONFIG_MTK_CPU_CTRL_CFP=y
@@ -259,11 +282,22 @@ index e4e9a2788..c09cbef31 100644
  CONFIG_MTK_EARA_THERMAL=y
 -CONFIG_MTK_PERF_TRACKER=y
 -CONFIG_MTK_LOWMEM_HINT=y
+-CONFIG_MTPROF=y
 +# CONFIG_MTK_PERF_TRACKER is not set
 +# CONFIG_MTK_LOWMEM_HINT is not set
- CONFIG_MTPROF=y
++# CONFIG_MTPROF is not set
  CONFIG_ANDROID_DEFAULT_SETTING=y
  CONFIG_MTK_ANDROID_DEFAULT_SETTING=y
+ CONFIG_MTK_TIMER_TIMESYNC=y
+@@ -225,7 +225,7 @@ CONFIG_MTK_GPU_SUPPORT=y
+ CONFIG_MTK_GPU_VERSION="mali bifrost r25p0"
+ CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT=y
+ CONFIG_MTK_VIBRATOR=y
+-CONFIG_MTK_SELINUX_AEE_WARNING=y
++# CONFIG_MTK_SELINUX_AEE_WARNING is not set
+ CONFIG_MTK_SYNC=y
+ CONFIG_MTK_VPU_SUPPORT=y
+ CONFIG_MTK_VOW_SUPPORT=y
 @@ -446,8 +446,8 @@ CONFIG_SCHEDSTATS=y
  # CONFIG_DEBUG_BUGVERBOSE is not set
  CONFIG_RCU_CPU_STALL_TIMEOUT=60
@@ -275,6 +309,19 @@ index e4e9a2788..c09cbef31 100644
  CONFIG_STATIC_USERMODEHELPER_PATH="/system_ext/bin/aee_core_forwarder"
  CONFIG_SECURITY_SELINUX_DEVELOP=y
  CONFIG_CRYPTO_TWOFISH=y
+diff --git a/drivers/android/binder.c b/drivers/android/binder.c
+index c4068ccb1..ca88abc32 100644
+--- a/drivers/android/binder.c
++++ b/drivers/android/binder.c
+@@ -5855,7 +5855,7 @@ err:
+ 		thread->looper_need_return = false;
+ 	wait_event_interruptible(binder_user_error_wait, binder_stop_on_user_error < 2);
+ 	if (ret && ret != -ERESTARTSYS)
+-		pr_info("%d:%d ioctl %x %lx returned %d\n", proc->pid, current->pid, cmd, arg, ret);
++		pr_debug("%d:%d ioctl %x %lx returned %d\n", proc->pid, current->pid, cmd, arg, ret);
+ err_unlocked:
+ 	trace_binder_ioctl_done(ret);
+ 	return ret;
 diff --git a/drivers/cpufreq/cpufreq.c b/drivers/cpufreq/cpufreq.c
 index d136c503d..15e380c21 100644
 --- a/drivers/cpufreq/cpufreq.c
@@ -291,10 +338,18 @@ index d136c503d..15e380c21 100644
  	 * verify the cpu speed can be set within this limit, which might be
  	 * different to the first one
 diff --git a/drivers/misc/mediatek/Kconfig.default b/drivers/misc/mediatek/Kconfig.default
-index 1c358767c..b60eb0074 100644
+index 1c358767c..360ee67e9 100644
 --- a/drivers/misc/mediatek/Kconfig.default
 +++ b/drivers/misc/mediatek/Kconfig.default
-@@ -42,9 +42,6 @@ config ANDROID_DEFAULT_SETTING
+@@ -8,7 +8,6 @@ config ANDROID_DEFAULT_SETTING
+ 	select ARM64_SW_TTBR0_PAN
+ 	select ARMV8_DEPRECATED if COMPAT
+ 	select ASHMEM
+-	select AUDIT
+ 	select BINFMT_ELF
+ 	select BINFMT_SCRIPT
+ 	select BLK_DEV_INITRD
+@@ -42,9 +41,6 @@ config ANDROID_DEFAULT_SETTING
  	select CRYPTO_SHA256
  	select CRYPTO_SHA512
  	select CRYPTO_XCBC
@@ -304,7 +359,7 @@ index 1c358767c..b60eb0074 100644
  	select DEFAULT_SECURITY_SELINUX
  	select DM_SNAPSHOT
  	select DM_VERITY
-@@ -233,7 +230,6 @@ config ANDROID_DEFAULT_SETTING
+@@ -233,7 +229,6 @@ config ANDROID_DEFAULT_SETTING
  	select STAGING
  	select STATIC_USERMODEHELPER
  	select STRICT_KERNEL_RWX
@@ -312,6 +367,14 @@ index 1c358767c..b60eb0074 100644
  	select SUSPEND
  	select SWP_EMULATION if ARMV8_DEPRECATED
  	select SYNC_FILE
+@@ -276,7 +271,6 @@ config MTK_ANDROID_DEFAULT_SETTING
+ 	bool "Select MTK android common setting by default"
+ 	select HW_RANDOM
+ 	select HW_RANDOM_MT67XX
+-	select MTK_AEE_AED
+ 	select MTK_AEE_IPANIC if MTK_RAM_CONSOLE
+ 	select MTK_MIX_DEVICES
+ 	select NETFILTER_XT_MATCH_ESP
 diff --git a/drivers/misc/mediatek/Makefile b/drivers/misc/mediatek/Makefile
 index 9fa3c8607..fec7c9bbc 100755
 --- a/drivers/misc/mediatek/Makefile
@@ -12418,19 +12481,6 @@ index 01a3315c0..62b633634 100644
  
  ccflags-y += -I-I$(srctree)/include
  ccflags-y += -I$(srctree)/drivers/staging/android
-diff --git a/drivers/misc/mediatek/imgsensor/src/common/v1_1/s5k3t2_mipi_raw/s5k3t2mipiraw_Sensor.c b/drivers/misc/mediatek/imgsensor/src/common/v1_1/s5k3t2_mipi_raw/s5k3t2mipiraw_Sensor.c
-index ba9fc09e4..af6047ef3 100644
---- a/drivers/misc/mediatek/imgsensor/src/common/v1_1/s5k3t2_mipi_raw/s5k3t2mipiraw_Sensor.c
-+++ b/drivers/misc/mediatek/imgsensor/src/common/v1_1/s5k3t2_mipi_raw/s5k3t2mipiraw_Sensor.c
-@@ -199,7 +199,7 @@ static struct imgsensor_info_struct imgsensor_info = {
- 
- 	/* 0,MIPI_SETTLEDELAY_AUTO; 1,MIPI_SETTLEDELAY_MANNUAL */
- 	.mipi_settle_delay_mode = 1,
--	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_4CELL_BAYER_Gr,
-+	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_Gr,
- 	.mclk = 24,	/* mclk value, suggest 24 or 26 for 24Mhz or 26Mhz */
- 	.mipi_lane_num = SENSOR_MIPI_4_LANE,
- 	//.i2c_speed = 1000, /*support 1MHz write*/
 diff --git a/drivers/misc/mediatek/imgsensor/src/mt6785/Makefile b/drivers/misc/mediatek/imgsensor/src/mt6785/Makefile
 index 73998cb7d..942ff44d5 100644
 --- a/drivers/misc/mediatek/imgsensor/src/mt6785/Makefile
@@ -14668,6 +14718,19 @@ index 4952fc7ba..44c741b3b 100644
  #
 -obj-y += mtk_selinux_warning.o
 +obj-$(CONFIG_MTK_SELINUX_AEE_WARNING) += mtk_selinux_warning.o
+diff --git a/drivers/misc/mediatek/sensors-1.0/alsps/alspshub/alspshub.c b/drivers/misc/mediatek/sensors-1.0/alsps/alspshub/alspshub.c
+index f413d346c..58edf50ea 100644
+--- a/drivers/misc/mediatek/sensors-1.0/alsps/alspshub/alspshub.c
++++ b/drivers/misc/mediatek/sensors-1.0/alsps/alspshub/alspshub.c
+@@ -911,7 +911,7 @@ static void cabc_backlight_value_notification_work(struct work_struct *work)
+ 		cfg_data[2] = 0;
+ 		cfg_data[3] = 0;
+ 
+-		pr_info("cabc_backlight_value_notification_work [%d, %d, %d, %d]\n",
++		pr_debug("cabc_backlight_value_notification_work [%d, %d, %d, %d]\n",
+ 			cfg_data[0], cfg_data[1], cfg_data[2], cfg_data[3]);
+ 
+ 		sensor_cfg_to_hub(ID_LIGHT,
 diff --git a/drivers/misc/mediatek/smi/smi_drv.c b/drivers/misc/mediatek/smi/smi_drv.c
 index 65ec4e6c2..496aa2286 100644
 --- a/drivers/misc/mediatek/smi/smi_drv.c
@@ -16477,7 +16540,7 @@ index 71f6f8b79..024471f2d 100644
  	}
  
 diff --git a/drivers/misc/mediatek/thermal/common/thermal_zones/mtk_ts_cpu_noBank.c b/drivers/misc/mediatek/thermal/common/thermal_zones/mtk_ts_cpu_noBank.c
-index d9d9af8bc..9beb0859b 100644
+index d9d9af8bc..9027cf8ff 100644
 --- a/drivers/misc/mediatek/thermal/common/thermal_zones/mtk_ts_cpu_noBank.c
 +++ b/drivers/misc/mediatek/thermal/common/thermal_zones/mtk_ts_cpu_noBank.c
 @@ -278,7 +278,7 @@ static int g_is_TempOutsideNormalRange;
@@ -16576,6 +16639,15 @@ index d9d9af8bc..9beb0859b 100644
 +	pr_err("E_WF: %s doesn't exist\n", __func__);
  	return 0;
  }
+ 
+@@ -439,7 +439,7 @@ int mtk_gpufreq_register(struct mt_gpufreq_power_table_info *freqs, int num)
+ 		mtk_gpu_power[i].gpufreq_khz = freqs[i].gpufreq_khz;
+ 		mtk_gpu_power[i].gpufreq_power = freqs[i].gpufreq_power;
+ 
+-		tscpu_printk("[%d].gpufreq_khz=%u, .gpufreq_power=%u\n",
++		tscpu_warn("[%d].gpufreq_khz=%u, .gpufreq_power=%u\n",
+ 			i, freqs[i].gpufreq_khz, freqs[i].gpufreq_power);
+ 	}
  
 @@ -513,7 +513,7 @@ static int tscpu_bind
  	}
@@ -17242,7 +17314,7 @@ index 8572c5876..adf3098da 100644
  			DISPCHECK("[ESD]esd recovery success\n");
  			recovery_done = 0;
 diff --git a/drivers/misc/mediatek/video/mt6785/videox/primary_display.c b/drivers/misc/mediatek/video/mt6785/videox/primary_display.c
-index 1b735780c..98ac0a5b5 100644
+index 1b735780c..587ab7581 100644
 --- a/drivers/misc/mediatek/video/mt6785/videox/primary_display.c
 +++ b/drivers/misc/mediatek/video/mt6785/videox/primary_display.c
 @@ -148,6 +148,9 @@ static int osc_last_stat;
@@ -17310,6 +17382,15 @@ index 1b735780c..98ac0a5b5 100644
  	/* fence release */
  	for (i = 0; i < PRIMARY_SESSION_INPUT_LAYER_COUNT; i++) {
  		int fence_idx = 0;
+@@ -6743,7 +6716,7 @@ static bool disp_rsz_frame_has_rsz_layer(struct disp_frame_cfg_t *cfg)
+ 	if ((path != 2 && path != 3) && (rsz == true)) {
+ 		struct disp_input_config *c = &cfg->input_cfg[i];
+ 
+-		DISP_PR_ERR("not RPO but L%d(%u,%u,%ux%u)->(%u,%u,%ux%u)\n",
++		DISPDBG("not RPO but L%d(%u,%u,%ux%u)->(%u,%u,%ux%u)\n",
+ 			    i, c->src_offset_x, c->src_offset_y, c->src_width,
+ 			    c->src_height, c->tgt_offset_x, c->tgt_offset_y,
+ 			    c->tgt_width, c->tgt_height);
 @@ -11405,3 +11378,5 @@ int primary_display_set_panel_param(unsigned int param)
  	return ret;
  }
@@ -22293,6 +22374,21 @@ index 7beefd1c4..e35dc8cb6 100644
  	ida_destroy(&thermal_tz_ida);
  	ida_destroy(&thermal_cdev_ida);
  	mutex_destroy(&thermal_list_lock);
+diff --git a/include/linux/audit.h b/include/linux/audit.h
+index cb708eb8a..00a489f12 100644
+--- a/include/linux/audit.h
++++ b/include/linux/audit.h
+@@ -212,6 +212,10 @@ static inline int audit_log_task_context(struct audit_buffer *ab)
+ static inline void audit_log_task_info(struct audit_buffer *ab,
+ 				       struct task_struct *tsk)
+ { }
++static inline int audit_update_lsm_rules(void)
++{
++	return 0;
++}
+ #define audit_enabled 0
+ #endif /* CONFIG_AUDIT */
+ 
 diff --git a/include/linux/cpufreq.h b/include/linux/cpufreq.h
 index ba88eb18b..5b6c0555f 100644
 --- a/include/linux/cpufreq.h
@@ -22313,6 +22409,150 @@ index ba88eb18b..5b6c0555f 100644
  
  #ifdef CONFIG_CPU_FREQ
  int cpufreq_register_notifier(struct notifier_block *nb, unsigned int list);
+diff --git a/include/linux/lsm_audit.h b/include/linux/lsm_audit.h
+index 915330abf..7ae9dcf89 100644
+--- a/include/linux/lsm_audit.h
++++ b/include/linux/lsm_audit.h
+@@ -117,8 +117,16 @@ int ipv4_skb_to_auditdata(struct sk_buff *skb,
+ int ipv6_skb_to_auditdata(struct sk_buff *skb,
+ 		struct common_audit_data *ad, u8 *proto);
+ 
++#ifdef CONFIG_AUDIT
+ void common_lsm_audit(struct common_audit_data *a,
+ 	void (*pre_audit)(struct audit_buffer *, void *),
+ 	void (*post_audit)(struct audit_buffer *, void *));
++#else
++static inline void common_lsm_audit(struct common_audit_data *a,
++	void (*pre_audit)(struct audit_buffer *, void *),
++	void (*post_audit)(struct audit_buffer *, void *))
++{
++}
++#endif
+ 
+ #endif
+diff --git a/kernel/cpu.c b/kernel/cpu.c
+index 5c7a92370..059c688af 100644
+--- a/kernel/cpu.c
++++ b/kernel/cpu.c
+@@ -1200,10 +1200,11 @@ int freeze_secondary_cpus(int primary)
+ 	 */
+ 	cpumask_clear(frozen_cpus);
+ 
+-	pr_info("Disabling non-boot CPUs ...\n");
++	pr_debug("Disabling non-boot CPUs ...\n");
+ 	for_each_online_cpu(cpu) {
+ 		if (cpu == primary)
+ 			continue;
++
+ 		trace_suspend_resume(TPS("CPU_OFF"), cpu, true);
+ 		error = _cpu_down(cpu, 1, CPUHP_OFFLINE);
+ 		trace_suspend_resume(TPS("CPU_OFF"), cpu, false);
+@@ -1218,7 +1219,7 @@ int freeze_secondary_cpus(int primary)
+ 	if (!error)
+ 		BUG_ON(num_online_cpus() > 1);
+ 	else
+-		pr_err("Non-boot CPUs are not disabled\n");
++		pr_debug("Non-boot CPUs are not disabled\n");
+ 
+ 	/*
+ 	 * Make sure the CPUs won't be enabled by someone else. We need to do
+@@ -1250,7 +1251,7 @@ void enable_nonboot_cpus(void)
+ 	if (cpumask_empty(frozen_cpus))
+ 		goto out;
+ 
+-	pr_info("Enabling non-boot CPUs ...\n");
++	pr_debug("Enabling non-boot CPUs ...\n");
+ 
+ 	arch_enable_nonboot_cpus_begin();
+ 
+diff --git a/kernel/power/process.c b/kernel/power/process.c
+index d76e61606..55c1cac98 100644
+--- a/kernel/power/process.c
++++ b/kernel/power/process.c
+@@ -136,7 +136,7 @@ int freeze_processes(void)
+ 		atomic_inc(&system_freezing_cnt);
+ 
+ 	pm_wakeup_clear(true);
+-	pr_info("Freezing user space processes ... ");
++	pr_debug("Freezing user space processes ... ");
+ 	pm_freezing = true;
+ 	error = try_to_freeze_tasks(true);
+ 	if (!error) {
+@@ -172,7 +172,7 @@ int freeze_kernel_threads(void)
+ {
+ 	int error;
+ 
+-	pr_info("Freezing remaining freezable tasks ... ");
++	pr_debug("Freezing remaining freezable tasks ... ");
+ 
+ 	pm_nosig_freezing = true;
+ 	error = try_to_freeze_tasks(false);
+@@ -200,7 +200,7 @@ void thaw_processes(void)
+ 
+ 	oom_killer_enable();
+ 
+-	pr_info("Restarting tasks ... ");
++	pr_debug("Restarting tasks ... ");
+ 
+ 	__usermodehelper_set_disable_depth(UMH_FREEZING);
+ 	thaw_workqueues();
+diff --git a/kernel/power/suspend.c b/kernel/power/suspend.c
+index 22137dd19..ebbfbec77 100644
+--- a/kernel/power/suspend.c
++++ b/kernel/power/suspend.c
+@@ -327,7 +327,7 @@ static int suspend_test(int level)
+ {
+ #ifdef CONFIG_PM_DEBUG
+ 	if (pm_test_level == level) {
+-		pr_info("suspend debug: Waiting for %d second(s).\n",
++		pr_debug("suspend debug: Waiting for %d second(s).\n",
+ 				pm_test_delay);
+ 		mdelay(pm_test_delay * 1000);
+ 		return 1;
+@@ -501,7 +501,7 @@ int suspend_devices_and_enter(suspend_state_t state)
+ 	suspend_test_start();
+ 	error = dpm_suspend_start(PMSG_SUSPEND);
+ 	if (error) {
+-		pr_err("Some devices failed to suspend, or early wake event detected\n");
++		pr_debug("Some devices failed to suspend, or early wake event detected\n");
+ 		log_suspend_abort_reason(
+ 				"Some devices failed to suspend, or early wake event detected");
+ 		goto Recover_platform;
+@@ -682,7 +682,7 @@ int pm_suspend(suspend_state_t state)
+ 	if (state <= PM_SUSPEND_ON || state >= PM_SUSPEND_MAX)
+ 		return -EINVAL;
+ 
+-	pr_info("suspend entry (%s)\n", mem_sleep_labels[state]);
++	pr_debug("suspend entry (%s)\n", mem_sleep_labels[state]);
+ 	error = enter_state(state);
+ 	if (error) {
+ 		suspend_stats.fail++;
+@@ -690,7 +690,7 @@ int pm_suspend(suspend_state_t state)
+ 	} else {
+ 		suspend_stats.success++;
+ 	}
+-	pr_info("suspend exit\n");
++	pr_debug("suspend exit\n");
+ 	return error;
+ }
+ EXPORT_SYMBOL(pm_suspend);
+diff --git a/kernel/power/wakeup_reason.c b/kernel/power/wakeup_reason.c
+index 7a4ed59c0..95ffd6d8b 100644
+--- a/kernel/power/wakeup_reason.c
++++ b/kernel/power/wakeup_reason.c
+@@ -285,10 +285,10 @@ static void print_wakeup_sources(void)
+ 
+ 	if (wakeup_reason == RESUME_IRQ && !list_empty(&leaf_irqs))
+ 		list_for_each_entry(n, &leaf_irqs, siblings)
+-			pr_info("Resume caused by IRQ %d, %s\n", n->irq,
++			pr_debug("Resume caused by IRQ %d, %s\n", n->irq,
+ 				n->irq_name);
+ 	else if (wakeup_reason == RESUME_ABNORMAL)
+-		pr_info("Resume caused by %s\n", non_irq_wake_reason);
++		pr_debug("Resume caused by %s\n", non_irq_wake_reason);
+ 	else
+ 		pr_info("Resume cause unknown\n");
+ 
 diff --git a/net/ipv6/addrconf.c b/net/ipv6/addrconf.c
 index 41cc62895..80f3418cd 100644
 --- a/net/ipv6/addrconf.c
@@ -22348,6 +22588,178 @@ index 3a499530f..4a87b2b6f 100644
  			/* It is safe to push/pull even if skb_shared() */
  			__skb_push(skb, skb->mac_len);
  			bpf_compute_data_end(skb);
+diff --git a/security/selinux/Kconfig b/security/selinux/Kconfig
+index 8297e48a2..272851733 100644
+--- a/security/selinux/Kconfig
++++ b/security/selinux/Kconfig
+@@ -1,6 +1,6 @@
+ config SECURITY_SELINUX
+ 	bool "NSA SELinux Support"
+-	depends on SECURITY_NETWORK && AUDIT && NET && INET
++	depends on SECURITY_NETWORK && NET && INET
+ 	select NETWORK_SECMARK
+ 	default n
+ 	help
+diff --git a/security/selinux/avc.c b/security/selinux/avc.c
+index 59fa20b53..fe4e7c4fa 100644
+--- a/security/selinux/avc.c
++++ b/security/selinux/avc.c
+@@ -128,7 +128,7 @@ static inline int avc_hash(u32 ssid, u32 tsid, u16 tclass)
+ {
+ 	return (ssid ^ (tsid<<2) ^ (tclass<<4)) & (AVC_CACHE_SLOTS - 1);
+ }
+-
++#ifdef CONFIG_AUDIT
+ /**
+  * avc_dump_av - Display an access vector in human-readable form.
+  * @tclass: target security class
+@@ -197,6 +197,7 @@ static void avc_dump_query(struct audit_buffer *ab, struct selinux_state *state,
+ 	BUG_ON(!tclass || tclass >= ARRAY_SIZE(secclass_map));
+ 	audit_log_format(ab, " tclass=%s", secclass_map[tclass-1].name);
+ }
++#endif
+ 
+ /**
+  * avc_init - Initialize the AVC.
+@@ -489,6 +490,7 @@ static inline int avc_xperms_audit(struct selinux_state *state,
+ 				   u8 perm, int result,
+ 				   struct common_audit_data *ad)
+ {
++#ifdef CONFIG_AUDIT
+ 	u32 audited, denied;
+ 
+ 	audited = avc_xperms_audit_required(
+@@ -497,6 +499,9 @@ static inline int avc_xperms_audit(struct selinux_state *state,
+ 		return 0;
+ 	return slow_avc_audit(state, ssid, tsid, tclass, requested,
+ 			audited, denied, result, ad, 0);
++#else
++	return 0;
++#endif
+ }
+ 
+ static void avc_node_free(struct rcu_head *rhead)
+@@ -723,6 +728,7 @@ found:
+ 	return node;
+ }
+ 
++#ifdef CONFIG_AUDIT
+ /**
+  * avc_audit_pre_callback - SELinux specific information
+  * will be called by generic audit code
+@@ -776,6 +782,7 @@ static void avc_audit_post_callback(struct audit_buffer *ab, void *a)
+ 	}
+ }
+ 
++
+ /* This is the slow part of avc audit with big stack footprint */
+ noinline int slow_avc_audit(struct selinux_state *state,
+ 			    u32 ssid, u32 tsid, u16 tclass,
+@@ -816,6 +823,7 @@ noinline int slow_avc_audit(struct selinux_state *state,
+ 	common_lsm_audit(a, avc_audit_pre_callback, avc_audit_post_callback);
+ 	return 0;
+ }
++#endif
+ 
+ /**
+  * avc_add_callback - Register a callback for security events.
+diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
+index f4b416af3..bd1040953 100644
+--- a/security/selinux/hooks.c
++++ b/security/selinux/hooks.c
+@@ -3158,6 +3158,7 @@ static noinline int audit_inode_permission(struct inode *inode,
+ 					   int result,
+ 					   unsigned flags)
+ {
++#ifdef CONFIG_AUDIT
+ 	struct common_audit_data ad;
+ 	struct inode_security_struct *isec = inode->i_security;
+ 	int rc;
+@@ -3170,6 +3171,7 @@ static noinline int audit_inode_permission(struct inode *inode,
+ 			    audited, denied, result, &ad, flags);
+ 	if (rc)
+ 		return rc;
++#endif
+ 	return 0;
+ }
+ 
+diff --git a/security/selinux/include/avc.h b/security/selinux/include/avc.h
+index b563986d6..2a7f03aac 100644
+--- a/security/selinux/include/avc.h
++++ b/security/selinux/include/avc.h
+@@ -131,6 +131,7 @@ static inline int avc_audit(struct selinux_state *state,
+ 			    struct common_audit_data *a,
+ 			    int flags)
+ {
++#ifdef CONFIG_AUDIT
+ 	u32 audited, denied;
+ 	audited = avc_audit_required(requested, avd, result, 0, &denied);
+ 	if (likely(!audited))
+@@ -138,6 +139,9 @@ static inline int avc_audit(struct selinux_state *state,
+ 	return slow_avc_audit(state, ssid, tsid, tclass,
+ 			      requested, audited, denied, result,
+ 			      a, flags);
++#else
++	return 0;
++#endif
+ }
+ 
+ #define AVC_STRICT 1 /* Ignore permissive mode. */
+diff --git a/security/selinux/ss/services.c b/security/selinux/ss/services.c
+index 289a9f567..eef2b7f31 100644
+--- a/security/selinux/ss/services.c
++++ b/security/selinux/ss/services.c
+@@ -3534,6 +3534,7 @@ out:
+ 	return match;
+ }
+ 
++#ifdef CONFIG_AUDIT
+ static int (*aurule_callback)(void) = audit_update_lsm_rules;
+ 
+ static int aurule_avc_callback(u32 event)
+@@ -3556,6 +3557,7 @@ static int __init aurule_init(void)
+ 	return err;
+ }
+ __initcall(aurule_init);
++#endif
+ 
+ #ifdef CONFIG_NETLABEL
+ /**
+diff --git a/sound/soc/mediatek/common/mtk-afe-platform-driver.c b/sound/soc/mediatek/common/mtk-afe-platform-driver.c
+index 3298374a6..6d7611fcb 100644
+--- a/sound/soc/mediatek/common/mtk-afe-platform-driver.c
++++ b/sound/soc/mediatek/common/mtk-afe-platform-driver.c
+@@ -31,7 +31,7 @@ int mtk_afe_combine_sub_dai(struct mtk_base_afe *afe)
+ 		num_dai_drivers += dai->num_dai_drivers;
+ 	}
+ 
+-	dev_info(afe->dev, "%s(), num of dai %zd\n", __func__, num_dai_drivers);
++	dev_dbg(afe->dev, "%s(), num of dai %zd\n", __func__, num_dai_drivers);
+ 
+ 	/* combine sub_dais */
+ 	afe->num_dai_drivers = num_dai_drivers;
+@@ -227,7 +227,7 @@ int mtk_afe_pcm_new(struct snd_soc_pcm_runtime *rtd)
+ 							    size, size);
+ 	}
+ 
+-	dev_info(afe->dev, "%s(), dai_link_name : %s, memif_id : %d, size : %zu, ret : %d\n",
++	dev_dbg(afe->dev, "%s(), dai_link_name : %s, memif_id : %d, size : %zu, ret : %d\n",
+ 		 __func__,
+ 		 rtd->dai_link->name,
+ 		 rtd->cpu_dai->id,
+diff --git a/sound/soc/soc-pcm.c b/sound/soc/soc-pcm.c
+index 9a35a7d7a..9bd0671dd 100644
+--- a/sound/soc/soc-pcm.c
++++ b/sound/soc/soc-pcm.c
+@@ -2839,7 +2839,7 @@ int soc_new_pcm(struct snd_soc_pcm_runtime *rtd, int num)
+ 
+ 	pcm->private_free = soc_pcm_private_free;
+ out:
+-	dev_info(rtd->card->dev, "%s <-> %s mapping ok\n",
++	dev_dbg(rtd->card->dev, "%s <-> %s mapping ok\n",
+ 		 (rtd->num_codecs > 1) ? "multicodec" : rtd->codec_dai->name,
+ 		 cpu_dai->name);
+ 	return ret;
 -- 
 2.51.2
 
