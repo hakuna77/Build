@@ -306,7 +306,8 @@ jobs:
             0004-do_umount-add-missing-barrier-before-refcount-checks.patch \
             0005-__legitimize_mnt-check-for-MNT_SYNC_UMOUNT-should-be.patch \
             0006-do_change_type-refuse-to-operate-on-unmounted-not-ou.patch \
-            ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }}
+            ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
+            0001-improve-perfomance.patch
           do
             if patch -p1 < "$patch_file"; then
               echo "✅ $patch_file applied successfully."
