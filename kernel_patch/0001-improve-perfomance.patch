@@ -1,6 +1,6 @@
-From 2aaef357f361927a7f1d94d35ed01c09ef16889a Mon Sep 17 00:00:00 2001
+From e35e2993e1ffdcdf1a17b93167faf0f11e28b39f Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Fri, 28 Nov 2025 08:13:13 +0700
+Date: Fri, 28 Nov 2025 08:55:33 +0700
 Subject: [PATCH] improve perfomance
 
 ---
@@ -14,7 +14,6 @@ Subject: [PATCH] improve perfomance
  .../video/mt6785/videox/primary_display.c     |  2 +-
  include/linux/audit.h                         |  4 ++++
  include/linux/lsm_audit.h                     |  8 ++++++++
- init/Kconfig                                  |  1 -
  kernel/cpu.c                                  |  7 ++++---
  kernel/power/process.c                        |  6 +++---
  kernel/power/suspend.c                        |  8 ++++----
@@ -24,7 +23,7 @@ Subject: [PATCH] improve perfomance
  sound/soc/mediatek/audio_dsp/audio_buf.c      | 12 +++++------
  .../mediatek/common/mtk-afe-platform-driver.c |  4 ++--
  sound/soc/soc-pcm.c                           |  2 +-
- 20 files changed, 57 insertions(+), 52 deletions(-)
+ 19 files changed, 57 insertions(+), 51 deletions(-)
 
 diff --git a/arch/arm64/configs/begonia_user_defconfig b/arch/arm64/configs/begonia_user_defconfig
 index e4e9a2788..6edb9ceeb 100644
@@ -245,18 +244,6 @@ index 915330abf..7ae9dcf89 100644
 +#endif
  
  #endif
-diff --git a/init/Kconfig b/init/Kconfig
-index 1c537f6a8..624da1c94 100644
---- a/init/Kconfig
-+++ b/init/Kconfig
-@@ -1301,7 +1301,6 @@ config BPF
- menuconfig EXPERT
- 	bool "Configure standard kernel features (expert users)"
- 	# Unhide debug options, to make the on-by-default options visible
--	select DEBUG_KERNEL
- 	help
- 	  This option allows certain base kernel options and settings
-           to be disabled or tweaked. This is for specialized
 diff --git a/kernel/cpu.c b/kernel/cpu.c
 index 5c7a92370..059c688af 100644
 --- a/kernel/cpu.c
