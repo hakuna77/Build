@@ -1,6 +1,6 @@
-From e35e2993e1ffdcdf1a17b93167faf0f11e28b39f Mon Sep 17 00:00:00 2001
+From 66cd67723a270d67aa98813545c19a13ef6a2fba Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Fri, 28 Nov 2025 08:55:33 +0700
+Date: Fri, 28 Nov 2025 09:23:59 +0700
 Subject: [PATCH] improve perfomance
 
 ---
@@ -9,6 +9,7 @@ Subject: [PATCH] improve perfomance
  drivers/iio/adc/mt635x-auxadc.c               |  2 +-
  drivers/misc/mediatek/Kconfig.default         |  7 -------
  drivers/misc/mediatek/aee/Kconfig             |  2 +-
+ .../misc/mediatek/pmic/mt6359/v1/pmic_irq.c   |  2 +-
  .../sensors-1.0/alsps/alspshub/alspshub.c     |  2 +-
  .../common/thermal_zones/mtk_ts_cpu_noBank.c  |  2 +-
  .../video/mt6785/videox/primary_display.c     |  2 +-
@@ -23,7 +24,7 @@ Subject: [PATCH] improve perfomance
  sound/soc/mediatek/audio_dsp/audio_buf.c      | 12 +++++------
  .../mediatek/common/mtk-afe-platform-driver.c |  4 ++--
  sound/soc/soc-pcm.c                           |  2 +-
- 19 files changed, 57 insertions(+), 51 deletions(-)
+ 20 files changed, 58 insertions(+), 52 deletions(-)
 
 diff --git a/arch/arm64/configs/begonia_user_defconfig b/arch/arm64/configs/begonia_user_defconfig
 index e4e9a2788..6edb9ceeb 100644
@@ -169,6 +170,20 @@ index 7acc20e72..fe5a45271 100644
  	help
  	  MTK_AEE_HANG_DETECT is the kernel config of hang feature
  	  designed by MTK, which is a debug feature for detecting device hang.
+diff --git a/drivers/misc/mediatek/pmic/mt6359/v1/pmic_irq.c b/drivers/misc/mediatek/pmic/mt6359/v1/pmic_irq.c
+index 7510a1378..6ff6d0683 100644
+--- a/drivers/misc/mediatek/pmic/mt6359/v1/pmic_irq.c
++++ b/drivers/misc/mediatek/pmic/mt6359/v1/pmic_irq.c
+@@ -349,8 +349,8 @@ void register_all_oc_interrupts(void)
+ static void vio18_oc_int_handler(void)
+ {
+ 	static unsigned int times;
+-	int len = 0;
+ #if defined(CONFIG_MTK_AEE_FEATURE)
++	int len = 0;
+ 	char oc_str[30] = "";
+ #endif
+ 	pr_info("[%s]\n", __func__);
 diff --git a/drivers/misc/mediatek/sensors-1.0/alsps/alspshub/alspshub.c b/drivers/misc/mediatek/sensors-1.0/alsps/alspshub/alspshub.c
 index f413d346c..58edf50ea 100644
 --- a/drivers/misc/mediatek/sensors-1.0/alsps/alspshub/alspshub.c
