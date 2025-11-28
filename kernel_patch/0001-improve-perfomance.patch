@@ -1,6 +1,6 @@
-From 1f6341390f9c76f39328f39512efb95af4705e2c Mon Sep 17 00:00:00 2001
+From d1599cf8db24f844d4f2f726d4bd1d6789e9fa61 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Fri, 28 Nov 2025 09:27:35 +0700
+Date: Fri, 28 Nov 2025 09:39:29 +0700
 Subject: [PATCH] improve perfomance
 
 ---
@@ -13,6 +13,7 @@ Subject: [PATCH] improve perfomance
  .../sensors-1.0/alsps/alspshub/alspshub.c     |   2 +-
  .../common/thermal_zones/mtk_ts_cpu_noBank.c  |   2 +-
  .../video/mt6785/videox/primary_display.c     |   2 +-
+ drivers/misc/mediatek/vpu/mt6785/vpu_hw.c     |  14 ++
  include/linux/audit.h                         |   4 +
  include/linux/lsm_audit.h                     |   8 +
  kernel/cpu.c                                  |   7 +-
@@ -26,7 +27,7 @@ Subject: [PATCH] improve perfomance
  sound/soc/mediatek/audio_dsp/audio_buf.c      |  12 +-
  .../mediatek/common/mtk-afe-platform-driver.c |   4 +-
  sound/soc/soc-pcm.c                           |   2 +-
- 22 files changed, 148 insertions(+), 143 deletions(-)
+ 23 files changed, 162 insertions(+), 143 deletions(-)
 
 diff --git a/arch/arm64/configs/begonia_user_defconfig b/arch/arm64/configs/begonia_user_defconfig
 index e4e9a2788..6edb9ceeb 100644
@@ -225,6 +226,38 @@ index 1b735780c..2086466c6 100644
  			    i, c->src_offset_x, c->src_offset_y, c->src_width,
  			    c->src_height, c->tgt_offset_x, c->tgt_offset_y,
  			    c->tgt_width, c->tgt_height);
+diff --git a/drivers/misc/mediatek/vpu/mt6785/vpu_hw.c b/drivers/misc/mediatek/vpu/mt6785/vpu_hw.c
+index 3274ccb94..70098a668 100644
+--- a/drivers/misc/mediatek/vpu/mt6785/vpu_hw.c
++++ b/drivers/misc/mediatek/vpu/mt6785/vpu_hw.c
+@@ -348,6 +348,7 @@ static void vpu_err_msg(int core, const char *msg)
+ 		opp_keep_flag);
+ }
+ 
++#if defined(CONFIG_MTK_AEE_FEATURE)
+ #define vpu_err_hnd(hw_fail, core, req, key, fmt, args...) \
+ 	do { \
+ 		pr_info(fmt, ##args); \
+@@ -359,6 +360,19 @@ static void vpu_err_msg(int core, const char *msg)
+ 			"\nCRDISPATCH_KEY:" key "\n" fmt, ##args); \
+ 		} \
+ 	} while (0)
++#else
++#define vpu_err_hnd(hw_fail, core, req, key, fmt, args...) \
++        do { \
++                pr_info(fmt, ##args); \
++                vpu_err_msg(core, __func__); \
++                if (hw_fail) { \
++                        vpu_dmp_create_locked(core, req, fmt, ##args); \
++                        apu_get_power_info(); \
++                        pr_err("VPU", \
++                        "\nCRDISPATCH_KEY:" key "\n" fmt, ##args); \
++                } \
++        } while (0)
++#endif
+ 
+ static void vpu_status(int core)
+ {
 diff --git a/include/linux/audit.h b/include/linux/audit.h
 index cb708eb8a..00a489f12 100644
 --- a/include/linux/audit.h
