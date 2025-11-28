@@ -1,28 +1,97 @@
-From 64056d0190e646b77c4d6b7be90c1d8495303c7b Mon Sep 17 00:00:00 2001
+From 2aaef357f361927a7f1d94d35ed01c09ef16889a Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Fri, 28 Nov 2025 04:22:52 +0700
+Date: Fri, 28 Nov 2025 08:13:13 +0700
 Subject: [PATCH] improve perfomance
 
 ---
- drivers/android/binder.c                             |  2 +-
- drivers/iio/adc/mt635x-auxadc.c                      |  2 +-
- drivers/misc/mediatek/Kconfig.default                |  1 -
- .../mediatek/sensors-1.0/alsps/alspshub/alspshub.c   |  2 +-
- .../thermal/common/thermal_zones/mtk_ts_cpu_noBank.c |  2 +-
- .../mediatek/video/mt6785/videox/primary_display.c   |  2 +-
- include/linux/audit.h                                |  4 ++++
- include/linux/lsm_audit.h                            |  8 ++++++++
- kernel/cpu.c                                         |  7 ++++---
- kernel/power/process.c                               |  6 +++---
- kernel/power/suspend.c                               |  8 ++++----
- kernel/power/wakeup_reason.c                         |  4 ++--
- security/selinux/Kconfig                             |  2 +-
- sound/soc/codecs/mt6359.c                            | 12 ++++++------
- sound/soc/mediatek/audio_dsp/audio_buf.c             | 12 ++++++------
- sound/soc/mediatek/common/mtk-afe-platform-driver.c  |  4 ++--
- sound/soc/soc-pcm.c                                  |  2 +-
- 17 files changed, 46 insertions(+), 34 deletions(-)
+ arch/arm64/configs/begonia_user_defconfig     | 20 +++++++++----------
+ drivers/android/binder.c                      |  2 +-
+ drivers/iio/adc/mt635x-auxadc.c               |  2 +-
+ drivers/misc/mediatek/Kconfig.default         |  7 -------
+ drivers/misc/mediatek/aee/Kconfig             |  2 +-
+ .../sensors-1.0/alsps/alspshub/alspshub.c     |  2 +-
+ .../common/thermal_zones/mtk_ts_cpu_noBank.c  |  2 +-
+ .../video/mt6785/videox/primary_display.c     |  2 +-
+ include/linux/audit.h                         |  4 ++++
+ include/linux/lsm_audit.h                     |  8 ++++++++
+ init/Kconfig                                  |  1 -
+ kernel/cpu.c                                  |  7 ++++---
+ kernel/power/process.c                        |  6 +++---
+ kernel/power/suspend.c                        |  8 ++++----
+ kernel/power/wakeup_reason.c                  |  4 ++--
+ security/selinux/Kconfig                      |  2 +-
+ sound/soc/codecs/mt6359.c                     | 12 +++++------
+ sound/soc/mediatek/audio_dsp/audio_buf.c      | 12 +++++------
+ .../mediatek/common/mtk-afe-platform-driver.c |  4 ++--
+ sound/soc/soc-pcm.c                           |  2 +-
+ 20 files changed, 57 insertions(+), 52 deletions(-)
 
+diff --git a/arch/arm64/configs/begonia_user_defconfig b/arch/arm64/configs/begonia_user_defconfig
+index e4e9a2788..6edb9ceeb 100644
+--- a/arch/arm64/configs/begonia_user_defconfig
++++ b/arch/arm64/configs/begonia_user_defconfig
+@@ -1,8 +1,8 @@
+ CONFIG_CROSS_COMPILE="aarch64-linux-android-"
+ CONFIG_LOCALVERSION_AUTO=y
+ # CONFIG_FHANDLE is not set
+-CONFIG_DEBUG_FS=y
+-CONFIG_IKHEADERS=m
++# CONFIG_DEBUG_FS is not set
++#CONFIG_IKHEADERS=m
+ CONFIG_LOG_BUF_SHIFT=21
+ CONFIG_UCLAMP_TASK=y
+ CONFIG_UCLAMP_GROUPS_COUNT=32
+@@ -199,7 +199,7 @@ CONFIG_MTK_SCHED_CPULOAD=y
+ CONFIG_MTK_AURISYS_PHONE_CALL_SUPPORT=y
+ CONFIG_MTK_AUDIODSP_SUPPORT=y
+ CONFIG_MTK_RAM_CONSOLE=y
+-CONFIG_MTK_AEE_FEATURE=y
++#CONFIG_MTK_AEE_FEATURE=y
+ CONFIG_MTK_RTC=y
+ CONFIG_MTK_USB_TYPEC_U3_MUX=y
+ CONFIG_TCPC_MT6360=y
+@@ -225,7 +225,7 @@ CONFIG_MTK_GPU_SUPPORT=y
+ CONFIG_MTK_GPU_VERSION="mali bifrost r25p0"
+ CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT=y
+ CONFIG_MTK_VIBRATOR=y
+-CONFIG_MTK_SELINUX_AEE_WARNING=y
++#CONFIG_MTK_SELINUX_AEE_WARNING=y
+ CONFIG_MTK_SYNC=y
+ CONFIG_MTK_VPU_SUPPORT=y
+ CONFIG_MTK_VOW_SUPPORT=y
+@@ -263,7 +263,7 @@ CONFIG_KPD_PWRKEY_USE_PMIC=y
+ CONFIG_INPUT_TOUCHSCREEN=y
+ CONFIG_TOUCHSCREEN_MTK_TOUCH="GT9886 GT1151"
+ CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI_G7=y
+-CONFIG_TOUCHSCREEN_NVT_DEBUG_FS=y
++#CONFIG_TOUCHSCREEN_NVT_DEBUG_FS=y
+ CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE=y
+ CONFIG_XIAOMI_SPI_TOUCH=y
+ CONFIG_INPUT_MISC=y
+@@ -316,9 +316,9 @@ CONFIG_LOGO=y
+ CONFIG_SND_HRTIMER=y
+ CONFIG_SND_DYNAMIC_MINORS=y
+ CONFIG_SND_VERBOSE_PRINTK=y
+-CONFIG_SND_DEBUG=y
+-CONFIG_SND_DEBUG_VERBOSE=y
+-CONFIG_SND_PCM_XRUN_DEBUG=y
++#CONFIG_SND_DEBUG=y
++#CONFIG_SND_DEBUG_VERBOSE=y
++#CONFIG_SND_PCM_XRUN_DEBUG=y
+ CONFIG_SND_SEQUENCER=y
+ CONFIG_SND_SEQ_DUMMY=y
+ # CONFIG_SND_SPI is not set
+@@ -436,8 +436,8 @@ CONFIG_NLS_ASCII=y
+ CONFIG_NLS_ISO8859_1=y
+ CONFIG_NLS_UTF8=y
+ CONFIG_PRINTK_TIME=y
+-CONFIG_DYNAMIC_DEBUG=y
+-CONFIG_DEBUG_INFO=y
++#CONFIG_DYNAMIC_DEBUG=y
++#CONFIG_DEBUG_INFO=y
+ CONFIG_FRAME_WARN=2800
+ # CONFIG_PANIC_ON_OOPS is not set
+ CONFIG_PANIC_TIMEOUT=1
 diff --git a/drivers/android/binder.c b/drivers/android/binder.c
 index c4068ccb1..ca88abc32 100644
 --- a/drivers/android/binder.c
@@ -50,7 +119,7 @@ index 333052b28..a1410ccc5 100644
  			auxadc_chan->ch_name, auxadc_chan->ch_num,
  			auxadc_out, *val);
 diff --git a/drivers/misc/mediatek/Kconfig.default b/drivers/misc/mediatek/Kconfig.default
-index 1c358767c..431e7629b 100644
+index 1c358767c..d02995db7 100644
 --- a/drivers/misc/mediatek/Kconfig.default
 +++ b/drivers/misc/mediatek/Kconfig.default
 @@ -8,7 +8,6 @@ config ANDROID_DEFAULT_SETTING
@@ -61,6 +130,46 @@ index 1c358767c..431e7629b 100644
  	select BINFMT_ELF
  	select BINFMT_SCRIPT
  	select BLK_DEV_INITRD
+@@ -42,9 +41,6 @@ config ANDROID_DEFAULT_SETTING
+ 	select CRYPTO_SHA256
+ 	select CRYPTO_SHA512
+ 	select CRYPTO_XCBC
+-	select DEBUG_LIST
+-	select DEBUG_RODATA
+-	select DEBUG_SET_MODULE_RONX
+ 	select DEFAULT_SECURITY_SELINUX
+ 	select DM_SNAPSHOT
+ 	select DM_VERITY
+@@ -218,7 +214,6 @@ config ANDROID_DEFAULT_SETTING
+ 	select QUOTA
+ 	select QUOTACTL
+ 	select RTC_CLASS
+-	select SCHED_DEBUG
+ 	select SECCOMP
+ 	select SECCOMP_FILTER
+ 	select SECURITY
+@@ -276,8 +271,6 @@ config MTK_ANDROID_DEFAULT_SETTING
+ 	bool "Select MTK android common setting by default"
+ 	select HW_RANDOM
+ 	select HW_RANDOM_MT67XX
+-	select MTK_AEE_AED
+-	select MTK_AEE_IPANIC if MTK_RAM_CONSOLE
+ 	select MTK_MIX_DEVICES
+ 	select NETFILTER_XT_MATCH_ESP
+ 	select PGTABLE_MAPPING if ZSMALLOC && (ARM || ARM64)
+diff --git a/drivers/misc/mediatek/aee/Kconfig b/drivers/misc/mediatek/aee/Kconfig
+index 7acc20e72..fe5a45271 100644
+--- a/drivers/misc/mediatek/aee/Kconfig
++++ b/drivers/misc/mediatek/aee/Kconfig
+@@ -33,7 +33,7 @@ config MTK_AEE_IPANIC
+ config MTK_AEE_HANG_DETECT
+ 	bool "hang detect monitor"
+ 	depends on MTK_AEE_FEATURE
+-	default y
++	default n
+ 	help
+ 	  MTK_AEE_HANG_DETECT is the kernel config of hang feature
+ 	  designed by MTK, which is a debug feature for detecting device hang.
 diff --git a/drivers/misc/mediatek/sensors-1.0/alsps/alspshub/alspshub.c b/drivers/misc/mediatek/sensors-1.0/alsps/alspshub/alspshub.c
 index f413d346c..58edf50ea 100644
 --- a/drivers/misc/mediatek/sensors-1.0/alsps/alspshub/alspshub.c
@@ -136,6 +245,18 @@ index 915330abf..7ae9dcf89 100644
 +#endif
  
  #endif
+diff --git a/init/Kconfig b/init/Kconfig
+index 1c537f6a8..624da1c94 100644
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -1301,7 +1301,6 @@ config BPF
+ menuconfig EXPERT
+ 	bool "Configure standard kernel features (expert users)"
+ 	# Unhide debug options, to make the on-by-default options visible
+-	select DEBUG_KERNEL
+ 	help
+ 	  This option allows certain base kernel options and settings
+           to be disabled or tweaked. This is for specialized
 diff --git a/kernel/cpu.c b/kernel/cpu.c
 index 5c7a92370..059c688af 100644
 --- a/kernel/cpu.c
