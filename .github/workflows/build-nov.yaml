@@ -66,10 +66,10 @@ on:
       select_version_patch_susfs:
         description: 'Select SUSFS PATCH into KERNELSU'
         required: true
-        default: '0001-fix-lsm_hook.patch'
+        default: 'test.patch'
         type: choice
         options:
-          - '0001-fix-lsm_hook.patch'
+          - 'test.patch'
       build_boot_img:
         description: 'enable BUILD BOOT IMG'
         required: true

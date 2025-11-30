@@ -1,0 +1,41 @@
+From 82ed0b28dcf437bdf2abd4c13acab4950eb89017 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Sun, 30 Nov 2025 22:22:06 +0000
+Subject: [PATCH] micro optimize code
+
+---
+ kernel/setuid_hook.c | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/kernel/setuid_hook.c b/kernel/setuid_hook.c
+index 2e08a020..d982f4f1 100644
+--- a/kernel/setuid_hook.c
++++ b/kernel/setuid_hook.c
+@@ -201,21 +201,18 @@ do_umount:
+ 	ksu_handle_umount(old_uid, new_uid);
+ 
+ #ifdef CONFIG_KSU_SUSFS
+-	get_task_struct(current);
+ 
+ #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+ 	// We can reorder the mnt_id now after all sus mounts are umounted
+ 	susfs_reorder_mnt_id();
+ #endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+ 
+-	susfs_set_current_proc_umounted();
+-
+-	put_task_struct(current);
+-
+ #ifdef CONFIG_KSU_SUSFS_SUS_PATH
+ 	susfs_run_sus_path_loop(new_uid);
+ #endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
+-#endif
++    
++    susfs_set_current_proc_umounted();
++#endif // #ifdef CONFIG_KSU_SUSFS
+ 	return 0;
+ }
+ 
+-- 
+2.34.1
+
