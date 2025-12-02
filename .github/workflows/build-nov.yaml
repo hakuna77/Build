@@ -1,4 +1,4 @@
-name: Build RKSU on Nova
+name: Build RKSU on Nova & power
 on:
   workflow_dispatch:
     inputs:
@@ -9,6 +9,7 @@ on:
         type: choice
         options:
           - 'fifteen-fixed-ksu'
+          - 'bka'
       enable_kernelsu:
         description: 'Enable KernelSU integration?'
         required: true
