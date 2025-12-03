@@ -271,7 +271,14 @@ jobs:
     - name: Download kernel source
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --recursive ${{ env.KERNEL_SOURCE }} -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
+        if [[ ${{ env.KERNEL_SOURCE_BRANCH }} == 'fifteen-fixed-ksu' ]]; then 
+          git clone --recursive https://github.com/hakuna77/kernel_xiaomi_mt6785.git -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
+        fi
+        
+        if [[ ${{ env.KERNEL_SOURCE_BRANCH }} == 'bka' ]]; then 
+          git clone --recursive https://github.com/hakuna77/Power.git -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
+        fi
+        
         if [[ ${{ env.ADD_LOCALVERSION_TO_FILENAME }} == 'true' ]]; then
           echo "LOCALVERSION=$(cat android-kernel/localversion)" >> $GITHUB_ENV
         else
