@@ -1,14 +1,12 @@
-From 54a138a0c5c2dc3dae49a874cf499879f2c62515 Mon Sep 17 00:00:00 2001
+From 77d3bb1a3a92defc49937e4e6b90c14ed0d5a8b4 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Thu, 27 Nov 2025 02:34:39 +0700
-Subject: [PATCH] susfs v2.0.0 :Deprecated cli:
- umount_for_zygote_iso_service_enabled
+Date: Fri, 5 Dec 2025 21:50:38 +0700
+Subject: [PATCH] susfs v2.0.0 [Fixed userspace module not executing]
 
 ---
  drivers/input/input.c     |  11 +
  fs/Makefile               |   2 +
- fs/devpts/inode.c         |  14 +
- fs/exec.c                 |  27 ++
+ fs/exec.c                 |  28 ++
  fs/namei.c                | 262 +++++++++-
  fs/namespace.c            | 260 ++++++++++
  fs/notify/fdinfo.c        |  53 ++
@@ -31,7 +29,7 @@ Subject: [PATCH] susfs v2.0.0 :Deprecated cli:
  kernel/reboot.c           |  13 +
  kernel/sys.c              |  14 +
  security/selinux/avc.c    |  20 +
- 26 files changed, 2539 insertions(+), 3 deletions(-)
+ 25 files changed, 2526 insertions(+), 3 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -76,47 +74,8 @@ index d34068c3c..77b5efc7e 100644
  ifeq ($(CONFIG_BLOCK),y)
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
  else
-diff --git a/fs/devpts/inode.c b/fs/devpts/inode.c
-index 32f6f1c68..92496c681 100644
---- a/fs/devpts/inode.c
-+++ b/fs/devpts/inode.c
-@@ -27,6 +27,9 @@
- #include <linux/parser.h>
- #include <linux/fsnotify.h>
- #include <linux/seq_file.h>
-+#ifdef CONFIG_KSU_SUSFS
-+#include <linux/susfs_def.h>
-+#endif
- 
- #define DEVPTS_DEFAULT_MODE 0600
- /*
-@@ -602,6 +605,10 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
- 	return dentry;
- }
- 
-+#ifdef CONFIG_KSU_SUSFS
-+extern int ksu_handle_devpts(struct inode*);
-+#endif
-+
- /**
-  * devpts_get_priv -- get private data for a slave
-  * @pts_inode: inode of the slave
-@@ -610,6 +617,13 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
-  */
- void *devpts_get_priv(struct dentry *dentry)
- {
-+#ifdef CONFIG_KSU_SUSFS
-+	if (likely(susfs_is_current_proc_umounted())) {
-+		goto orig_flow;
-+	}
-+	ksu_handle_devpts(dentry->d_inode);
-+orig_flow:
-+#endif
- 	if (dentry->d_sb->s_magic != DEVPTS_SUPER_MAGIC)
- 		return NULL;
- 	return dentry->d_fsdata;
 diff --git a/fs/exec.c b/fs/exec.c
-index 119a47437..33657deb8 100644
+index 119a47437..8cae9095e 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
 @@ -62,6 +62,9 @@
@@ -129,13 +88,14 @@ index 119a47437..33657deb8 100644
  
  #include <linux/uaccess.h>
  #include <asm/mmu_context.h>
-@@ -1709,6 +1712,16 @@ static int exec_binprm(struct linux_binprm *bprm)
+@@ -1709,6 +1712,17 @@ static int exec_binprm(struct linux_binprm *bprm)
  /*
   * sys_execve() executes a new program.
   */
 +
 +#ifdef CONFIG_KSU_SUSFS
 +extern bool ksu_execveat_hook __read_mostly;
++extern bool susfs_is_boot_completed_triggered __read_mostly;
 +extern bool __ksu_is_allow_uid_for_current(uid_t uid);
 +extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
 +			void *envp, int *flags);
@@ -146,7 +106,7 @@ index 119a47437..33657deb8 100644
  static int do_execveat_common(int fd, struct filename *filename,
  			      struct user_arg_ptr argv,
  			      struct user_arg_ptr envp,
-@@ -1723,6 +1736,20 @@ static int do_execveat_common(int fd, struct filename *filename,
+@@ -1723,6 +1737,20 @@ static int do_execveat_common(int fd, struct filename *filename,
  	if (IS_ERR(filename))
  		return PTR_ERR(filename);
  
@@ -155,7 +115,7 @@ index 119a47437..33657deb8 100644
 +		goto orig_flow;
 +	}
 +
-+	if (unlikely(ksu_execveat_hook)) {
++	if (unlikely(ksu_execveat_hook || !susfs_is_boot_completed_triggered)) {
 +		ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
 +	} else if ((__ksu_is_allow_uid_for_current(current_uid().val))) {
 +		ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
@@ -600,7 +560,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 94fd63f93..68a792930 100644
+index 94fd63f93..8699649cc 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,26 @@
@@ -616,7 +576,7 @@ index 94fd63f93..68a792930 100644
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +extern bool susfs_is_current_ksu_domain(void);
-+extern bool susfs_is_boot_completed_triggered;
++extern bool susfs_is_boot_completed_triggered __read_mostly;
 +
 +static DEFINE_IDA(susfs_ksu_mnt_group_ida);
 +static atomic64_t susfs_ksu_mounts = ATOMIC64_INIT(0);

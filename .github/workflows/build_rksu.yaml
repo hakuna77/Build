@@ -67,10 +67,10 @@ on:
       select_version_patch_susfs:
         description: 'Select SUSFS PATCH into KERNELSU'
         required: true
-        default: '0001-fix-lsm_hook.patch'
+        default: 'test.patch'
         type: choice
         options:
-          - '0001-fix-lsm_hook.patch'
+          - 'test.patch'
       build_boot_img:
         description: 'enable BUILD BOOT IMG'
         required: true
@@ -185,9 +185,9 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ${{ github.workspace }}/kernel_workspace/clang-aosp
-        key: clang-${{ env.CLANG_BRANCH }}-${{ env.CLANG_VERSION }}
+        key: clang-android11-release-r383902b
         restore-keys: |
-          clang-${{ env.CLANG_BRANCH }}-
+          clang-android11-release-
           clang-
     
     - name: Download Clang-aosp
@@ -195,8 +195,8 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         mkdir clang-aosp
-        wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/${{ env.CLANG_BRANCH }}/clang-${{ env.CLANG_VERSION }}.tar.gz
-        tar -C clang-aosp/ -zxvf clang-${{ env.CLANG_VERSION }}.tar.gz
+        wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android11-release/clang-r383902b.tar.gz
+        tar -C clang-aosp/ -zxvf clang-r383902b.tar.gz
 
     - name: Download Custom-Clang
       if: env.USE_CUSTOM_CLANG == 'true'
@@ -271,7 +271,7 @@ jobs:
     - name: Download kernel source
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --recursive ${{ env.KERNEL_SOURCE }} -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
+        git clone --recursive https://github.com/hakuna77/kernel_stock.git -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
         if [[ ${{ env.ADD_LOCALVERSION_TO_FILENAME }} == 'true' ]]; then
           echo "LOCALVERSION=$(cat android-kernel/localversion)" >> $GITHUB_ENV
         else
@@ -300,14 +300,7 @@ jobs:
             0010-BACKPORT-vfs-syscall-Add-move_mount-2-to-move-mounts.patch \
             0011-BACKPORT-arm-arm64-wire-up-backported-sys_move_mount.patch \
             0001-backport-test.patch \
-            0001-ovl-prevent-private-clone-if-bind-mount-is-not-allow.patch \
-            0002-locks-print-a-warning-when-mount-fails-due-to-lack-o.patch \
-            0003-fs-warn-about-impending-deprecation-of-mandatory-loc.patch \
-            0004-do_umount-add-missing-barrier-before-refcount-checks.patch \
-            0005-__legitimize_mnt-check-for-MNT_SYNC_UMOUNT-should-be.patch \
-            0006-do_change_type-refuse-to-operate-on-unmounted-not-ou.patch \
-            ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
-            0001-improve-perfomance.patch
+            ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }}
           do
             if patch -p1 < "$patch_file"; then
               echo "✅ $patch_file applied successfully."
