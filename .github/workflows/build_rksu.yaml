@@ -188,7 +188,6 @@ jobs:
         key: clang-android11-release-r383902b
         restore-keys: |
           clang-android11-release-
-          clang-
     
     - name: Download Clang-aosp
       if: steps.cache-clang.outputs.cache-hit != 'true' && env.USE_CUSTOM_CLANG != 'true'
