@@ -1,158 +1,25 @@
-From 78bf812e6ea051749836dfa657a05971a7cf6e14 Mon Sep 17 00:00:00 2001
+From caa3e36fb8a958ec29a2dea5c0c536db2df3901b Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Fri, 5 Dec 2025 11:43:53 +0000
-Subject: [PATCH] test
+Date: Sun, 7 Dec 2025 23:29:55 +0000
+Subject: [PATCH] kernel: Use GFP_ATOMIC for atomic context
 
 ---
- kernel/app_profile.c |  4 ++++
- kernel/app_profile.h |  2 ++
- kernel/ksud.c        | 12 ++++++++++++
- kernel/setuid_hook.c |  9 +++------
- kernel/sucompat.c    | 20 ++++++++++++++++++++
- kernel/supercalls.c  |  2 +-
- 6 files changed, 42 insertions(+), 7 deletions(-)
+ kernel/selinux/sepolicy.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
-diff --git a/kernel/app_profile.c b/kernel/app_profile.c
-index 86c1acbe..b7ba7a18 100644
---- a/kernel/app_profile.c
-+++ b/kernel/app_profile.c
-@@ -172,3 +172,7 @@ void escape_with_root_profile(void)
- 
- 	setup_selinux(profile->selinux_domain);
- }
-+
-+void escape_to_root_for_init(void) {
-+	setup_selinux(KERNEL_SU_CONTEXT);
-+}
-diff --git a/kernel/app_profile.h b/kernel/app_profile.h
-index 047ed9f9..1263509c 100644
---- a/kernel/app_profile.h
-+++ b/kernel/app_profile.h
-@@ -63,4 +63,6 @@ struct app_profile {
- // Escalate current process to root with the appropriate profile
- void escape_with_root_profile(void);
- 
-+void escape_to_root_for_init(void);
-+
- #endif
-diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 0900e897..70a7b56d 100644
---- a/kernel/ksud.c
-+++ b/kernel/ksud.c
-@@ -198,6 +198,10 @@ static inline void handle_second_stage(void)
- 	setup_ksu_cred();
- }
- 
-+#ifdef CONFIG_KSU_SUSFS
-+extern int ksu_handle_execveat_init(struct filename *filename);
-+#endif // #ifdef CONFIG_KSU_SUSFS
-+
- // IMPORTANT NOTE: the call from execve_handler_pre WON'T provided correct value for envp and flags in GKI version
- int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
- 			     struct user_arg_ptr *argv,
-@@ -226,6 +230,14 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
- 		return 0;
- 	}
- 
-+#ifdef CONFIG_KSU_SUSFS
-+    if (!ksu_handle_execveat_init(filename)) {
-+        // - return non-zero here if ksu_handle_execveat_init() return success
-+        //   as we don't want it to execute ksu_handle_execveat_sucompat()
-+        return 1;
-+    }
-+#endif // #ifdef CONFIG_KSU_SUSFS
-+
- 	if (unlikely(!memcmp(filename->name, system_bin_init,
- 			     sizeof(system_bin_init) - 1) &&
- 		     argv)) {
-diff --git a/kernel/setuid_hook.c b/kernel/setuid_hook.c
-index 2e08a020..09ccd4b7 100644
---- a/kernel/setuid_hook.c
-+++ b/kernel/setuid_hook.c
-@@ -201,21 +201,18 @@ do_umount:
- 	ksu_handle_umount(old_uid, new_uid);
- 
- #ifdef CONFIG_KSU_SUSFS
--	get_task_struct(current);
- 
- #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
- 	// We can reorder the mnt_id now after all sus mounts are umounted
- 	susfs_reorder_mnt_id();
- #endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
- 
--	susfs_set_current_proc_umounted();
--
--	put_task_struct(current);
--
- #ifdef CONFIG_KSU_SUSFS_SUS_PATH
- 	susfs_run_sus_path_loop(new_uid);
- #endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
--#endif
-+
-+	susfs_set_current_proc_umounted();
-+#endif // #ifdef CONFIG_KSU_SUSFS
- 	return 0;
- }
- 
-diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index b2d04bf1..6ca67bf8 100644
---- a/kernel/sucompat.c
-+++ b/kernel/sucompat.c
-@@ -6,7 +6,9 @@
- #include <linux/version.h>
- #include <linux/ptrace.h>
- #ifdef CONFIG_KSU_SUSFS
-+#include <linux/susfs_def.h>
- #include <linux/namei.h>
-+#include "selinux/selinux.h"
- #include "objsec.h"
- #endif // #ifdef CONFIG_KSU_SUSFS
- #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
-@@ -166,6 +168,20 @@ int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
- 	return ksu_sucompat_user_common(filename_user, "sys_execve", true);
- }
- 
-+int ksu_handle_execveat_init(struct filename *filename) {
-+    if (current->pid != 1 && is_init(get_current_cred())) {
-+        if (unlikely(strcmp(filename->name, KSUD_PATH) == 0)) {
-+            pr_info("hook_manager: escape to root for init executing ksud: %d\n", current->pid);
-+            escape_to_root_for_init();
-+        } else if (likely(strstr(filename->name, "/app_process") == NULL && strstr(filename->name, "/adbd") == NULL)) {
-+            pr_info("hook_manager: unmark %d exec %s\n", current->pid, filename->name);
-+            susfs_set_current_proc_umounted();
-+        }
-+        return 0;
-+    }
-+    return 1;
-+}
-+
- int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
- 				 void *__never_use_argv, void *__never_use_envp,
- 				 int *__never_use_flags)
-@@ -179,6 +195,10 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
- 	if (IS_ERR(filename))
- 		return 0;
- 
-+	if (!ksu_handle_execveat_init(filename)) {
-+        return 0;
-+    }
-+
- 	if (likely(memcmp(filename->name, su, sizeof(su))))
- 		return 0;
- 
-diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index 7b5157fb..e9432309 100644
---- a/kernel/supercalls.c
-+++ b/kernel/supercalls.c
-@@ -35,7 +35,7 @@
- #include "file_wrapper.h"
- 
- #ifdef CONFIG_KSU_SUSFS
--bool susfs_is_boot_completed_triggered = false;
-+bool susfs_is_boot_completed_triggered __read_mostly = false;
- #endif // #ifdef CONFIG_KSU_SUSFS
- 
- // Permission check functions
+diff --git a/kernel/selinux/sepolicy.c b/kernel/selinux/sepolicy.c
+index d58fdffd..262d8b4d 100644
+--- a/kernel/selinux/sepolicy.c
++++ b/kernel/selinux/sepolicy.c
+@@ -356,7 +356,7 @@ static void add_xperm_rule_raw(struct policydb *db, struct type_datum *src,
+ 		if (datum->u.xperms == NULL) {
+ 			datum->u.xperms =
+ 				(struct avtab_extended_perms *)(kzalloc(
+-					sizeof(xperms), GFP_KERNEL));
++					sizeof(xperms), GFP_ATOMIC));
+ 			if (!datum->u.xperms) {
+ 				pr_err("alloc xperms failed\n");
+ 				return;
 -- 
 2.34.1
 
