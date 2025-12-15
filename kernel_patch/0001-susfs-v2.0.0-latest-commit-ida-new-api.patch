@@ -1,6 +1,6 @@
-From d5c1643665df00803a42b9063a79d4b83b11888b Mon Sep 17 00:00:00 2001
+From d39c3ab9542a7e8184260f3553c381d5e86f4ff1 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 15 Dec 2025 08:14:02 +0700
+Date: Mon, 15 Dec 2025 17:55:40 +0700
 Subject: [PATCH] susfs v2.0.0 latest commit & ida new api
 
 ---
@@ -13,7 +13,7 @@ Subject: [PATCH] susfs v2.0.0 latest commit & ida new api
  fs/open.c                 |  21 +
  fs/proc/base.c            |  31 ++
  fs/proc/cmdline.c         |  10 +
- fs/proc/fd.c              |  18 +
+ fs/proc/fd.c              |  48 ++
  fs/proc/task_mmu.c        |  71 ++-
  fs/proc_namespace.c       |  25 +
  fs/read_write.c           |  11 +
@@ -29,7 +29,7 @@ Subject: [PATCH] susfs v2.0.0 latest commit & ida new api
  kernel/reboot.c           |  13 +
  kernel/sys.c              |  14 +
  security/selinux/avc.c    |  20 +
- 25 files changed, 2520 insertions(+), 3 deletions(-)
+ 25 files changed, 2550 insertions(+), 3 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1079,7 +1079,7 @@ index 3b62683fe..2a617ffb1 100644
  		return -EINVAL;
  
 diff --git a/fs/proc/base.c b/fs/proc/base.c
-index dc65fe528..262f43bd5 100644
+index 25c170d5c..d0cc5f3a3 100644
 --- a/fs/proc/base.c
 +++ b/fs/proc/base.c
 @@ -94,6 +94,10 @@
@@ -1126,7 +1126,7 @@ index dc65fe528..262f43bd5 100644
  
  		if (write && copy_from_user(page, buf, this_len)) {
  			copied = -EFAULT;
-@@ -2287,6 +2310,14 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
+@@ -2290,6 +2313,14 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
  				vma = vma->vm_next) {
  			if (!vma->vm_file)
  				continue;
@@ -1165,10 +1165,10 @@ index 403cbb12a..7c3fad2cb 100644
  	return 0;
  }
 diff --git a/fs/proc/fd.c b/fs/proc/fd.c
-index 96fc70225..cd4225ff8 100644
+index 6b634c0a9..abdddb07b 100644
 --- a/fs/proc/fd.c
 +++ b/fs/proc/fd.c
-@@ -12,6 +12,9 @@
+@@ -13,6 +13,9 @@
  #include <linux/fs.h>
  
  #include <linux/proc_fs.h>
@@ -1178,7 +1178,7 @@ index 96fc70225..cd4225ff8 100644
  
  #include "../mount.h"
  #include "internal.h"
-@@ -23,6 +26,9 @@ static int seq_show(struct seq_file *m, void *v)
+@@ -24,6 +27,9 @@ static int seq_show(struct seq_file *m, void *v)
  	int f_flags = 0, ret = -ENOENT;
  	struct file *file = NULL;
  	struct task_struct *task;
@@ -1188,24 +1188,56 @@ index 96fc70225..cd4225ff8 100644
  
  	task = get_proc_task(m->private);
  	if (!task)
-@@ -53,9 +59,21 @@ static int seq_show(struct seq_file *m, void *v)
+@@ -53,11 +59,53 @@ static int seq_show(struct seq_file *m, void *v)
+ 
  	if (ret)
  		return ret;
- 
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	mnt = real_mount(file->f_path.mnt);
 +	if (likely(susfs_is_current_proc_umounted()) &&
 +				mnt->mnt_id >= DEFAULT_KSU_MNT_ID)
 +	{
++		struct path path;
++		char *pathname = kmalloc(PAGE_SIZE, GFP_KERNEL);
++		char *dpath;
++
++		if (!pathname) {
++			goto out_seq_printf;
++		}
++		dpath = d_path(&file->f_path, pathname, PAGE_SIZE);
++		if (!dpath) {
++			goto out_free_pathname;
++		}
++		if (kern_path(dpath, 0, &path)) {
++			goto out_free_pathname;
++		}
+ 
++		// - We have to iterate the mnt->mnt_parent until the mnt_id is not sus,
++		//   doing real_mount(path.mnt)->mnt_id is wrong since this will retrieve
++		//   the mnt_id of the umounted path.
 +		for (; mnt->mnt_id >= DEFAULT_KSU_MNT_ID; mnt = mnt->mnt_parent) { }
++
++		seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\nino:\t%lu\n",
++				(long long)file->f_pos, f_flags,
++				mnt->mnt_id,
++				path.dentry->d_inode->i_ino);
++		path_put(&path);
++		kfree(pathname);
++		goto bypass_orig_flow;
++out_free_pathname:
++		kfree(pathname);
 +	}
-+	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\n",
++out_seq_printf:
++	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\nino:\t%lu\n",
 +			(long long)file->f_pos, f_flags,
-+			mnt->mnt_id);
++			mnt->mnt_id,
++			file_inode(file)->i_ino);
++bypass_orig_flow:
 +#else
- 	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\n",
+ 	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\nino:\t%lu\n",
  		   (long long)file->f_pos, f_flags,
- 		   real_mount(file->f_path.mnt)->mnt_id);
+ 		   real_mount(file->f_path.mnt)->mnt_id,
+ 		   file_inode(file)->i_ino);
 +#endif
  
  	show_fd_locks(m, file, files);
