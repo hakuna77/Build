@@ -1,6 +1,6 @@
-From 24eed09f863e1df88c4b71246923416b059952ff Mon Sep 17 00:00:00 2001
+From 3041dc2ba8fffa71d5a642bbcf97d56b8017982f Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Wed, 17 Dec 2025 03:57:53 +0700
+Date: Wed, 17 Dec 2025 06:12:41 +0700
 Subject: [PATCH] susfs v2.0.0 latest commit & ida new api
 
 ---
@@ -1167,7 +1167,7 @@ index 403cbb12a..7c3fad2cb 100644
  	return 0;
  }
 diff --git a/fs/proc/fd.c b/fs/proc/fd.c
-index 96fc70225..7dd7c81ed 100644
+index 96fc70225..48d6eebcf 100644
 --- a/fs/proc/fd.c
 +++ b/fs/proc/fd.c
 @@ -12,6 +12,9 @@
@@ -1203,7 +1203,7 @@ index 96fc70225..7dd7c81ed 100644
 +		// - We have to iterate the mnt->mnt_parent until the mnt_id is not sus,
 +		//   doing real_mount(path.mnt)->mnt_id is wrong since this will retrieve
 +		//   the mnt_id of the umounted path.
-+		for (; mnt->mnt_parent && mnt->mnt_id >= DEFAULT_KSU_MNT_ID; mnt = mnt->mnt_parent) { }
++		for (; mnt->mnt_id >= DEFAULT_KSU_MNT_ID; mnt = mnt->mnt_parent) { }
 +	}
 +	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\n",
 +			(long long)file->f_pos, f_flags,
