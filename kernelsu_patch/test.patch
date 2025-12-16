@@ -1,98 +1,311 @@
-From 97c3d2ed2a824e9be235d698b6ba2ca8c2ea437e Mon Sep 17 00:00:00 2001
+From 0c137d5f0009e3382a84f7ad61a5d31b094b5019 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 9 Dec 2025 01:57:22 +0000
-Subject: [PATCH] test
+Date: Tue, 16 Dec 2025 06:03:59 +0000
+Subject: [PATCH] =?UTF-8?q?Add=20mount=20namespace=20support=20=E6=B7=BB?=
+ =?UTF-8?q?=E5=8A=A0=E6=8C=82?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
 
 ---
- kernel/selinux/sepolicy.c |  2 +-
- kernel/setuid_hook.c      | 33 +++++++++++++++++++++++++--------
- 2 files changed, 26 insertions(+), 9 deletions(-)
+ kernel/Kbuild        |   1 +
+ kernel/allowlist.c   |   3 +-
+ kernel/app_profile.c |   2 +
+ kernel/su_mount_ns.c | 209 +++++++++++++++++++++++++++++++++++++++++++
+ kernel/su_mount_ns.h |  15 ++++
+ 5 files changed, 229 insertions(+), 1 deletion(-)
+ create mode 100644 kernel/su_mount_ns.c
+ create mode 100644 kernel/su_mount_ns.h
 
-diff --git a/kernel/selinux/sepolicy.c b/kernel/selinux/sepolicy.c
-index d58fdffd..262d8b4d 100644
---- a/kernel/selinux/sepolicy.c
-+++ b/kernel/selinux/sepolicy.c
-@@ -356,7 +356,7 @@ static void add_xperm_rule_raw(struct policydb *db, struct type_datum *src,
- 		if (datum->u.xperms == NULL) {
- 			datum->u.xperms =
- 				(struct avtab_extended_perms *)(kzalloc(
--					sizeof(xperms), GFP_KERNEL));
-+					sizeof(xperms), GFP_ATOMIC));
- 			if (!datum->u.xperms) {
- 				pr_err("alloc xperms failed\n");
- 				return;
-diff --git a/kernel/setuid_hook.c b/kernel/setuid_hook.c
-index 879a1431..2955bc27 100644
---- a/kernel/setuid_hook.c
-+++ b/kernel/setuid_hook.c
-@@ -39,6 +39,7 @@
- #include "seccomp_cache.h"
- #include "supercalls.h"
- #include "kernel_umount.h"
-+#include "kernel_compat.h"
+diff --git a/kernel/Kbuild b/kernel/Kbuild
+index 357af31c..0a21694b 100644
+--- a/kernel/Kbuild
++++ b/kernel/Kbuild
+@@ -9,6 +9,7 @@ ksu_obj-y += lsm_hook.o
+ ksu_obj-y += kernel_compat.o
+ ksu_obj-y += kernel_umount.o
+ ksu_obj-y += supercalls.o
++kernelsu-objs += su_mount_ns.o
+ ksu_obj-y += feature.o
+ ksu_obj-y += ksud.o
+ ksu_obj-y += seccomp_cache.o
+diff --git a/kernel/allowlist.c b/kernel/allowlist.c
+index 3ae4f119..bd35af7d 100644
+--- a/kernel/allowlist.c
++++ b/kernel/allowlist.c
+@@ -25,6 +25,7 @@
+ #include "allowlist.h"
+ #include "manager.h"
+ #include "kernel_compat.h"
++#include "su_mount_ns.h"
  
- static inline bool is_zygote_isolated_service_uid(uid_t uid)
- {
-@@ -92,6 +93,25 @@ static inline bool is_allow_su(void)
- 	return ksu_is_allow_uid_for_current(current_uid().val);
+ #define FILE_MAGIC 0x7f4b5355 // ' KSU', u32
+ #define FILE_FORMAT_VERSION 3 // u32
+@@ -81,7 +82,7 @@ static void init_default_profiles(void)
+ 	default_root_profile.groups[0] = 0;
+ 	memcpy(&default_root_profile.capabilities.effective, &full_cap,
+ 	       sizeof(default_root_profile.capabilities.effective));
+-	default_root_profile.namespaces = 0;
++	default_root_profile.namespaces = KSU_NS_INHERITED;
+ 	strcpy(default_root_profile.selinux_domain, KSU_DEFAULT_SELINUX_DOMAIN);
+ 
+ 	// This means that we will umount modules by default!
+diff --git a/kernel/app_profile.c b/kernel/app_profile.c
+index ac373b56..b5b22f81 100644
+--- a/kernel/app_profile.c
++++ b/kernel/app_profile.c
+@@ -20,6 +20,7 @@
+ #include "kernel_compat.h"
+ #include "klog.h" // IWYU pragma: keep
+ #include "selinux/selinux.h"
++#include "su_mount_ns.h"
+ 
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0) && defined(CONFIG_CC_IS_GCC))
+ static struct group_info root_groups = {
+@@ -171,6 +172,7 @@ void escape_with_root_profile(void)
+ 	spin_unlock_irq(&current->sighand->siglock);
+ 
+ 	setup_selinux(profile->selinux_domain);
++	setup_mount_ns(profile->namespaces);
  }
  
-+static void ksu_install_manager_fd_tw_func(struct callback_head *cb)
+ void __maybe_unused escape_to_root_for_init(void)
+diff --git a/kernel/su_mount_ns.c b/kernel/su_mount_ns.c
+new file mode 100644
+index 00000000..8308ea00
+--- /dev/null
++++ b/kernel/su_mount_ns.c
+@@ -0,0 +1,209 @@
++#include <linux/dcache.h>
++#include <linux/errno.h>
++#include <linux/fdtable.h>
++#include <linux/file.h>
++#include <linux/fs.h>
++#include <linux/fs_struct.h>
++#include <linux/limits.h>
++#include <linux/namei.h>
++#include <linux/proc_ns.h>
++#include <linux/pid.h>
++#include <linux/sched/task.h>
++#include <linux/slab.h>
++#include <linux/syscalls.h>
++#include <linux/task_work.h>
++#include <linux/version.h>
++#include <uapi/linux/mount.h>
++
++#include "arch.h"
++#include "klog.h" // IWYU pragma: keep
++#include "ksu.h"
++#include "su_mount_ns.h"
++
++extern int path_mount(const char *dev_name, struct path *path,
++                      const char *type_page, unsigned long flags,
++                      void *data_page);
++
++#if defined(__aarch64__)
++extern long __arm64_sys_setns(const struct pt_regs *regs);
++#elif defined(__x86_64__)
++extern long __x64_sys_setns(const struct pt_regs *regs);
++#endif
++
++static long ksu_sys_setns(int fd, int flags)
 +{
-+	ksu_install_fd();
-+	kfree(cb);
++    struct pt_regs regs;
++    memset(&regs, 0, sizeof(regs));
++
++    PT_REGS_PARM1(&regs) = fd;
++    PT_REGS_PARM2(&regs) = flags;
++
++#if defined(__aarch64__)
++    return __arm64_sys_setns(&regs);
++#elif defined(__x86_64__)
++    return __x64_sys_setns(&regs);
++#else
++#error "Unsupported arch"
++#endif
 +}
 +
-+static void do_install_manager_fd(void)
++// global mode , need CAP_SYS_ADMIN and CAP_SYS_CHROOT to perform setns
++static void ksu_mnt_ns_global(void)
 +{
-+	struct callback_head *cb = kzalloc(sizeof(*cb), GFP_ATOMIC);
-+	if (!cb)
-+		return;
++    // save current working directory as absolute path before setns
++    char *pwd_path = NULL;
++    char *pwd_buf = kmalloc(PATH_MAX, GFP_KERNEL);
++    if (!pwd_buf) {
++        pr_warn("no mem for pwd buffer, skip restore pwd!!\n");
++        goto try_setns;
++    }
 +
-+	cb->func = ksu_install_manager_fd_tw_func;
-+	if (task_work_add(current, cb, TWA_RESUME)) {
-+		kfree(cb);
-+		pr_warn("install manager fd add task_work failed\n");
-+	}
++    struct path saved_pwd;
++    get_fs_pwd(current->fs, &saved_pwd);
++    pwd_path = d_path(&saved_pwd, pwd_buf, PATH_MAX);
++    path_put(&saved_pwd);
++
++    if (IS_ERR(pwd_path)) {
++        if (PTR_ERR(pwd_path) == -ENAMETOOLONG) {
++            pr_warn("absolute pwd longer than: %d, skip restore pwd!!\n",
++                    PATH_MAX);
++        } else {
++            pr_warn("get absolute pwd failed: %ld\n", PTR_ERR(pwd_path));
++        }
++        pwd_path = NULL;
++    }
++
++try_setns:
++
++    rcu_read_lock();
++    // &init_task is not init, but swapper/idle, which forks the init process
++    // so we need find init process
++    struct pid *pid_struct = find_pid_ns(1, &init_pid_ns);
++    if (unlikely(!pid_struct)) {
++        rcu_read_unlock();
++        pr_warn("failed to find pid_struct for PID 1\n");
++        goto out;
++    }
++
++    struct task_struct *pid1_task = get_pid_task(pid_struct, PIDTYPE_PID);
++    rcu_read_unlock();
++    if (unlikely(!pid1_task)) {
++        pr_warn("failed to get task_struct for PID 1\n");
++        goto out;
++    }
++    struct path ns_path;
++    long ret = ns_get_path(&ns_path, pid1_task, &mntns_operations);
++    put_task_struct(pid1_task);
++    if (ret) {
++        pr_warn("failed get path for init mount namespace: %ld\n", ret);
++        goto out;
++    }
++    struct file *ns_file = dentry_open(&ns_path, O_RDONLY, ksu_cred);
++
++    path_put(&ns_path);
++    if (IS_ERR(ns_file)) {
++        pr_warn("failed open file for init mount namespace: %ld\n",
++                PTR_ERR(ns_file));
++        goto out;
++    }
++
++    int fd = get_unused_fd_flags(O_CLOEXEC);
++    if (fd < 0) {
++        pr_warn("failed to get an unused fd: %d\n", fd);
++        fput(ns_file);
++        goto out;
++    }
++
++    fd_install(fd, ns_file);
++    ret = ksu_sys_setns(fd, CLONE_NEWNS);
++
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)
++    ksys_close(fd);
++#else
++    close_fd(fd);
++#endif
++
++    if (ret) {
++        pr_warn("call setns failed: %ld\n", ret);
++        goto out;
++    }
++    // try to restore working directory using absolute path after setns
++    if (pwd_path) {
++        struct path new_pwd;
++        int err = kern_path(pwd_path, 0, &new_pwd);
++        if (!err) {
++            set_fs_pwd(current->fs, &new_pwd);
++            path_put(&new_pwd);
++        } else {
++            pr_warn("restore pwd failed: %d, path: %s\n", err, pwd_path);
++        }
++    }
++out:
++    kfree(pwd_buf);
 +}
 +
- // force_sig kcompat, TODO: move it out of core_hook.c
- // https://elixir.bootlin.com/linux/v5.3-rc1/source/kernel/signal.c#L1613
- #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0)
-@@ -143,8 +163,6 @@ int ksu_handle_setuid_common(uid_t new_uid, uid_t old_uid, uid_t new_euid,
- #endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
- 
- 	if (ksu_get_manager_appid() == new_uid % PER_USER_RANGE) {
--		pr_info("install fd for ksu manager(uid=%d)\n", new_uid);
--		ksu_install_fd();
- 		spin_lock_irq(&current->sighand->siglock);
- #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
- 		ksu_seccomp_allow_cache(current->seccomp.filter, __NR_reboot);
-@@ -152,6 +170,8 @@ int ksu_handle_setuid_common(uid_t new_uid, uid_t old_uid, uid_t new_euid,
- 		disable_seccomp(current);
- #endif
- 		spin_unlock_irq(&current->sighand->siglock);
-+		pr_info("install fd for manager (uid=%d)\n", new_uid);
-+		do_install_manager_fd();
- 		return 0;
- 	}
- 
-@@ -173,12 +193,9 @@ int ksu_handle_setuid_common(uid_t new_uid, uid_t old_uid, uid_t new_euid,
- 	}
- #else
- 	if (ksu_is_allow_uid_for_current(new_uid)) {
--		// FIXME: Should do proper checking
--		if (current->seccomp.filter != NULL) {
--			spin_lock_irq(&current->sighand->siglock);
--			disable_seccomp(current);
--			spin_unlock_irq(&current->sighand->siglock);
--		}
-+		spin_lock_irq(&current->sighand->siglock);
-+		disable_seccomp(current);
-+		spin_unlock_irq(&current->sighand->siglock);
- 	}
- #endif
- 
++// individual mode , need CAP_SYS_ADMIN to perform unshare and remount
++static void ksu_mnt_ns_individual(void)
++{
++    long ret = ksys_unshare(CLONE_NEWNS);
++    if (ret) {
++        pr_warn("call ksys_unshare failed: %ld\n", ret);
++        return;
++    }
++
++    // make root mount private
++    struct path root_path;
++    get_fs_root(current->fs, &root_path);
++    int pm_ret = path_mount(NULL, &root_path, NULL, MS_PRIVATE | MS_REC, NULL);
++    path_put(&root_path);
++
++    if (pm_ret < 0) {
++        pr_err("failed to make root private, err: %d\n", pm_ret);
++    }
++}
++
++static void ksu_setup_mount_ns_tw_func(struct callback_head *cb)
++{
++    struct ksu_mns_tw *tw = container_of(cb, struct ksu_mns_tw, cb);
++    const struct cred *old_cred = override_creds(ksu_cred);
++    if (tw->ns_mode == KSU_NS_GLOBAL) {
++        ksu_mnt_ns_global();
++    } else {
++        ksu_mnt_ns_individual();
++    }
++    revert_creds(old_cred);
++    kfree(tw);
++}
++
++void setup_mount_ns(int32_t ns_mode)
++{
++    // inherit mode
++    if (ns_mode == KSU_NS_INHERITED) {
++        // do nothing
++        return;
++    }
++
++    if (ns_mode != KSU_NS_GLOBAL && ns_mode != KSU_NS_INDIVIDUAL) {
++        pr_warn("pid: %d ,unknown mount namespace mode: %d\n", current->pid,
++                ns_mode);
++        return;
++    }
++
++    if (!ksu_cred) {
++        pr_err("no ksu cred! skip mnt_ns magic for pid: %d.\n", current->pid);
++        return;
++    }
++
++    struct ksu_mns_tw *tw = kzalloc(sizeof(*tw), GFP_ATOMIC);
++    if (!tw) {
++        pr_err("no mem for tw! skip mnt_ns magic for pid: %d.\n", current->pid);
++        return;
++    }
++    tw->cb.func = ksu_setup_mount_ns_tw_func;
++    tw->ns_mode = ns_mode;
++    if (task_work_add(current, &tw->cb, TWA_RESUME)) {
++        kfree(tw);
++        pr_err("add task work failed! skip mnt_ns magic for pid: %d.\n",
++               current->pid);
++    }
++}
+diff --git a/kernel/su_mount_ns.h b/kernel/su_mount_ns.h
+new file mode 100644
+index 00000000..d57a7df8
+--- /dev/null
++++ b/kernel/su_mount_ns.h
+@@ -0,0 +1,15 @@
++#ifndef __KSU_SU_MOUNT_NS_H
++#define __KSU_SU_MOUNT_NS_H
++
++#define KSU_NS_INHERITED 0
++#define KSU_NS_GLOBAL 1
++#define KSU_NS_INDIVIDUAL 2
++
++struct ksu_mns_tw {
++    struct callback_head cb;
++    int32_t ns_mode;
++};
++
++void setup_mount_ns(int32_t ns_mode);
++
++#endif
 -- 
 2.34.1
 
