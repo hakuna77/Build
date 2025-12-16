@@ -1,8 +1,8 @@
-From 0c137d5f0009e3382a84f7ad61a5d31b094b5019 Mon Sep 17 00:00:00 2001
+From 65e8424d28943a167535c2e0c770694b3ebf789d Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 16 Dec 2025 06:03:59 +0000
-Subject: [PATCH] =?UTF-8?q?Add=20mount=20namespace=20support=20=E6=B7=BB?=
- =?UTF-8?q?=E5=8A=A0=E6=8C=82?=
+Date: Tue, 16 Dec 2025 06:30:51 +0000
+Subject: [PATCH] =?UTF-8?q?Add=20mount=20namespace=20support=20=C3=A6?=
+ =?UTF-8?q?=C2=B7?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -11,9 +11,9 @@ Content-Transfer-Encoding: 8bit
  kernel/Kbuild        |   1 +
  kernel/allowlist.c   |   3 +-
  kernel/app_profile.c |   2 +
- kernel/su_mount_ns.c | 209 +++++++++++++++++++++++++++++++++++++++++++
+ kernel/su_mount_ns.c | 210 +++++++++++++++++++++++++++++++++++++++++++
  kernel/su_mount_ns.h |  15 ++++
- 5 files changed, 229 insertions(+), 1 deletion(-)
+ 5 files changed, 230 insertions(+), 1 deletion(-)
  create mode 100644 kernel/su_mount_ns.c
  create mode 100644 kernel/su_mount_ns.h
 
@@ -72,10 +72,10 @@ index ac373b56..b5b22f81 100644
  void __maybe_unused escape_to_root_for_init(void)
 diff --git a/kernel/su_mount_ns.c b/kernel/su_mount_ns.c
 new file mode 100644
-index 00000000..8308ea00
+index 00000000..52db8b79
 --- /dev/null
 +++ b/kernel/su_mount_ns.c
-@@ -0,0 +1,209 @@
+@@ -0,0 +1,210 @@
 +#include <linux/dcache.h>
 +#include <linux/errno.h>
 +#include <linux/fdtable.h>
@@ -97,6 +97,7 @@ index 00000000..8308ea00
 +#include "klog.h" // IWYU pragma: keep
 +#include "ksu.h"
 +#include "su_mount_ns.h"
++#include "kernel_compat.h"
 +
 +extern int path_mount(const char *dev_name, struct path *path,
 +                      const char *type_page, unsigned long flags,
