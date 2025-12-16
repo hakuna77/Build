@@ -44,11 +44,10 @@ on:
       manual_hook:
         description: 'Select Manual Hook'
         required: true
-        default: '0001-scope-minimized-manual-hooks-v1.4.patch'
+        default: '0001-scope-manual-hook-1.6.patch'
         type: choice
         options:
-          - '0001-scope-minimized-manual-hooks-v1.4.patch'
-          - '0001-scope-minimized-manual-hooks-v1.5.patch'
+          - '0001-scope-manual-hook-1.6.patch'
       select_version_patch_susfs_to_kernel:
         description: 'Select SUSFS PATCH Into Kernel'
         required: true
@@ -58,6 +57,7 @@ on:
           - '0001-susfs2.0.0.patch'
           - '0001-v2.0.0.patch'
           - '0001-susfs-v2.0.0-latest-commit-ida-new-api.patch'
+          - '0001-susfs-v2.0.0-manual-hook-not-incluced.patch'
       patching_ksun:
         description: 'Enable patch susfs KernelSU-Next?'
         required: true
@@ -301,6 +301,7 @@ jobs:
             0010-BACKPORT-vfs-syscall-Add-move_mount-2-to-move-mounts.patch \
             0011-BACKPORT-arm-arm64-wire-up-backported-sys_move_mount.patch \
             0001-backport-test.patch \
+            ${{ env.MANUAL_HOOK }} \
             ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }}
           do
             if patch -p1 < "$patch_file"; then
