@@ -1,16 +1,16 @@
-From 8c20d706d1e39dcc16ff03fb9868269d5950beef Mon Sep 17 00:00:00 2001
+From 24eed09f863e1df88c4b71246923416b059952ff Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 16 Dec 2025 09:57:11 +0700
+Date: Wed, 17 Dec 2025 03:57:53 +0700
 Subject: [PATCH] susfs v2.0.0 latest commit & ida new api
 
 ---
  drivers/input/input.c     |  11 +
  fs/Makefile               |   2 +
- fs/exec.c                 |  28 ++
+ fs/exec.c                 |  29 ++
  fs/namei.c                | 262 +++++++++-
  fs/namespace.c            | 254 ++++++++++
  fs/notify/fdinfo.c        |  53 ++
- fs/open.c                 |  21 +
+ fs/open.c                 |  22 +
  fs/proc/base.c            |  31 ++
  fs/proc/cmdline.c         |  10 +
  fs/proc/fd.c              |  22 +-
@@ -18,7 +18,7 @@ Subject: [PATCH] susfs v2.0.0 latest commit & ida new api
  fs/proc_namespace.c       |  25 +
  fs/read_write.c           |  11 +
  fs/readdir.c              | 279 ++++++++++-
- fs/stat.c                 |  40 ++
+ fs/stat.c                 |  41 ++
  fs/statfs.c               |  16 +
  fs/susfs.c                | 995 ++++++++++++++++++++++++++++++++++++++
  include/linux/mount.h     |   3 +
@@ -29,7 +29,7 @@ Subject: [PATCH] susfs v2.0.0 latest commit & ida new api
  kernel/reboot.c           |  13 +
  kernel/sys.c              |  14 +
  security/selinux/avc.c    |  20 +
- 25 files changed, 2523 insertions(+), 4 deletions(-)
+ 25 files changed, 2526 insertions(+), 4 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -75,7 +75,7 @@ index d34068c3c..77b5efc7e 100644
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
  else
 diff --git a/fs/exec.c b/fs/exec.c
-index 119a47437..8cae9095e 100644
+index 119a47437..cc9b1a570 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
 @@ -62,6 +62,9 @@
@@ -88,13 +88,14 @@ index 119a47437..8cae9095e 100644
  
  #include <linux/uaccess.h>
  #include <asm/mmu_context.h>
-@@ -1709,6 +1712,17 @@ static int exec_binprm(struct linux_binprm *bprm)
+@@ -1709,6 +1712,18 @@ static int exec_binprm(struct linux_binprm *bprm)
  /*
   * sys_execve() executes a new program.
   */
 +
 +#ifdef CONFIG_KSU_SUSFS
 +extern bool ksu_execveat_hook __read_mostly;
++extern bool ksu_su_compat_enabled __read_mostly;
 +extern bool susfs_is_boot_completed_triggered __read_mostly;
 +extern bool __ksu_is_allow_uid_for_current(uid_t uid);
 +extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
@@ -106,12 +107,12 @@ index 119a47437..8cae9095e 100644
  static int do_execveat_common(int fd, struct filename *filename,
  			      struct user_arg_ptr argv,
  			      struct user_arg_ptr envp,
-@@ -1723,6 +1737,20 @@ static int do_execveat_common(int fd, struct filename *filename,
+@@ -1723,6 +1738,20 @@ static int do_execveat_common(int fd, struct filename *filename,
  	if (IS_ERR(filename))
  		return PTR_ERR(filename);
  
 +#ifdef CONFIG_KSU_SUSFS
-+	if (likely(susfs_is_current_proc_umounted())) {
++	if (likely(susfs_is_current_proc_umounted()) || !ksu_su_compat_enabled) {
 +		goto orig_flow;
 +	}
 +
@@ -1033,7 +1034,7 @@ index c62a87ee3..8970b5c7b 100644
  			   inode_mark->wd, inode->i_ino, inode->i_sb->s_dev,
  			   inotify_mark_user_mask(mark));
 diff --git a/fs/open.c b/fs/open.c
-index 3b62683fe..2a617ffb1 100644
+index 3b62683fe..f97135beb 100644
 --- a/fs/open.c
 +++ b/fs/open.c
 @@ -31,6 +31,9 @@
@@ -1046,11 +1047,12 @@ index 3b62683fe..2a617ffb1 100644
  
  #include "internal.h"
  
-@@ -354,6 +357,12 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
+@@ -354,6 +357,13 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
  	return error;
  }
  
 +#ifdef CONFIG_KSU_SUSFS
++extern bool ksu_su_compat_enabled __read_mostly;
 +extern bool __ksu_is_allow_uid_for_current(uid_t uid);
 +extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
 +			int *flags);
@@ -1059,12 +1061,12 @@ index 3b62683fe..2a617ffb1 100644
  /*
   * access() needs to use the real uid/gid, not the effective uid/gid.
   * We do this by temporarily clearing all FS-related capabilities and
-@@ -369,6 +378,18 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+@@ -369,6 +379,18 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
  	int res;
  	unsigned int lookup_flags = LOOKUP_FOLLOW;
  
 +#ifdef CONFIG_KSU_SUSFS
-+	if (likely(susfs_is_current_proc_umounted())) {
++	if (likely(susfs_is_current_proc_umounted()) || !ksu_su_compat_enabled) {
 +		goto orig_flow;
 +	}
 +
@@ -1896,7 +1898,7 @@ index 0c357663e..51ef27ba4 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (error >= 0)
 diff --git a/fs/stat.c b/fs/stat.c
-index 04550c0ba..1073f917d 100644
+index 04550c0ba..027b005c0 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,10 @@
@@ -1934,11 +1936,12 @@ index 04550c0ba..1073f917d 100644
  	stat->dev = inode->i_sb->s_dev;
  	stat->ino = inode->i_ino;
  	stat->mode = inode->i_mode;
-@@ -156,6 +175,15 @@ int vfs_fstat(int fd, struct kstat *stat)
+@@ -156,6 +175,16 @@ int vfs_fstat(int fd, struct kstat *stat)
  	return error;
  }
  
 +#ifdef CONFIG_KSU_SUSFS
++extern bool ksu_su_compat_enabled __read_mostly;
 +extern bool __ksu_is_allow_uid_for_current(uid_t uid);
 +#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
 +extern int ksu_handle_stat(int *dfd, struct filename **filename, int *flags);
@@ -1950,12 +1953,12 @@ index 04550c0ba..1073f917d 100644
  /**
   * vfs_statx - Get basic and extra attributes by filename
   * @dfd: A file descriptor representing the base dir for a relative filename
-@@ -178,6 +206,18 @@ static int vfs_statx(int dfd, const char __user *filename, int flags,
+@@ -178,6 +207,18 @@ static int vfs_statx(int dfd, const char __user *filename, int flags,
  	unsigned lookup_flags = 0;
  	int error;
  
 +#ifdef CONFIG_KSU_SUSFS
-+	if (likely(susfs_is_current_proc_umounted())) {
++	if (likely(susfs_is_current_proc_umounted()) || !ksu_su_compat_enabled) {
 +		goto orig_flow;
 +	}
 +
