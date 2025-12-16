@@ -1,15 +1,16 @@
-From c9dc16863b61aba3c333ad9ea09ac9cb66313d28 Mon Sep 17 00:00:00 2001
+From f69044ae41124c4a959e26016c5f8b57a70ba244 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 16 Dec 2025 09:26:46 +0000
+Date: Tue, 16 Dec 2025 09:38:47 +0000
 Subject: [PATCH] Add mount namespace support
 
 ---
- kernel/Kbuild        |   1 +
- kernel/allowlist.c   |   3 +-
- kernel/app_profile.c |   2 +
- kernel/su_mount_ns.c | 225 +++++++++++++++++++++++++++++++++++++++++++
- kernel/su_mount_ns.h |  15 +++
- 5 files changed, 245 insertions(+), 1 deletion(-)
+ kernel/Kbuild          |   1 +
+ kernel/allowlist.c     |   3 +-
+ kernel/app_profile.c   |   2 +
+ kernel/kernel_compat.c |  21 ++++
+ kernel/su_mount_ns.c   | 225 +++++++++++++++++++++++++++++++++++++++++
+ kernel/su_mount_ns.h   |  15 +++
+ 6 files changed, 266 insertions(+), 1 deletion(-)
  create mode 100644 kernel/su_mount_ns.c
  create mode 100644 kernel/su_mount_ns.h
 
@@ -66,6 +67,38 @@ index ac373b56..b5b22f81 100644
  }
  
  void __maybe_unused escape_to_root_for_init(void)
+diff --git a/kernel/kernel_compat.c b/kernel/kernel_compat.c
+index 9eabd01e..faa6d570 100644
+--- a/kernel/kernel_compat.c
++++ b/kernel/kernel_compat.c
+@@ -84,6 +84,27 @@ ssize_t ksu_kernel_write_compat(struct file *p, const void *buf, size_t count,
+ #endif
+ }
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
++__weak int path_mount(const char *dev_name, struct path *path, 
++	const char *type_page, unsigned long flags, void *data_page)
++{
++	// 384 is enough 
++	char buf[384] = {0};
++
++	// -1 on the size as implicit null termination
++	// as we zero init the thing
++	char *realpath = d_path(path, buf, sizeof(buf) - 1);
++	if (!(realpath && realpath != buf)) 
++		return -ENOENT;
++
++	mm_segment_t old_fs = get_fs();
++	set_fs(KERNEL_DS);
++	long ret = do_mount(dev_name, (const char __user *)realpath, type_page, flags, data_page);
++	set_fs(old_fs);
++	return ret;
++}
++#endif
++
+ static inline long
+ do_strncpy_user_nofault(char *dst, const void __user *unsafe_addr, long count)
+ {
 diff --git a/kernel/su_mount_ns.c b/kernel/su_mount_ns.c
 new file mode 100644
 index 00000000..1e104a20
