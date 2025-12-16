@@ -1,11 +1,7 @@
-From 65e8424d28943a167535c2e0c770694b3ebf789d Mon Sep 17 00:00:00 2001
+From 133d723217d9d5ee39c1b5a73952d3890f7244bc Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 16 Dec 2025 06:30:51 +0000
-Subject: [PATCH] =?UTF-8?q?Add=20mount=20namespace=20support=20=C3=A6?=
- =?UTF-8?q?=C2=B7?=
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
+Date: Tue, 16 Dec 2025 06:46:57 +0000
+Subject: [PATCH] Add mount namespace support
 
 ---
  kernel/Kbuild        |   1 +
@@ -18,14 +14,14 @@ Content-Transfer-Encoding: 8bit
  create mode 100644 kernel/su_mount_ns.h
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
-index 357af31c..0a21694b 100644
+index 357af31c..8a27cf91 100644
 --- a/kernel/Kbuild
 +++ b/kernel/Kbuild
 @@ -9,6 +9,7 @@ ksu_obj-y += lsm_hook.o
  ksu_obj-y += kernel_compat.o
  ksu_obj-y += kernel_umount.o
  ksu_obj-y += supercalls.o
-+kernelsu-objs += su_mount_ns.o
++ksu_obj-y += su_mount_ns.o
  ksu_obj-y += feature.o
  ksu_obj-y += ksud.o
  ksu_obj-y += seccomp_cache.o
