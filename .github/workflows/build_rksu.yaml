@@ -32,6 +32,7 @@ on:
         type: choice
         options:
           - 'rsuntk/KernelSU'
+          - 'hakuna77KernelSU'
       patching_susfs:
         description: 'Enable patch susfs Kernel?'
         required: true
