@@ -1,6 +1,6 @@
-From 8e45fa3e78fe5c2874abafb8f82e300ac6236280 Mon Sep 17 00:00:00 2001
+From 8c20d706d1e39dcc16ff03fb9868269d5950beef Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 15 Dec 2025 22:57:36 +0700
+Date: Tue, 16 Dec 2025 09:57:11 +0700
 Subject: [PATCH] susfs v2.0.0 latest commit & ida new api
 
 ---
@@ -13,7 +13,7 @@ Subject: [PATCH] susfs v2.0.0 latest commit & ida new api
  fs/open.c                 |  21 +
  fs/proc/base.c            |  31 ++
  fs/proc/cmdline.c         |  10 +
- fs/proc/fd.c              |  50 +-
+ fs/proc/fd.c              |  22 +-
  fs/proc/task_mmu.c        |  71 ++-
  fs/proc_namespace.c       |  25 +
  fs/read_write.c           |  11 +
@@ -29,7 +29,7 @@ Subject: [PATCH] susfs v2.0.0 latest commit & ida new api
  kernel/reboot.c           |  13 +
  kernel/sys.c              |  14 +
  security/selinux/avc.c    |  20 +
- 25 files changed, 2551 insertions(+), 4 deletions(-)
+ 25 files changed, 2523 insertions(+), 4 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1165,7 +1165,7 @@ index 403cbb12a..7c3fad2cb 100644
  	return 0;
  }
 diff --git a/fs/proc/fd.c b/fs/proc/fd.c
-index 96fc70225..947cbf7a7 100644
+index 96fc70225..7dd7c81ed 100644
 --- a/fs/proc/fd.c
 +++ b/fs/proc/fd.c
 @@ -12,6 +12,9 @@
@@ -1188,7 +1188,7 @@ index 96fc70225..947cbf7a7 100644
  
  	task = get_proc_task(m->private);
  	if (!task)
-@@ -52,10 +58,52 @@ static int seq_show(struct seq_file *m, void *v)
+@@ -52,10 +58,24 @@ static int seq_show(struct seq_file *m, void *v)
  
  	if (ret)
  		return ret;
@@ -1198,42 +1198,14 @@ index 96fc70225..947cbf7a7 100644
 +	if (likely(susfs_is_current_proc_umounted()) &&
 +				mnt->mnt_id >= DEFAULT_KSU_MNT_ID)
 +	{
-+		struct path path;
-+		char *pathname = kmalloc(PAGE_SIZE, GFP_KERNEL);
-+		char *dpath;
-+
-+		if (!pathname) {
-+			goto out_seq_printf;
-+		}
-+		dpath = d_path(&file->f_path, pathname, PAGE_SIZE);
-+		if (!dpath) {
-+			goto out_free_pathname;
-+		}
-+		if (kern_path(dpath, 0, &path)) {
-+			goto out_free_pathname;
-+		}
-+ 
 +		// - We have to iterate the mnt->mnt_parent until the mnt_id is not sus,
 +		//   doing real_mount(path.mnt)->mnt_id is wrong since this will retrieve
 +		//   the mnt_id of the umounted path.
-+		for (; mnt->mnt_id >= DEFAULT_KSU_MNT_ID; mnt = mnt->mnt_parent) { }
-+
-+		seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\nino:\t%lu\n",
-+				(long long)file->f_pos, f_flags,
-+				mnt->mnt_id,
-+				path.dentry->d_inode->i_ino);
-+		path_put(&path);
-+		kfree(pathname);
-+		goto bypass_orig_flow;
-+out_free_pathname:
-+		kfree(pathname);
++		for (; mnt->mnt_parent && mnt->mnt_id >= DEFAULT_KSU_MNT_ID; mnt = mnt->mnt_parent) { }
 +	}
-+out_seq_printf:
-+	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\nino:\t%lu\n",
++	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\n",
 +			(long long)file->f_pos, f_flags,
-+			mnt->mnt_id,
-+			file_inode(file)->i_ino);
-+bypass_orig_flow:
++			mnt->mnt_id);
 +#else
  	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\n",
  		   (long long)file->f_pos, f_flags,
