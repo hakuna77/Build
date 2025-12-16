@@ -1,15 +1,15 @@
-From 62b3f84f6a4082159a4297825c33a49699beddf1 Mon Sep 17 00:00:00 2001
+From 1542b49ef11f6a9aaab79caac91e53d0a672ddc0 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 16 Dec 2025 07:56:30 +0000
+Date: Tue, 16 Dec 2025 09:09:31 +0000
 Subject: [PATCH] Add mount namespace support
 
 ---
  kernel/Kbuild        |   1 +
  kernel/allowlist.c   |   3 +-
  kernel/app_profile.c |   2 +
- kernel/su_mount_ns.c | 219 +++++++++++++++++++++++++++++++++++++++++++
+ kernel/su_mount_ns.c | 225 +++++++++++++++++++++++++++++++++++++++++++
  kernel/su_mount_ns.h |  15 +++
- 5 files changed, 239 insertions(+), 1 deletion(-)
+ 5 files changed, 245 insertions(+), 1 deletion(-)
  create mode 100644 kernel/su_mount_ns.c
  create mode 100644 kernel/su_mount_ns.h
 
@@ -68,10 +68,10 @@ index ac373b56..b5b22f81 100644
  void __maybe_unused escape_to_root_for_init(void)
 diff --git a/kernel/su_mount_ns.c b/kernel/su_mount_ns.c
 new file mode 100644
-index 00000000..9789cb1f
+index 00000000..66d4056a
 --- /dev/null
 +++ b/kernel/su_mount_ns.c
-@@ -0,0 +1,219 @@
+@@ -0,0 +1,225 @@
 +#include <linux/dcache.h>
 +#include <linux/errno.h>
 +#include <linux/fdtable.h>
@@ -82,7 +82,6 @@ index 00000000..9789cb1f
 +#include <linux/namei.h>
 +#include <linux/proc_ns.h>
 +#include <linux/pid.h>
-+#include <linux/sched/task.h>
 +#include <linux/slab.h>
 +#include <linux/syscalls.h>
 +#include <linux/task_work.h>
@@ -103,11 +102,13 @@ index 00000000..9789cb1f
 +#include "klog.h" // IWYU pragma: keep
 +#include "ksu.h"
 +#include "su_mount_ns.h"
++#include "kernel_compat.h"
 +
 +extern int path_mount(const char *dev_name, struct path *path,
 +                      const char *type_page, unsigned long flags,
 +                      void *data_page);
 +
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
 +#if defined(__aarch64__)
 +extern long __arm64_sys_setns(const struct pt_regs *regs);
 +#elif defined(__x86_64__)
@@ -130,7 +131,12 @@ index 00000000..9789cb1f
 +#error "Unsupported arch"
 +#endif
 +}
-+
++#else
++__weak int ksys_unshare(unsigned long unshare_flags)
++{
++	return sys_unshare(unshare_flags);
++}
++#endif
 +// global mode , need CAP_SYS_ADMIN and CAP_SYS_CHROOT to perform setns
 +static void ksu_mnt_ns_global(void)
 +{
@@ -202,7 +208,7 @@ index 00000000..9789cb1f
 +    ret = ksu_sys_setns(fd, CLONE_NEWNS);
 +
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)
-+    ksys_close(fd);
++    sys_close(fd);
 +#else
 +    close_fd(fd);
 +#endif
