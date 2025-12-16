@@ -1,6 +1,6 @@
-From 1542b49ef11f6a9aaab79caac91e53d0a672ddc0 Mon Sep 17 00:00:00 2001
+From c9dc16863b61aba3c333ad9ea09ac9cb66313d28 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 16 Dec 2025 09:09:31 +0000
+Date: Tue, 16 Dec 2025 09:26:46 +0000
 Subject: [PATCH] Add mount namespace support
 
 ---
@@ -68,7 +68,7 @@ index ac373b56..b5b22f81 100644
  void __maybe_unused escape_to_root_for_init(void)
 diff --git a/kernel/su_mount_ns.c b/kernel/su_mount_ns.c
 new file mode 100644
-index 00000000..66d4056a
+index 00000000..1e104a20
 --- /dev/null
 +++ b/kernel/su_mount_ns.c
 @@ -0,0 +1,225 @@
@@ -132,6 +132,10 @@ index 00000000..66d4056a
 +#endif
 +}
 +#else
++static long ksu_sys_setns(int fd, int flags)
++{
++	return sys_setns(fd, flags);
++}
 +__weak int ksys_unshare(unsigned long unshare_flags)
 +{
 +	return sys_unshare(unshare_flags);
@@ -207,11 +211,7 @@ index 00000000..66d4056a
 +    fd_install(fd, ns_file);
 +    ret = ksu_sys_setns(fd, CLONE_NEWNS);
 +
-+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)
-+    sys_close(fd);
-+#else
-+    close_fd(fd);
-+#endif
++    do_close_fd(fd);
 +
 +    if (ret) {
 +        pr_warn("call setns failed: %ld\n", ret);
