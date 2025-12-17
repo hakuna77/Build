@@ -61,6 +61,7 @@ on:
           - '0001-v2.0.0.patch'
           - '0001-susfs-v2.0.0-latest-commit-ida-new-api.patch'
           - '0001-susfs-v2.0.0-manual-hook-not-incluced.patch'
+          - '0001-susfs-v2.0.0-KSUN.patch'
       patching_ksun:
         description: 'Enable patch susfs KernelSU-Next?'
         required: true
