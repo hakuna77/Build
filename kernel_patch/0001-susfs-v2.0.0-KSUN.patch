@@ -1,6 +1,6 @@
-From 27a6e592ea5edd9a822ec1711a27b290b1a4c525 Mon Sep 17 00:00:00 2001
+From 7d8aea7e591111421f00018d43f9758ed2acb915 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Fri, 19 Dec 2025 10:56:01 +0700
+Date: Thu, 18 Dec 2025 04:49:17 +0700
 Subject: [PATCH] susfs v2.0.0 KSUN
 
 ---
@@ -9,7 +9,7 @@ Subject: [PATCH] susfs v2.0.0 KSUN
  fs/devpts/inode.c         |  15 +
  fs/exec.c                 |  29 ++
  fs/namei.c                | 262 +++++++++-
- fs/namespace.c            | 259 ++++++++++
+ fs/namespace.c            | 254 ++++++++++
  fs/notify/fdinfo.c        |  53 ++
  fs/open.c                 |  22 +
  fs/proc/base.c            |  31 ++
@@ -30,7 +30,7 @@ Subject: [PATCH] susfs v2.0.0 KSUN
  kernel/reboot.c           |  13 +
  kernel/sys.c              |  14 +
  security/selinux/avc.c    |  20 +
- 26 files changed, 2546 insertions(+), 4 deletions(-)
+ 26 files changed, 2541 insertions(+), 4 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -602,10 +602,10 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 94fd63f93..4752a4e08 100644
+index a159f5f4c..98959064a 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
-@@ -26,10 +26,25 @@
+@@ -26,10 +26,23 @@
  #include <linux/bootmem.h>
  #include <linux/task_work.h>
  #include <linux/sched/task.h>
@@ -622,8 +622,6 @@ index 94fd63f93..4752a4e08 100644
 +
 +static DEFINE_IDA(susfs_ksu_mnt_group_ida);
 +static atomic64_t susfs_ksu_mounts = ATOMIC64_INIT(0);
-+static int susfs_mnt_id_start = DEFAULT_KSU_MNT_ID;
-+static int susfs_mnt_group_start = DEFAULT_KSU_MNT_GROUP_ID;
 +
 +#define CL_COPY_MNT_NS BIT(25) /* used by copy_mnt_ns() */
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
@@ -631,55 +629,55 @@ index 94fd63f93..4752a4e08 100644
  /* Maximum number of mounts in a mount namespace */
  unsigned int sysctl_mount_max __read_mostly = 100000;
  
-@@ -119,6 +134,24 @@ retry:
+@@ -108,6 +121,20 @@ static int mnt_alloc_id(struct mount *mnt)
+ 
  static void mnt_free_id(struct mount *mnt)
  {
- 	int id = mnt->mnt_id;
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	int mnt_id_backup = mnt->mnt.susfs_mnt_id_backup;
 +	// First we have to check if susfs_mnt_id_backup == DEFAULT_KSU_MNT_ID,
 +	// if so, no need to free.
-+	if (mnt_id_backup == DEFAULT_KSU_MNT_ID) {
++	if (mnt->mnt.susfs_mnt_id_backup == DEFAULT_KSU_MNT_ID) {
 +		return;
 +	}
++
 +	// Second if susfs_mnt_id_backup was set after mnt_id reorder, free it if so.
-+	if (likely(mnt_id_backup)) {
-+		spin_lock(&mnt_id_lock);
-+		ida_remove(&mnt_id_ida, mnt_id_backup);
-+		if (susfs_mnt_id_start > mnt_id_backup)
-+			susfs_mnt_id_start = mnt_id_backup;
-+		spin_unlock(&mnt_id_lock);
++	if (likely(mnt->mnt.susfs_mnt_id_backup)) {
++		ida_free(&mnt_id_ida, mnt->mnt.susfs_mnt_id_backup);
 +		return;
 +	}
 +
 +#endif
- 	spin_lock(&mnt_id_lock);
- 	ida_remove(&mnt_id_ida, id);
- 	if (mnt_id_start > id)
-@@ -135,6 +168,19 @@ static int mnt_alloc_group_id(struct mount *mnt)
+ 	ida_free(&mnt_id_ida, mnt->mnt_id);
+ }
+ 
+@@ -116,7 +143,23 @@ static void mnt_free_id(struct mount *mnt)
+  */
+ static int mnt_alloc_group_id(struct mount *mnt)
  {
- 	int res;
- 
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++	int res;
++
++	/* - At frist susfs_is_boot_completed_triggered is set to false in kernel,
++	 *   and it is still allowed to assign our custom mnt_group_id via susfs_ksu_mnt_group_ida
++	 *   if it is ksu mounts, until susfs_is_boot_completed_triggered is set to true
++	 *   when boot-completed stage is triggered in core_hook.c 
++	 */
 +	if (!susfs_is_boot_completed_triggered && mnt->mnt_id >= DEFAULT_KSU_MNT_ID) {
-+		if (!ida_pre_get(&susfs_ksu_mnt_group_ida, GFP_KERNEL))
-+			return -ENOMEM;
-+		// If so, assign a sus mnt_group id DEFAULT_SUS_MNT_GROUP_ID from susfs_mnt_group_ida
-+		res = ida_get_new_above(&susfs_ksu_mnt_group_ida,
-+					susfs_mnt_group_start,
-+					&mnt->mnt_group_id);
-+		if (!res)
-+			susfs_mnt_group_start = mnt->mnt_group_id + 1;
-+		return res;
++		res = ida_alloc_min(&susfs_ksu_mnt_group_ida, DEFAULT_KSU_MNT_GROUP_ID, GFP_KERNEL);
++		goto bypass_orig_flow;
 +	}
++	res = ida_alloc_min(&mnt_group_ida, 1, GFP_KERNEL);
++bypass_orig_flow:
++#else
+ 	int res = ida_alloc_min(&mnt_group_ida, 1, GFP_KERNEL);
 +#endif
- 	if (!ida_pre_get(&mnt_group_ida, GFP_KERNEL))
- 		return -ENOMEM;
  
-@@ -153,6 +199,24 @@ static int mnt_alloc_group_id(struct mount *mnt)
+ 	if (res < 0)
+ 		return res;
+@@ -129,6 +172,22 @@ static int mnt_alloc_group_id(struct mount *mnt)
+  */
  void mnt_release_group_id(struct mount *mnt)
  {
- 	int id = mnt->mnt_group_id;
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	/* - when boot-completed stage is triggered in core_hook.c,
 +	 *   susfs_is_boot_completed_triggered will be set to true.
@@ -690,18 +688,16 @@ index 94fd63f93..4752a4e08 100644
 +	 *   function will throw error to kernel log, but it won't affect the system,
 +	 *   so it is fine.
 +	 */
-+	if (!susfs_is_boot_completed_triggered && id >= DEFAULT_KSU_MNT_GROUP_ID) {
-+		ida_remove(&susfs_ksu_mnt_group_ida, id);
-+		if (susfs_mnt_group_start > id)
-+			susfs_mnt_group_start = id;
++	if (!susfs_is_boot_completed_triggered && mnt->mnt_group_id >= DEFAULT_KSU_MNT_GROUP_ID) {
++		ida_free(&susfs_ksu_mnt_group_ida, mnt->mnt_group_id);
 +		mnt->mnt_group_id = 0;
 +		return;
 +	}
 +#endif
- 	ida_remove(&mnt_group_ida, id);
- 	if (mnt_group_start > id)
- 		mnt_group_start = id;
-@@ -200,6 +264,112 @@ static void drop_mountpoint(struct fs_pin *p)
+ 	ida_free(&mnt_group_ida, mnt->mnt_group_id);
+ 	mnt->mnt_group_id = 0;
+ }
+@@ -174,6 +233,112 @@ static void drop_mountpoint(struct fs_pin *p)
  	mntput(&m->mnt);
  }
  
@@ -814,7 +810,7 @@ index 94fd63f93..4752a4e08 100644
  static struct mount *alloc_vfsmnt(const char *name)
  {
  	struct mount *mnt = kmem_cache_zalloc(mnt_cache, GFP_KERNEL);
-@@ -207,6 +377,7 @@ static struct mount *alloc_vfsmnt(const char *name)
+@@ -181,6 +346,7 @@ static struct mount *alloc_vfsmnt(const char *name)
  		int err;
  
  		err = mnt_alloc_id(mnt);
@@ -822,7 +818,7 @@ index 94fd63f93..4752a4e08 100644
  		if (err)
  			goto out_free_cache;
  
-@@ -227,6 +398,10 @@ static struct mount *alloc_vfsmnt(const char *name)
+@@ -201,6 +367,10 @@ static struct mount *alloc_vfsmnt(const char *name)
  		mnt->mnt_writers = 0;
  #endif
  		mnt->mnt.data = NULL;
@@ -833,7 +829,7 @@ index 94fd63f93..4752a4e08 100644
  
  		INIT_HLIST_NODE(&mnt->mnt_hash);
  		INIT_LIST_HEAD(&mnt->mnt_child);
-@@ -1038,7 +1213,18 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
+@@ -1012,7 +1182,18 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
  	if (!type)
  		return ERR_PTR(-ENODEV);
  
@@ -852,7 +848,7 @@ index 94fd63f93..4752a4e08 100644
  	if (!mnt)
  		return ERR_PTR(-ENOMEM);
  
-@@ -1064,6 +1250,7 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
+@@ -1038,6 +1219,7 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void
  	mnt->mnt.mnt_sb = root->d_sb;
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
@@ -860,7 +856,7 @@ index 94fd63f93..4752a4e08 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &root->d_sb->s_mounts);
  	unlock_mount_hash();
-@@ -1093,7 +1280,38 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1067,7 +1249,38 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	struct mount *mnt;
  	int err;
  
@@ -899,7 +895,7 @@ index 94fd63f93..4752a4e08 100644
  	if (!mnt)
  		return ERR_PTR(-ENOMEM);
  
-@@ -1145,6 +1363,7 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+@@ -1119,6 +1332,7 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  	mnt->mnt.mnt_root = dget(root);
  	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
  	mnt->mnt_parent = mnt;
@@ -907,7 +903,7 @@ index 94fd63f93..4752a4e08 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -1860,6 +2079,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
+@@ -1834,6 +2048,7 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
  	p = mnt;
  	list_for_each_entry(r, &mnt->mnt_mounts, mnt_child) {
  		struct mount *s;
@@ -915,7 +911,7 @@ index 94fd63f93..4752a4e08 100644
  		if (!is_subdir(r->mnt_mountpoint, dentry))
  			continue;
  
-@@ -2340,6 +2560,7 @@ static int do_loopback(struct path *path, const char *old_name,
+@@ -2314,6 +2529,7 @@ static int do_loopback(struct path *path, const char *old_name,
  		umount_tree(mnt, UMOUNT_SYNC);
  		unlock_mount_hash();
  	}
@@ -923,7 +919,7 @@ index 94fd63f93..4752a4e08 100644
  out2:
  	unlock_mount(mp);
  out:
-@@ -3044,6 +3265,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3018,6 +3234,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -934,7 +930,7 @@ index 94fd63f93..4752a4e08 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3080,6 +3305,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3054,6 +3274,7 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -942,7 +938,7 @@ index 94fd63f93..4752a4e08 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3675,3 +3901,36 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3649,3 +3870,36 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
