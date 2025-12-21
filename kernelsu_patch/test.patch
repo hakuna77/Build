@@ -1,33 +1,19 @@
-From ae4893459a84353b507e8e94714c1f7521b2e3b3 Mon Sep 17 00:00:00 2001
+From b35dbb5964094059c53c4a656d40337fbf6ca597 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sat, 20 Dec 2025 12:15:14 +0000
-Subject: [PATCH] test
+Date: Thu, 18 Dec 2025 22:29:15 +0000
+Subject: [PATCH] Add mount namespace support
 
 ---
- kernel/Kconfig         |   2 +-
  kernel/Makefile        |   1 +
  kernel/allowlist.c     |   3 +-
  kernel/app_profile.c   |   2 +
  kernel/kernel_compat.c |  21 ++++
  kernel/su_mount_ns.c   | 225 +++++++++++++++++++++++++++++++++++++++++
  kernel/su_mount_ns.h   |  15 +++
- 7 files changed, 267 insertions(+), 2 deletions(-)
+ 6 files changed, 266 insertions(+), 1 deletion(-)
  create mode 100644 kernel/su_mount_ns.c
  create mode 100644 kernel/su_mount_ns.h
 
-diff --git a/kernel/Kconfig b/kernel/Kconfig
-index 6e828dac..994ab373 100644
---- a/kernel/Kconfig
-+++ b/kernel/Kconfig
-@@ -70,7 +70,7 @@ config KSU_SUSFS_SPOOF_UNAME
- config KSU_SUSFS_TRY_UMOUNT
- 	bool "Enable to use ksu's try_umount"
- 	depends on KSU_SUSFS
--	default y
-+	default n
- 	help
- 		- Allow using try_umount to umount other user-defined mount paths prior to ksu's default umount paths.
- 		- Effective only on zygote spawned umounted user app process.
 diff --git a/kernel/Makefile b/kernel/Makefile
 index 91a82e9e..03d3473b 100644
 --- a/kernel/Makefile
