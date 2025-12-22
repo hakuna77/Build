@@ -25,6 +25,7 @@ on:
         type: choice
         options:
           - 'susfs-rksu-master'
+          - 'legacy'
       repo_ksu:
         description: 'Repo for KernelSU (owner/repo)'
         required: false
@@ -32,6 +33,7 @@ on:
         type: choice
         options:
           - 'rsuntk/KernelSU'
+          - 'KernelSU-Next/KernelSU-Next'
       patching_susfs:
         description: 'Enable patch susfs Kernel?'
         required: true
