@@ -1,7 +1,7 @@
-From c0e602e66e640ee720f51ea6c7ad2d191d784d82 Mon Sep 17 00:00:00 2001
-From: JJ-Coffee <akuntrial042@gmail.com>
-Date: Fri, 18 Jul 2025 20:36:10 +0000
-Subject: [PATCH 2/6] [BACKPORT] ptrace: Move setting/clearing  ptrace_message
+From 8802d408007ccc0db521eab1023f0817f2021647 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Tue, 23 Dec 2025 20:44:48 +0700
+Subject: [PATCH] [BACKPORT] ptrace: Move setting/clearing  ptrace_message 
  into ptrace_stop
 
 ---
@@ -97,10 +97,10 @@ index e3939e009..3e2fcbdb8 100644
  #define PTRACE_PEEKSIGINFO_SHARED	(1 << 0)
  
 diff --git a/kernel/signal.c b/kernel/signal.c
-index 42719c6c6..da8f46a95 100644
+index 5a5de7ba6..ae9badc10 100644
 --- a/kernel/signal.c
 +++ b/kernel/signal.c
-@@ -1875,7 +1875,8 @@ static int sigkill_pending(struct task_struct *tsk)
+@@ -1865,7 +1865,8 @@ static inline int may_ptrace_stop(void)
   * If we actually decide not to stop at all because the tracer
   * is gone, we keep current->exit_code unless clear_code.
   */
@@ -110,7 +110,7 @@ index 42719c6c6..da8f46a95 100644
  	__releases(&current->sighand->siglock)
  	__acquires(&current->sighand->siglock)
  {
-@@ -1922,6 +1923,7 @@ static void ptrace_stop(int exit_code, int why, int clear_code, siginfo_t *info)
+@@ -1911,6 +1912,7 @@ static void ptrace_stop(int exit_code, int why, int clear_code, siginfo_t *info)
  	 */
  	smp_wmb();
  
@@ -118,7 +118,7 @@ index 42719c6c6..da8f46a95 100644
  	current->last_siginfo = info;
  	current->exit_code = exit_code;
  
-@@ -1998,6 +2000,7 @@ static void ptrace_stop(int exit_code, int why, int clear_code, siginfo_t *info)
+@@ -1987,6 +1989,7 @@ static void ptrace_stop(int exit_code, int why, int clear_code, siginfo_t *info)
  	 */
  	spin_lock_irq(&current->sighand->siglock);
  	current->last_siginfo = NULL;
@@ -126,7 +126,7 @@ index 42719c6c6..da8f46a95 100644
  
  	/* LISTENING can be set only during STOP traps, clear it */
  	current->jobctl &= ~JOBCTL_LISTENING;
-@@ -2010,7 +2013,7 @@ static void ptrace_stop(int exit_code, int why, int clear_code, siginfo_t *info)
+@@ -1999,7 +2002,7 @@ static void ptrace_stop(int exit_code, int why, int clear_code, siginfo_t *info)
  	recalc_sigpending_tsk(current);
  }
  
@@ -135,7 +135,7 @@ index 42719c6c6..da8f46a95 100644
  {
  	siginfo_t info;
  
-@@ -2021,17 +2024,17 @@ static void ptrace_do_notify(int signr, int exit_code, int why)
+@@ -2010,17 +2013,17 @@ static void ptrace_do_notify(int signr, int exit_code, int why)
  	info.si_uid = from_kuid_munged(current_user_ns(), current_uid());
  
  	/* Let the debugger run.  */
@@ -156,7 +156,7 @@ index 42719c6c6..da8f46a95 100644
  	spin_unlock_irq(&current->sighand->siglock);
  }
  
-@@ -2185,10 +2188,10 @@ static void do_jobctl_trap(void)
+@@ -2174,10 +2177,10 @@ static void do_jobctl_trap(void)
  			signr = SIGTRAP;
  		WARN_ON_ONCE(!signr);
  		ptrace_do_notify(signr, signr | (PTRACE_EVENT_STOP << 8),
@@ -169,7 +169,7 @@ index 42719c6c6..da8f46a95 100644
  		current->exit_code = 0;
  	}
  }
-@@ -2205,7 +2208,7 @@ static int ptrace_signal(int signr, siginfo_t *info)
+@@ -2194,7 +2197,7 @@ static int ptrace_signal(int signr, siginfo_t *info)
  	 * comment in dequeue_signal().
  	 */
  	current->jobctl |= JOBCTL_STOP_DEQUEUED;
@@ -179,5 +179,5 @@ index 42719c6c6..da8f46a95 100644
  	/* We're back.  Did the debugger cancel the sig?  */
  	signr = current->exit_code;
 -- 
-2.34.1
+2.51.2
 
