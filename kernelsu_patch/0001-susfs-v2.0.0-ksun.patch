@@ -1,27 +1,27 @@
-From 0f135952652ee837aa931706c8170135be447848 Mon Sep 17 00:00:00 2001
+From e4cdcf18eee4ec4a64948430ea311fe32efaf347 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Wed, 24 Dec 2025 01:33:49 +0700
+Date: Wed, 24 Dec 2025 03:04:59 +0700
 Subject: [PATCH] susfs v2.0.0 ksun
 
 ---
  .gitignore               |   5 +-
  kernel/Kbuild            |   1 -
- kernel/Kconfig           |  90 ++++++++++++++++++++
+ kernel/Kconfig           |  90 +++++++++++++++++++++++
  kernel/Makefile          |  10 +++
- kernel/allowlist.c       |   4 +
- kernel/app_profile.c     |   4 +
+ kernel/allowlist.c       |   4 ++
+ kernel/app_profile.c     |   4 ++
  kernel/kernel_umount.c   |   4 +-
- kernel/ksu.c             |  27 +++++-
+ kernel/ksu.c             |  27 ++++++-
  kernel/ksud.c            |  15 +++-
  kernel/ksud.h            |  19 +++++
  kernel/lsm_hooks.c       |   4 +-
- kernel/selinux/rules.c   |   9 ++
- kernel/selinux/selinux.c |  93 +++++++++++++++++++-
- kernel/setuid_hook.c     | 139 +++++++++++++++++++++++++++++-
- kernel/sucompat.c        | 177 +++++++++++++++++++++++++++++++++++++++
- kernel/sucompat.h        |   4 +
- kernel/supercalls.c      | 136 +++++++++++++++++++++++++++++-
- 17 files changed, 727 insertions(+), 14 deletions(-)
+ kernel/selinux/rules.c   |   9 +++
+ kernel/selinux/selinux.c |  93 +++++++++++++++++++++++-
+ kernel/setuid_hook.c     | 139 +++++++++++++++++++++++++++++++++++-
+ kernel/sucompat.c        | 149 +++++++++++++++++++++++++++++++++++++++
+ kernel/sucompat.h        |   4 ++
+ kernel/supercalls.c      | 136 +++++++++++++++++++++++++++++++++--
+ 17 files changed, 699 insertions(+), 14 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 9e7e9587..c03bbbeb 100644
@@ -731,7 +731,7 @@ index 69a47bbe..ce478ef5 100644
  extern void ksu_lsm_hook_init(void);
  void ksu_setuid_hook_init(void)
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index d4c09b53..588ca7f7 100644
+index d4c09b53..3b494023 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
 @@ -20,6 +20,12 @@
@@ -755,7 +755,7 @@ index d4c09b53..588ca7f7 100644
  int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
  		int *mode, int *__unused_flags)
  {
-@@ -239,6 +246,176 @@ int __ksu_handle_devpts(struct inode *inode)
+@@ -239,6 +246,148 @@ int __ksu_handle_devpts(struct inode *inode)
  		sec->sid = ksu_file_sid;
  	return 0;
  }
@@ -900,34 +900,6 @@ index d4c09b53..588ca7f7 100644
 +}
 +#endif // #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
 +
-+int ksu_handle_devpts(struct inode *inode)
-+{
-+    if (!current->mm) {
-+        return 0;
-+    }
-+
-+    uid_t uid = current_uid().val;
-+    if (uid % 100000 < 10000) {
-+        // not untrusted_app, ignore it
-+        return 0;
-+    }
-+
-+    if (!__ksu_is_allow_uid_for_current(uid))
-+        return 0;
-+
-+    if (ksu_file_sid) {
-+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) || defined(KSU_OPTIONAL_SELINUX_INODE)
-+		struct inode_security_struct *sec = selinux_inode(inode);
-+#else
-+		struct inode_security_struct *sec = (struct inode_security_struct *)inode->i_security;
-+#endif
-+        if (sec) {
-+            sec->sid = ksu_file_sid;
-+        }
-+    }
-+
-+    return 0;
-+}
 +#endif // #ifndef CONFIG_KSU_SUSFS
  
  // dead code: devpts handling
