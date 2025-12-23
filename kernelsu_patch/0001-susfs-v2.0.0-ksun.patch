@@ -561,7 +561,7 @@ index 69a47bbe..ce478ef5 100644
  #include <linux/uidgid.h>
  #include <linux/version.h>
 +#ifdef CONFIG_KSU_SUSFS
-+#include <linux/susfs_def.h>
++#include <linux/susfs.h>
 +#endif // #ifdef CONFIG_KSU_SUSFS
  
  #include "allowlist.h"
