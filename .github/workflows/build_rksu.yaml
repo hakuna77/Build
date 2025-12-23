@@ -79,6 +79,7 @@ on:
         type: choice
         options:
           - 'test.patch'
+          - '0001-susfs-v2.0.0-ksun.patch'
       build_boot_img:
         description: 'enable BUILD BOOT IMG'
         required: true
