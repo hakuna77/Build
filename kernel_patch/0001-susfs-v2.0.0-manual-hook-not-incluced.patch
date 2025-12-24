@@ -1,14 +1,13 @@
-From c021acdd086903850f1506770fd30cacc51b057b Mon Sep 17 00:00:00 2001
+From 122fded34ee769ef7798dade6fd3e63780dc97d3 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Wed, 17 Dec 2025 06:54:03 +0700
-Subject: [PATCH] susfs v2.0.0 manual hook not incluced
+Date: Wed, 24 Dec 2025 23:14:11 +0700
+Subject: [PATCH] susfs v2.0.0 without manual hook
 
 ---
  fs/Makefile               |   2 +
  fs/namei.c                | 262 +++++++++-
  fs/namespace.c            | 254 ++++++++++
  fs/notify/fdinfo.c        |  53 ++
- fs/open.c                 |  22 +
  fs/proc/base.c            |  31 ++
  fs/proc/cmdline.c         |  10 +
  fs/proc/fd.c              |  22 +-
@@ -25,7 +24,7 @@ Subject: [PATCH] susfs v2.0.0 manual hook not incluced
  kernel/kallsyms.c         |  33 ++
  kernel/sys.c              |  14 +
  security/selinux/avc.c    |  20 +
- 21 files changed, 2440 insertions(+), 4 deletions(-)
+ 20 files changed, 2418 insertions(+), 4 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -948,53 +947,6 @@ index c62a87ee3..8970b5c7b 100644
  		seq_printf(m, "inotify wd:%x ino:%lx sdev:%x mask:%x ignored_mask:0 ",
  			   inode_mark->wd, inode->i_ino, inode->i_sb->s_dev,
  			   inotify_mark_user_mask(mark));
-diff --git a/fs/open.c b/fs/open.c
-index 23dcf3363..ed18fa1d5 100644
---- a/fs/open.c
-+++ b/fs/open.c
-@@ -31,6 +31,9 @@
- #include <linux/ima.h>
- #include <linux/dnotify.h>
- #include <linux/compat.h>
-+#ifdef CONFIG_KSU_SUSFS
-+#include <linux/susfs_def.h>
-+#endif
- 
- #include "internal.h"
- 
-@@ -354,6 +357,13 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
- 	return error;
- }
- 
-+#ifdef CONFIG_KSU_SUSFS
-+extern bool ksu_su_compat_enabled __read_mostly;
-+extern bool __ksu_is_allow_uid_for_current(uid_t uid);
-+extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
-+			int *flags);
-+#endif
-+
- /*
-  * access() needs to use the real uid/gid, not the effective uid/gid.
-  * We do this by temporarily clearing all FS-related capabilities and
-@@ -377,6 +387,18 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
- 	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
- #endif
- 
-+#ifdef CONFIG_KSU_SUSFS
-+	if (likely(susfs_is_current_proc_umounted()) || !ksu_su_compat_enabled) {
-+		goto orig_flow;
-+	}
-+
-+	if (unlikely(__ksu_is_allow_uid_for_current(current_uid().val))) {
-+		ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
-+	}
-+
-+orig_flow:
-+#endif
-+
- 	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
- 		return -EINVAL;
- 
 diff --git a/fs/proc/base.c b/fs/proc/base.c
 index dc65fe528..262f43bd5 100644
 --- a/fs/proc/base.c
@@ -1786,7 +1738,7 @@ index 0c357663e..51ef27ba4 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (error >= 0)
 diff --git a/fs/stat.c b/fs/stat.c
-index cb691a28c..c4c65c0e7 100644
+index 04550c0ba..394074c63 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,10 @@
