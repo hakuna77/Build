@@ -308,6 +308,7 @@ jobs:
             0010-BACKPORT-vfs-syscall-Add-move_mount-2-to-move-mounts.patch \
             0011-BACKPORT-arm-arm64-wire-up-backported-sys_move_mount.patch \
             0001-backport-test.patch \
+            add-slow_avc_audit-hook.patch \
             ${{ env.MANUAL_HOOK }}
           do
             if patch -p1 < "$patch_file"; then
