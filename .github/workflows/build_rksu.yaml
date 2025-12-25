@@ -65,6 +65,7 @@ on:
           - '0001-susfs-v2.0.0-latest-commit-ida-new-api.patch'
           - '0001-susfs-v2.0.0-manual-hook-not-incluced.patch'
           - '0001-susfs-v2.0.0-KSUN.patch'
+          - '0001-susfs-v2.0.0-try_umount.patch'
       patching_ksun:
         description: 'Enable patch susfs KernelSU-Next?'
         required: true
@@ -476,6 +477,11 @@ jobs:
                 echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             fi
         fi
+        
+        if [ ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} = "0001-susfs-v2.0.0-try_umount.patch" ]; then
+            echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+        fi
+        
         if [ ${{ env.ADD_KPROBES_CONFIG }} = true -a ${{ env.APPLY_KSU_PATCH }} != true ]; then
             echo "CONFIG_MODULES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
