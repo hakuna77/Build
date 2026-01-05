@@ -1,0 +1,141 @@
+From 23d3e78acfaca42bcecc62f0943a99e6d4650637 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Mon, 5 Jan 2026 22:36:24 +0700
+Subject: [PATCH] avc v2
+
+---
+ kernel/Kbuild   |  4 +---
+ kernel/extras.c | 52 +++++++++++++++++++++----------------------------
+ 2 files changed, 23 insertions(+), 33 deletions(-)
+
+diff --git a/kernel/Kbuild b/kernel/Kbuild
+index 3f455e11..87d07c0b 100644
+--- a/kernel/Kbuild
++++ b/kernel/Kbuild
+@@ -19,8 +19,6 @@ kernelsu-objs += file_wrapper.o
+ kernelsu-objs += util.o
+ kernelsu-objs += extras.o
+ 
+-kernelsu-objs += extras.o
+-
+ kernelsu-objs += selinux/selinux.o
+ kernelsu-objs += selinux/sepolicy.o
+ kernelsu-objs += selinux/rules.o
+@@ -260,6 +258,6 @@ ccflags-y += -DEXPECTED_MANAGER_SIZE=$(KSU_NEXT_MANAGER_SIZE)
+ ccflags-y += -DEXPECTED_MANAGER_HASH=\"$(KSU_NEXT_MANAGER_HASH)\"
+ 
+ ccflags-y += -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat -Wno-missing-prototypes
+-ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-unused-variable
++ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
+ 
+ # Keep a new line here!! Because someone may append config
+diff --git a/kernel/extras.c b/kernel/extras.c
+index b4fe4cd8..d4653685 100644
+--- a/kernel/extras.c
++++ b/kernel/extras.c
+@@ -6,6 +6,7 @@
+ #include "klog.h"
+ #include "ksud.h"
+ #include "seccomp_cache.h"
++#include "selinux/selinux.h"
+ 
+ // sorry for the ifdef hell
+ // but im too lazy to fragment this out.
+@@ -13,7 +14,6 @@
+ // - xx, 20251019
+ 
+ static u32 su_sid = 0;
+-static u32 priv_app_sid = 0;
+ 
+ // init as disabled by default
+ static atomic_t disable_spoof = ATOMIC_INIT(1);
+@@ -64,33 +64,31 @@ static const struct ksu_feature_handler avc_spoof_handler = {
+ static int get_sid()
+ {
+ 	// dont load at all if we cant get sids
+-	int err = security_secctx_to_secid("u:r:su:s0", strlen("u:r:su:s0"), &su_sid);
++	int err = security_secctx_to_secid(KERNEL_SU_CONTEXT, strlen(KERNEL_SU_CONTEXT), &su_sid);
+ 	if (err) {
+ 		pr_info("avc_spoof/get_sid: su_sid not found!\n");
+ 		return -1;
+ 	}
+ 	pr_info("avc_spoof/get_sid: su_sid: %u\n", su_sid);
+ 
+-	err = security_secctx_to_secid("u:r:priv_app:s0:c512,c768", strlen("u:r:priv_app:s0:c512,c768"), &priv_app_sid);
+-	if (err) {
+-		pr_info("avc_spoof/get_sid: priv_app_sid not found!\n");
+-		return -1;
+-	}
+-	pr_info("avc_spoof/get_sid: priv_app_sid: %u\n", priv_app_sid);
+ 	return 0;
+ }
+ 
+-int ksu_handle_slow_avc_audit(u32 *tsid)
++int ksu_handle_slow_avc_audit_new(u32 tsid, u16 *tclass)
+ {
+ 	if (atomic_read(&disable_spoof))
+ 		return 0;
+ 
+-	// if tsid is su, we just replace it
+-	// unsure if its enough, but this is how it is aye?
+-	if (*tsid == su_sid) {
+-		pr_info("avc_spoof/slow_avc_audit: replacing su_sid: %u with priv_app_sid: %u\n", su_sid, priv_app_sid);
+-		*tsid = priv_app_sid;
+-	}
++	if (tsid != su_sid)
++		return 0;
++
++	// we can just zero out tclass for gki
++	// since theres a check that if !tclass; return -EINVAL;
++	// this way all logging is prevented for su_sid
++	// this can cause splats due to WARN_ON though
++
++	pr_info("avc_spoof/slow_avc_audit: prevent log for sid: %u\n", su_sid);
++	*tclass = 0;
+ 
+ 	return 0;
+ }
+@@ -100,31 +98,25 @@ int ksu_handle_slow_avc_audit(u32 *tsid)
+ #include <linux/slab.h>
+ #include "arch.h"
+ static struct kprobe *slow_avc_audit_kp;
+-//	.symbol_name = "slow_avc_audit",
+-//	.pre_handler = slow_avc_audit_pre_handler,
++
+ static int slow_avc_audit_pre_handler(struct kprobe *p, struct pt_regs *regs)
+ {
+ 	if (atomic_read(&disable_spoof))
+ 		return 0;
+ 
+-	/* 
+-	 * for < 4.17 int slow_avc_audit(u32 ssid, u32 tsid
+-	 * for >= 4.17 int slow_avc_audit(struct selinux_state *state, u32 ssid, u32 tsid
+-	 * for >= 6.4 int slow_avc_audit(u32 ssid, u32 tsid
+-	 * not to mention theres also DKSU_HAS_SELINUX_STATE
+-	 * since its hard to make sure this selinux state thing 
+-	 * cross crossing with 4.17 ~ 6.4's where slow_avc_audit
+-	 * changes abi (tsid in arg2 vs arg3)
+-	 */
++	u32 tsid;
++	u16 *tclass;
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+-	u32 *tsid = (u32 *)&PT_REGS_PARM2(regs);
+-	ksu_handle_slow_avc_audit(tsid);
++	tsid = (u32)PT_REGS_PARM2(regs);
++	tclass = (u16 *)&PT_REGS_PARM3(regs);
+ #else
+-	u32 *tsid = (u32 *)&PT_REGS_PARM3(regs);
+-	ksu_handle_slow_avc_audit(tsid);
++	tsid = (u32)PT_REGS_PARM3(regs);
++	tclass = (u16 *)&PT_REGS_CCALL_PARM4(regs);
+ #endif
+ 
++	ksu_handle_slow_avc_audit_new(tsid, tclass);
++
+ 	return 0;
+ }
+ 
+-- 
+2.51.2
+
