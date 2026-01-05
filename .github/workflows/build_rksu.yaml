@@ -311,7 +311,8 @@ jobs:
             0010-BACKPORT-vfs-syscall-Add-move_mount-2-to-move-mounts.patch \
             0011-BACKPORT-arm-arm64-wire-up-backported-sys_move_mount.patch \
             0001-backport-test.patch \
-            ${{ env.MANUAL_HOOK }}
+            ${{ env.MANUAL_HOOK }} \
+            0001-upstream-avc.patch
           do
             if patch -p1 < "$patch_file"; then
               echo "✅ $patch_file applied successfully."
