@@ -1,12 +1,100 @@
-From 9ddfd74201d9658086fee827eab3bfe1d7871369 Mon Sep 17 00:00:00 2001
+From 323ac7dcb6d7ce6eae372e08e77c345f3e525779 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 5 Jan 2026 23:04:44 +0700
-Subject: [PATCH] avc happy
+Date: Thu, 8 Jan 2026 02:29:51 +0700
+Subject: [PATCH] test
 
 ---
- kernel/extras.c | 16 +++++++++++++++-
- 1 file changed, 15 insertions(+), 1 deletion(-)
+ kernel/apk_sign.c        |  52 ++++++++++++++++++
+ kernel/apk_sign.h        |   1 +
+ kernel/extras.c          |  16 +++++-
+ kernel/ksud.c            |   6 +--
+ kernel/selinux/selinux.c | 110 +++++++++++++++++++++++++++------------
+ kernel/selinux/selinux.h |   6 ++-
+ kernel/throne_tracker.c  |  48 +----------------
+ 7 files changed, 152 insertions(+), 87 deletions(-)
 
+diff --git a/kernel/apk_sign.c b/kernel/apk_sign.c
+index 09d89273..0470b800 100644
+--- a/kernel/apk_sign.c
++++ b/kernel/apk_sign.c
+@@ -15,6 +15,7 @@
+ #endif
+ 
+ #include "apk_sign.h"
++#include "app_profile.h"
+ #include "klog.h" // IWYU pragma: keep
+ #include "kernel_compat.h"
+ 
+@@ -313,7 +314,58 @@ module_param_cb(ksu_debug_manager_appid, &expected_size_ops,
+ 
+ #endif
+ 
++int get_pkg_from_apk_path(char *pkg, const char *path)
++{
++	int len = strlen(path);
++	if (len >= KSU_MAX_PACKAGE_NAME || len < 1)
++		return -1;
++
++	const char *last_slash = NULL;
++	const char *second_last_slash = NULL;
++
++	int i;
++	for (i = len - 1; i >= 0; i--) {
++		if (path[i] == '/') {
++			if (!last_slash) {
++				last_slash = &path[i];
++			} else {
++				second_last_slash = &path[i];
++				break;
++			}
++		}
++	}
++
++	if (!last_slash || !second_last_slash)
++		return -1;
++
++	const char *last_hyphen = strchr(second_last_slash, '-');
++	if (!last_hyphen || last_hyphen > last_slash)
++		return -1;
++
++	int pkg_len = last_hyphen - second_last_slash - 1;
++	if (pkg_len >= KSU_MAX_PACKAGE_NAME || pkg_len <= 0)
++		return -1;
++
++	// Copying the package name
++	strncpy(pkg, second_last_slash + 1, pkg_len);
++	pkg[pkg_len] = '\0';
++
++	return 0;
++}
++
+ bool is_manager_apk(char *path)
+ {
++#ifdef KSU_MANAGER_PACKAGE
++	char pkg[KSU_MAX_PACKAGE_NAME];
++	if (get_pkg_from_apk_path(pkg, path) < 0) {
++		pr_err("Failed to get package name from apk path: %s\n", path);
++		return false;
++	}
++
++	// pkg is `<real package>`
++	if (strncmp(pkg, KSU_MANAGER_PACKAGE, sizeof(KSU_MANAGER_PACKAGE))) {
++		return false;
++	}
++#endif
+ 	return check_v2_signature(path, EXPECTED_MANAGER_SIZE, EXPECTED_MANAGER_HASH);
+ }
+diff --git a/kernel/apk_sign.h b/kernel/apk_sign.h
+index bed501c4..d3a44bd2 100644
+--- a/kernel/apk_sign.h
++++ b/kernel/apk_sign.h
+@@ -4,5 +4,6 @@
+ #include <linux/types.h>
+ 
+ bool is_manager_apk(char *path);
++int get_pkg_from_apk_path(char *pkg, const char *path);
+ 
+ #endif
 diff --git a/kernel/extras.c b/kernel/extras.c
 index b4fe4cd8..30b366c4 100644
 --- a/kernel/extras.c
@@ -34,6 +122,304 @@ index b4fe4cd8..30b366c4 100644
  
  void ksu_avc_spoof_disable(void)
  {
+diff --git a/kernel/ksud.c b/kernel/ksud.c
+index 4a13b556..8ade6b8a 100644
+--- a/kernel/ksud.c
++++ b/kernel/ksud.c
+@@ -82,7 +82,6 @@ bool ksu_input_hook __read_mostly = true;
+ #endif
+ bool ksu_execveat_hook __read_mostly = true;
+ 
+-u32 ksu_file_sid;
+ void on_post_fs_data(void)
+ {
+ 	static bool done = false;
+@@ -92,13 +91,11 @@ void on_post_fs_data(void)
+ 	}
+ 	done = true;
+ 	pr_info("on_post_fs_data!\n");
++
+ 	ksu_load_allow_list();
+ 	ksu_observer_init();
+ 	// sanity check, this may influence the performance
+ 	stop_input_hook();
+-
+-	ksu_file_sid = ksu_get_ksu_file_sid();
+-	pr_info("ksu_file sid: %d\n", ksu_file_sid);
+ }
+ 
+ extern void ext4_unregister_sysfs(struct super_block *sb);
+@@ -433,6 +430,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+ 		    check_argv(*argv, 1, "second_stage", buf, sizeof(buf))) {
+ 			pr_info("/system/bin/init second_stage executed\n");
+ 			apply_kernelsu_rules();
++			cache_sid();
+ 			setup_ksu_cred();
+ 			init_second_stage_executed = true;
+ 		}
+diff --git a/kernel/selinux/selinux.c b/kernel/selinux/selinux.c
+index 89d46b00..b5629397 100644
+--- a/kernel/selinux/selinux.c
++++ b/kernel/selinux/selinux.c
+@@ -7,6 +7,23 @@
+ #include "../klog.h" // IWYU pragma: keep
+ #include "../ksu.h"
+ 
++/*
++ * Cached SID values for frequently checked contexts.
++ * These are resolved once at init and used for fast u32 comparison
++ * instead of expensive string operations on every check.
++ *
++ * A value of 0 means "no cached SID is available" for that context.
++ * This covers both the initial "not yet cached" state and any case
++ * where resolving the SID (e.g. via security_secctx_to_secid) failed.
++ * In all such cases we intentionally fall back to the slower
++ * string-based comparison path; this degrades performance only and
++ * does not cause a functional failure.
++ */
++static u32 cached_su_sid __read_mostly = 0;
++static u32 cached_zygote_sid __read_mostly = 0;
++static u32 cached_init_sid __read_mostly = 0;
++u32 ksu_file_sid __read_mostly = 0;
++
+ static int transive_to_domain(const char *domain, struct cred *cred)
+ {
+     struct task_security_struct *tsec;
+@@ -126,33 +143,55 @@ static void __security_release_secctx(struct lsm_context *cp)
+ #define __security_release_secctx security_release_secctx
+ #endif
+ 
+-bool is_task_ksu_domain(const struct cred *cred)
++/*
++ * Initialize cached SID values for frequently checked SELinux contexts.
++ * Called once after SELinux policy is loaded (post-fs-data).
++ * This eliminates expensive string comparisons in hot paths.
++ */
++void cache_sid(void)
+ {
+-    struct lsm_context ctx;
+-    bool result;
+-    if (!cred) {
+-        return false;
++    int err;
++
++    err = security_secctx_to_secid(KERNEL_SU_CONTEXT, strlen(KERNEL_SU_CONTEXT),
++                                   &cached_su_sid);
++    if (err) {
++        pr_warn("Failed to cache kernel su domain SID: %d\n", err);
++        cached_su_sid = 0;
++    } else {
++        pr_info("Cached su SID: %u\n", cached_su_sid);
+     }
+-    const struct task_security_struct *tsec = selinux_cred(cred);
+-    if (!tsec) {
+-        return false;
++    err = security_secctx_to_secid(ZYGOTE_CONTEXT, strlen(ZYGOTE_CONTEXT),
++                                   &cached_zygote_sid);
++    if (err) {
++        pr_warn("Failed to cache zygote SID: %d\n", err);
++        cached_zygote_sid = 0;
++    } else {
++        pr_info("Cached zygote SID: %u\n", cached_zygote_sid);
+     }
+-    int err = __security_secid_to_secctx(tsec->sid, &ctx);
++    err = security_secctx_to_secid(INIT_CONTEXT, strlen(INIT_CONTEXT),
++                                   &cached_init_sid);
+     if (err) {
+-        return false;
++        pr_warn("Failed to cache init SID: %d\n", err);
++        cached_init_sid = 0;
++    } else {
++        pr_info("Cached init SID: %u\n", cached_init_sid);
++    }
++    err = security_secctx_to_secid(KSU_FILE_CONTEXT, strlen(KSU_FILE_CONTEXT),
++                                   &ksu_file_sid);
++    if (err) {
++        pr_warn("Failed to cache ksu_file SID: %d\n", err);
++        ksu_file_sid = 0;
++    } else {
++        pr_info("Cached ksu_file SID: %u\n", ksu_file_sid);
+     }
+-    result = strncmp(KERNEL_SU_CONTEXT, ctx.context, ctx.len) == 0;
+-    __security_release_secctx(&ctx);
+-    return result;
+-}
+-
+-bool is_ksu_domain()
+-{
+-    current_sid();
+-    return is_task_ksu_domain(current_cred());
+ }
+ 
+-bool is_context(const struct cred *cred, const char *context)
++/*
++ * Fast path: compare task's SID directly against cached value.
++ * Falls back to string comparison if cache is not initialized.
++ */
++static bool is_sid_match(const struct cred *cred, u32 cached_sid,
++                         const char *fallback_context)
+ {
+     if (!cred) {
+         return false;
+@@ -161,36 +200,41 @@ bool is_context(const struct cred *cred, const char *context)
+     if (!tsec) {
+         return false;
+     }
++    // Fast path: use cached SID if available
++    if (likely(cached_sid != 0)) {
++        return tsec->sid == cached_sid;
++    }
++
++    // Slow path fallback: string comparison (only before cache is initialized)
+     struct lsm_context ctx;
+     bool result;
+     int err = __security_secid_to_secctx(tsec->sid, &ctx);
+     if (err) {
+         return false;
+     }
+-    result = strncmp(context, ctx.context, ctx.len) == 0;
++    result = strncmp(fallback_context, ctx.context, ctx.len) == 0;
+     __security_release_secctx(&ctx);
+     return result;
+ }
+ 
+-bool is_zygote(const struct cred* cred)
++bool is_task_ksu_domain(const struct cred* cred)
+ {
+-    return is_context(cred, "u:r:zygote:s0");
++    return is_sid_match(cred, cached_su_sid, KERNEL_SU_CONTEXT);
+ }
+ 
+-bool is_init(const struct cred* cred)
++bool is_ksu_domain()
+ {
+-    return is_context(cred, "u:r:init:s0");
++    return is_task_ksu_domain(current_cred());
+ }
+ 
+ #define KSU_FILE_DOMAIN "u:object_r:ksu_file:s0"
+ 
+-u32 ksu_get_ksu_file_sid()
++bool is_zygote(const struct cred *cred)
+ {
+-    u32 ksu_file_sid = 0;
+-    int err = security_secctx_to_secid(KSU_FILE_CONTEXT, strlen(KSU_FILE_CONTEXT),
+-                       &ksu_file_sid);
+-    if (err) {
+-        pr_info("get ksufile sid err %d\n", err);
+-    }
+-    return ksu_file_sid;
++    return is_sid_match(cred, cached_zygote_sid, ZYGOTE_CONTEXT);
++}
++
++bool is_init(const struct cred *cred)
++{
++    return is_sid_match(cred, cached_init_sid, INIT_CONTEXT);
+ }
+diff --git a/kernel/selinux/selinux.h b/kernel/selinux/selinux.h
+index 84fda9d5..3b135fdb 100644
+--- a/kernel/selinux/selinux.h
++++ b/kernel/selinux/selinux.h
+@@ -37,6 +37,8 @@ static inline u32 current_sid(void)
+ 
+ #define KERNEL_SU_CONTEXT "u:r:" KERNEL_SU_DOMAIN ":s0"
+ #define KSU_FILE_CONTEXT "u:object_r:" KERNEL_SU_FILE ":s0"
++#define ZYGOTE_CONTEXT "u:r:zygote:s0"
++#define INIT_CONTEXT "u:r:init:s0"
+ 
+ void setup_selinux(const char *);
+ 
+@@ -44,6 +46,8 @@ void setenforce(bool);
+ 
+ bool getenforce();
+ 
++void cache_sid(void);
++
+ bool is_task_ksu_domain(const struct cred* cred);
+ 
+ bool is_ksu_domain();
+@@ -54,8 +58,6 @@ bool is_init(const struct cred* cred);
+ 
+ void apply_kernelsu_rules();
+ 
+-u32 ksu_get_ksu_file_sid();
+-
+ int handle_sepolicy(unsigned long arg3, void __user *arg4);
+ 
+ void setup_ksu_cred();
+diff --git a/kernel/throne_tracker.c b/kernel/throne_tracker.c
+index ee9b4ddc..82f5c06e 100644
+--- a/kernel/throne_tracker.c
++++ b/kernel/throne_tracker.c
+@@ -7,6 +7,7 @@
+ #include <linux/version.h>
+ 
+ #include "allowlist.h"
++#include "apk_sign.h"
+ #include "klog.h" // IWYU pragma: keep
+ #include "manager.h"
+ #include "throne_tracker.h"
+@@ -22,45 +23,6 @@ struct uid_data {
+ 	char package[KSU_MAX_PACKAGE_NAME];
+ };
+ 
+-static int get_pkg_from_apk_path(char *pkg, const char *path)
+-{
+-	int len = strlen(path);
+-	if (len >= KSU_MAX_PACKAGE_NAME || len < 1)
+-		return -1;
+-
+-	const char *last_slash = NULL;
+-	const char *second_last_slash = NULL;
+-
+-	int i;
+-	for (i = len - 1; i >= 0; i--) {
+-		if (path[i] == '/') {
+-			if (!last_slash) {
+-				last_slash = &path[i];
+-			} else {
+-				second_last_slash = &path[i];
+-				break;
+-			}
+-		}
+-	}
+-
+-	if (!last_slash || !second_last_slash)
+-		return -1;
+-
+-	const char *last_hyphen = strchr(second_last_slash, '-');
+-	if (!last_hyphen || last_hyphen > last_slash)
+-		return -1;
+-
+-	int pkg_len = last_hyphen - second_last_slash - 1;
+-	if (pkg_len >= KSU_MAX_PACKAGE_NAME || pkg_len <= 0)
+-		return -1;
+-
+-	// Copying the package name
+-	strncpy(pkg, second_last_slash + 1, pkg_len);
+-	pkg[pkg_len] = '\0';
+-
+-	return 0;
+-}
+-
+ static void crown_manager(const char *apk, struct list_head *uid_data)
+ {
+ 	char pkg[KSU_MAX_PACKAGE_NAME];
+@@ -71,14 +33,6 @@ static void crown_manager(const char *apk, struct list_head *uid_data)
+ 
+ 	pr_info("manager pkg: %s\n", pkg);
+ 
+-#ifdef KSU_MANAGER_PACKAGE
+-	// pkg is `/<real package>`
+-	if (strncmp(pkg, KSU_MANAGER_PACKAGE, sizeof(KSU_MANAGER_PACKAGE))) {
+-		pr_info("manager package is inconsistent with kernel build: %s\n",
+-				KSU_MANAGER_PACKAGE);
+-		return;
+-	}
+-#endif
+ 	struct list_head *list = (struct list_head *)uid_data;
+ 	struct uid_data *np;
+ 
 -- 
 2.51.2
 
