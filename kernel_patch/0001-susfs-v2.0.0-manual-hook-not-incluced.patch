@@ -1,6 +1,6 @@
-From ae72faa56fd107152f11e91abdea3e455485cc5b Mon Sep 17 00:00:00 2001
+From ff68675aa93a22f01bf2f91832632f4376ae283a Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 29 Dec 2025 15:31:37 +0700
+Date: Thu, 8 Jan 2026 22:49:16 +0700
 Subject: [PATCH] susfs v2.0.0 without manual hook
 
 ---
@@ -22,9 +22,9 @@ Subject: [PATCH] susfs v2.0.0 without manual hook
  include/linux/susfs.h     | 222 +++++++++
  include/linux/susfs_def.h |  87 ++++
  kernel/kallsyms.c         |  33 ++
- kernel/sys.c              |  14 +
+ kernel/sys.c              |   7 +-
  security/selinux/avc.c    |  20 +
- 20 files changed, 2418 insertions(+), 4 deletions(-)
+ 20 files changed, 2410 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1738,7 +1738,7 @@ index 0c357663e..51ef27ba4 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (error >= 0)
 diff --git a/fs/stat.c b/fs/stat.c
-index 04550c0ba..394074c63 100644
+index d629bb8fb..2b4f41f97 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,10 @@
@@ -3220,32 +3220,18 @@ index 4ad367a05..1fda86335 100644
  }
  
 diff --git a/kernel/sys.c b/kernel/sys.c
-index 03a70f8ef..1c43ab3d2 100644
+index 03a70f8ef..2f3ffdfa8 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
-@@ -593,6 +593,9 @@ error:
+@@ -593,7 +593,6 @@ error:
  	return retval;
  }
  
-+#ifdef CONFIG_KSU_SUSFS
-+extern int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid);
-+#endif
- 
+-
  /*
   * This function implements a generic ability to update ruid, euid,
-@@ -600,6 +603,11 @@ error:
-  */
- SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
- {
-+#ifdef CONFIG_KSU_SUSFS
-+	if (ksu_handle_setresuid(ruid, euid, suid)) {
-+		pr_info("Something wrong with ksu_handle_setresuid()\n");
-+	}
-+#endif
- 	struct user_namespace *ns = current_user_ns();
- 	const struct cred *old;
- 	struct cred *new;
-@@ -1185,12 +1193,18 @@ static int override_release(char __user *release, size_t len)
+  * and suid.  This allows you to implement the 4.4 compatible seteuid().
+@@ -1185,12 +1184,18 @@ static int override_release(char __user *release, size_t len)
  	return ret;
  }
  
@@ -3265,7 +3251,7 @@ index 03a70f8ef..1c43ab3d2 100644
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
  		return -EFAULT;
 diff --git a/security/selinux/avc.c b/security/selinux/avc.c
-index 59fa20b53..375f2a0e5 100644
+index f624bc4e6..bf9bc34e9 100644
 --- a/security/selinux/avc.c
 +++ b/security/selinux/avc.c
 @@ -44,6 +44,13 @@
