@@ -1,17 +1,17 @@
-From 323ac7dcb6d7ce6eae372e08e77c345f3e525779 Mon Sep 17 00:00:00 2001
+From 8012563bd67c18f25912ca01044138996d87fe37 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Thu, 8 Jan 2026 02:29:51 +0700
+Date: Sat, 10 Jan 2026 03:14:28 +0700
 Subject: [PATCH] test
 
 ---
- kernel/apk_sign.c        |  52 ++++++++++++++++++
+ kernel/apk_sign.c        |  52 +++++++++++++++++
  kernel/apk_sign.h        |   1 +
  kernel/extras.c          |  16 +++++-
- kernel/ksud.c            |   6 +--
- kernel/selinux/selinux.c | 110 +++++++++++++++++++++++++++------------
- kernel/selinux/selinux.h |   6 ++-
- kernel/throne_tracker.c  |  48 +----------------
- 7 files changed, 152 insertions(+), 87 deletions(-)
+ kernel/ksud.c            |   6 +-
+ kernel/selinux/selinux.c | 119 ++++++++++++++++++++++++++-------------
+ kernel/selinux/selinux.h |   6 +-
+ kernel/throne_tracker.c  |  48 +---------------
+ 7 files changed, 156 insertions(+), 92 deletions(-)
 
 diff --git a/kernel/apk_sign.c b/kernel/apk_sign.c
 index 09d89273..0470b800 100644
@@ -123,7 +123,7 @@ index b4fe4cd8..30b366c4 100644
  void ksu_avc_spoof_disable(void)
  {
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 4a13b556..8ade6b8a 100644
+index 82933bde..276c1b2e 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
 @@ -82,7 +82,6 @@ bool ksu_input_hook __read_mostly = true;
@@ -158,7 +158,7 @@ index 4a13b556..8ade6b8a 100644
  			init_second_stage_executed = true;
  		}
 diff --git a/kernel/selinux/selinux.c b/kernel/selinux/selinux.c
-index 89d46b00..b5629397 100644
+index 89d46b00..2fc37ad9 100644
 --- a/kernel/selinux/selinux.c
 +++ b/kernel/selinux/selinux.c
 @@ -7,6 +7,23 @@
@@ -185,7 +185,33 @@ index 89d46b00..b5629397 100644
  static int transive_to_domain(const char *domain, struct cred *cred)
  {
      struct task_security_struct *tsec;
-@@ -126,33 +143,55 @@ static void __security_release_secctx(struct lsm_context *cp)
+@@ -64,7 +81,7 @@ void setup_selinux(const char *domain)
+     }
+ }
+ 
+-void setup_ksu_cred()
++void setup_ksu_cred(void)
+ {
+     if (ksu_cred && transive_to_domain(KERNEL_SU_CONTEXT, ksu_cred)) {
+         pr_err("setup ksu cred failed.\n");
+@@ -82,7 +99,7 @@ void setenforce(bool enforce)
+ #endif
+ }
+ 
+-bool getenforce()
++bool getenforce(void)
+ {
+ #ifdef CONFIG_SECURITY_SELINUX_DISABLE
+ #ifdef KSU_COMPAT_USE_SELINUX_STATE
+@@ -119,40 +136,62 @@ static int __security_secid_to_secctx(u32 secid, struct lsm_context *cp)
+ }
+ static void __security_release_secctx(struct lsm_context *cp)
+ {
+-    return security_release_secctx(cp->context, cp->len);
++    security_release_secctx(cp->context, cp->len);
+ }
+ #else
+ #define __security_secid_to_secctx security_secid_to_secctx
  #define __security_release_secctx security_release_secctx
  #endif
  
@@ -261,7 +287,7 @@ index 89d46b00..b5629397 100644
  {
      if (!cred) {
          return false;
-@@ -161,36 +200,41 @@ bool is_context(const struct cred *cred, const char *context)
+@@ -161,36 +200,40 @@ bool is_context(const struct cred *cred, const char *context)
      if (!tsec) {
          return false;
      }
@@ -273,8 +299,9 @@ index 89d46b00..b5629397 100644
 +    // Slow path fallback: string comparison (only before cache is initialized)
      struct lsm_context ctx;
      bool result;
-     int err = __security_secid_to_secctx(tsec->sid, &ctx);
-     if (err) {
+-    int err = __security_secid_to_secctx(tsec->sid, &ctx);
+-    if (err) {
++    if (__security_secid_to_secctx(tsec->sid, &ctx)) {
          return false;
      }
 -    result = strncmp(context, ctx.context, ctx.len) == 0;
@@ -291,7 +318,7 @@ index 89d46b00..b5629397 100644
  }
  
 -bool is_init(const struct cred* cred)
-+bool is_ksu_domain()
++bool is_ksu_domain(void)
  {
 -    return is_context(cred, "u:r:init:s0");
 +    return is_task_ksu_domain(current_cred());
