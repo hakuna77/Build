@@ -1,6 +1,6 @@
-From 006c5be32ba3e14b0a3989a004f3f160ea049588 Mon Sep 17 00:00:00 2001
+From 4ca7a9ca41a8f255487b091472800c55182f058a Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sat, 10 Jan 2026 19:21:29 +0700
+Date: Sat, 10 Jan 2026 19:47:29 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -20,9 +20,9 @@ Subject: [PATCH] test sus
  kernel/setuid_hook.c     | 115 +++++++++++++++++++++
  kernel/sucompat.c        | 124 ++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
- kernel/supercalls.c      | 166 ++++++++++++++++++++++++++++--
+ kernel/supercalls.c      | 147 +++++++++++++++++++++++++--
  kernel/throne_tracker.c  |  48 +--------
- 18 files changed, 828 insertions(+), 109 deletions(-)
+ 18 files changed, 809 insertions(+), 109 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 3f455e11..ab4c7930 100644
@@ -1169,7 +1169,7 @@ index 1999af84..6d82243d 100644
  				void *__never_use_argv, void *__never_use_envp,
  				int *__never_use_flags);
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index ff541ced..bd874ad7 100644
+index ff541ced..c92a3337 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
 @@ -11,6 +11,10 @@
@@ -1304,7 +1304,7 @@ index ff541ced..bd874ad7 100644
  struct ksu_install_fd_tw {
  	struct callback_head cb;
  	int __user *outp;
-@@ -784,6 +818,116 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -784,6 +818,97 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		magic2);
  #endif
  
@@ -1397,31 +1397,12 @@ index ff541ced..bd874ad7 100644
 +        }
 +        return 0;
 +    }
-+
-+    // Check if this is a request to install KSU fd
-+    if (magic2 == KSU_INSTALL_MAGIC2) {
-+        struct ksu_install_fd_tw *tw;
-+
-+        tw = kzalloc(sizeof(*tw), GFP_ATOMIC);
-+        if (!tw)
-+            return 0;
-+
-+        tw->outp = (int __user *)(*arg);
-+        tw->cb.func = ksu_install_fd_tw_func;
-+
-+        if (task_work_add(current, &tw->cb, TWA_RESUME)) {
-+            kfree(tw);
-+            pr_warn("install fd add task_work failed\n");
-+        }
-+    }
-+    return 0;
-+}
 +#endif // #ifdef CONFIG_KSU_SUSFS
 +
  	// Check if this is a request to install KSU fd
  	if (magic2 == KSU_INSTALL_MAGIC2) {
  		int fd = ksu_install_fd();
-@@ -856,7 +1000,7 @@ void ksu_supercalls_init(void)
+@@ -856,7 +981,7 @@ void ksu_supercalls_init(void)
  		pr_info("  %-18s = 0x%08x\n", ksu_ioctl_handlers[i].name, ksu_ioctl_handlers[i].cmd);
  	}
  
@@ -1430,7 +1411,7 @@ index ff541ced..bd874ad7 100644
  	int rc = register_kprobe(&reboot_kp);
  	if (rc) {
  		pr_err("reboot kprobe failed: %d\n", rc);
-@@ -870,9 +1014,11 @@ void ksu_supercalls_init(void)
+@@ -870,9 +995,11 @@ void ksu_supercalls_init(void)
  }
  
  void ksu_supercalls_exit(void){
