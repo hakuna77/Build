@@ -1,6 +1,6 @@
-From 4ca7a9ca41a8f255487b091472800c55182f058a Mon Sep 17 00:00:00 2001
+From 8be3f93918ebed521525ac222f1393a9afce183a Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sat, 10 Jan 2026 19:47:29 +0700
+Date: Sun, 11 Jan 2026 01:47:47 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -18,11 +18,11 @@ Subject: [PATCH] test sus
  kernel/selinux/selinux.c | 211 ++++++++++++++++++++++++++++++++-------
  kernel/selinux/selinux.h |  19 +++-
  kernel/setuid_hook.c     | 115 +++++++++++++++++++++
- kernel/sucompat.c        | 124 ++++++++++++++++++++++-
+ kernel/sucompat.c        | 133 +++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 147 +++++++++++++++++++++++++--
  kernel/throne_tracker.c  |  48 +--------
- 18 files changed, 809 insertions(+), 109 deletions(-)
+ 18 files changed, 818 insertions(+), 109 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 3f455e11..ab4c7930 100644
@@ -1004,7 +1004,7 @@ index 49915092..6be2ff98 100644
  extern void ksu_lsm_hook_init(void);
  void ksu_setuid_hook_init(void)
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index 609e0178..480e3052 100644
+index 609e0178..39f67355 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
 @@ -20,7 +20,11 @@
@@ -1028,7 +1028,7 @@ index 609e0178..480e3052 100644
  int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
  		int *mode, int *__unused_flags)
  {
-@@ -211,6 +216,123 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+@@ -211,6 +216,132 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
  
  	return 0;
  }
@@ -1067,6 +1067,9 @@ index 609e0178..480e3052 100644
 +    if (unlikely(!filename_ptr))
 +        return 0;
 +
++    if (!ksu_is_allow_uid_for_current(current_uid().val))
++		return 0;
++
 +    filename = *filename_ptr;
 +    if (IS_ERR(filename)) {
 +        return 0;
@@ -1100,6 +1103,10 @@ index 609e0178..480e3052 100644
 +int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
 +             int *__unused_flags)
 +{
++    if (!ksu_is_allow_uid_for_current(current_uid().val)) {
++		return 0;
++	}
++	
 +    char path[sizeof(su_path) + 1] = {0};
 +
 +    strncpy_from_user_nofault(path, *filename_user, sizeof(path));
@@ -1108,8 +1115,6 @@ index 609e0178..480e3052 100644
 +        pr_info("ksu_handle_faccessat: su->sh!\n");
 +        *filename_user = sh_user_path();
 +    }
-+
-+    return 0;
 +
 +    return 0;
 +}
@@ -1131,6 +1136,10 @@ index 609e0178..480e3052 100644
 +#else
 +int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags)
 +{
++    if (!ksu_is_allow_uid_for_current(current_uid().val)) {
++		return 0;
++	}
++	
 +    if (unlikely(!filename_user)) {
 +        return 0;
 +    }
