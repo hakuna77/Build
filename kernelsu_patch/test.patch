@@ -1,6 +1,6 @@
-From 0732c14a7d8bba7f987d6b524852cab0d9756f11 Mon Sep 17 00:00:00 2001
+From e430ed8e9c0c84f0b7ad9a880a95c929b9e0588f Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sat, 10 Jan 2026 18:24:35 +0700
+Date: Sat, 10 Jan 2026 18:37:36 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -18,11 +18,11 @@ Subject: [PATCH] test sus
  kernel/selinux/selinux.c | 211 ++++++++++++++++++++++++++++++++-------
  kernel/selinux/selinux.h |  19 +++-
  kernel/setuid_hook.c     | 101 +++++++++++++++++++
- kernel/sucompat.c        | 148 ++++++++++++++++++++++++++-
+ kernel/sucompat.c        | 124 ++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 166 ++++++++++++++++++++++++++++--
  kernel/throne_tracker.c  |  48 +--------
- 18 files changed, 838 insertions(+), 109 deletions(-)
+ 18 files changed, 814 insertions(+), 109 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 3f455e11..ab4c7930 100644
@@ -990,7 +990,7 @@ index 49915092..bd5ff20f 100644
  extern void ksu_lsm_hook_init(void);
  void ksu_setuid_hook_init(void)
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index 609e0178..1700e189 100644
+index 609e0178..a201531b 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
 @@ -20,7 +20,11 @@
@@ -1014,7 +1014,7 @@ index 609e0178..1700e189 100644
  int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
  		int *mode, int *__unused_flags)
  {
-@@ -238,6 +243,147 @@ int __ksu_handle_devpts(struct inode *inode)
+@@ -238,6 +243,123 @@ int __ksu_handle_devpts(struct inode *inode)
  		sec->sid = ksu_file_sid;
  	return 0;
  }
@@ -1134,30 +1134,6 @@ index 609e0178..1700e189 100644
 +}
 +#endif // #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
 +
-+int ksu_handle_devpts(struct inode *inode)
-+{
-+    if (!current->mm) {
-+        return 0;
-+    }
-+
-+    uid_t uid = current_uid().val;
-+    if (uid % 100000 < 10000) {
-+        // not untrusted_app, ignore it
-+        return 0;
-+    }
-+
-+    if (!__ksu_is_allow_uid_for_current(uid))
-+        return 0;
-+
-+    if (ksu_file_sid) {
-+        struct inode_security_struct *sec = selinux_inode(inode);
-+        if (sec) {
-+            sec->sid = ksu_file_sid;
-+        }
-+    }
-+
-+    return 0;
-+}
 +#endif // #ifndef CONFIG_KSU_SUSFS
  
  // dead code: devpts handling
