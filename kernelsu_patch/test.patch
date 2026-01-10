@@ -1,6 +1,6 @@
-From d542cd885af84b3348048de5028fde58fec39a1e Mon Sep 17 00:00:00 2001
+From 006c5be32ba3e14b0a3989a004f3f160ea049588 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sat, 10 Jan 2026 18:53:54 +0700
+Date: Sat, 10 Jan 2026 19:21:29 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -17,12 +17,12 @@ Subject: [PATCH] test sus
  kernel/selinux/rules.c   |   9 ++
  kernel/selinux/selinux.c | 211 ++++++++++++++++++++++++++++++++-------
  kernel/selinux/selinux.h |  19 +++-
- kernel/setuid_hook.c     | 101 +++++++++++++++++++
+ kernel/setuid_hook.c     | 115 +++++++++++++++++++++
  kernel/sucompat.c        | 124 ++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 166 ++++++++++++++++++++++++++++--
  kernel/throne_tracker.c  |  48 +--------
- 18 files changed, 814 insertions(+), 109 deletions(-)
+ 18 files changed, 828 insertions(+), 109 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 3f455e11..ab4c7930 100644
@@ -850,7 +850,7 @@ index 84fda9d5..91294437 100644
 +
  #endif
 diff --git a/kernel/setuid_hook.c b/kernel/setuid_hook.c
-index 49915092..bd5ff20f 100644
+index 49915092..6be2ff98 100644
 --- a/kernel/setuid_hook.c
 +++ b/kernel/setuid_hook.c
 @@ -15,6 +15,9 @@
@@ -909,7 +909,7 @@ index 49915092..bd5ff20f 100644
  int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
  {
      // we rely on the fact that zygote always call setresuid(3) with same uids
-@@ -96,6 +124,79 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+@@ -96,6 +124,93 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
  
      return 0;
  }
@@ -936,9 +936,14 @@ index 49915092..bd5ff20f 100644
 +    //   ksu manager
 +    if (likely(ksu_is_manager_appid_valid()) &&
 +        unlikely(ksu_get_manager_appid() == new_uid % PER_USER_RANGE)) {
-+        spin_lock_irq(&current->sighand->siglock);
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 +        ksu_seccomp_allow_cache(current->seccomp.filter, __NR_reboot);
-+        spin_unlock_irq(&current->sighand->siglock);
++#ifdef KSU_KPROBES_HOOK
++		ksu_set_task_tracepoint_flag(current);
++#endif
++#else
++		disable_seccomp(current);
++#endif
 +
 +        pr_info("install fd for manager: %d\n", new_uid);
 +        struct callback_head *cb = kzalloc(sizeof(*cb), GFP_ATOMIC);
@@ -957,14 +962,23 @@ index 49915092..bd5ff20f 100644
 +        goto do_umount;
 +    }
 +
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 +    if (ksu_is_allow_uid_for_current(new_uid)) {
 +        if (current->seccomp.mode == SECCOMP_MODE_FILTER &&
 +            current->seccomp.filter) {
-+            spin_lock_irq(&current->sighand->siglock);
 +            ksu_seccomp_allow_cache(current->seccomp.filter, __NR_reboot);
-+            spin_unlock_irq(&current->sighand->siglock);
 +        }
++#ifdef KSU_KPROBES_HOOK
++		ksu_set_task_tracepoint_flag(current);
++	} else {
++		ksu_clear_task_tracepoint_flag_if_needed(current);
++#endif
 +    }
++#else
++	if (ksu_is_allow_uid_for_current(new_uid)) {
++		disable_seccomp(current);
++	}
++#endif
 +
 +    return 0;
 +
