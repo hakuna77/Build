@@ -1,6 +1,6 @@
-From bb8bcddc2342aea6ebeffac02431181f986d8bc2 Mon Sep 17 00:00:00 2001
+From 0732c14a7d8bba7f987d6b524852cab0d9756f11 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sat, 10 Jan 2026 17:59:41 +0700
+Date: Sat, 10 Jan 2026 18:24:35 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -11,7 +11,7 @@ Subject: [PATCH] test sus
  kernel/apk_sign.h        |   1 +
  kernel/extras.c          |  16 ++-
  kernel/kernel_umount.c   |   3 +
- kernel/ksu.c             |  24 ++++-
+ kernel/ksu.c             |  26 ++++-
  kernel/ksud.c            |  21 ++--
  kernel/ksud.h            |  19 ++++
  kernel/selinux/rules.c   |   9 ++
@@ -22,7 +22,7 @@ Subject: [PATCH] test sus
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 166 ++++++++++++++++++++++++++++--
  kernel/throne_tracker.c  |  48 +--------
- 18 files changed, 836 insertions(+), 109 deletions(-)
+ 18 files changed, 838 insertions(+), 109 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 3f455e11..ab4c7930 100644
@@ -295,7 +295,7 @@ index e4d1e60c..bcfac544 100644
  	pr_info("handle umount for uid: %d, pid: %d\n", new_uid, current->pid);
  
 diff --git a/kernel/ksu.c b/kernel/ksu.c
-index 7742dad6..2845e3b5 100644
+index 7742dad6..1bc8431c 100644
 --- a/kernel/ksu.c
 +++ b/kernel/ksu.c
 @@ -3,12 +3,20 @@
@@ -319,7 +319,23 @@ index 7742dad6..2845e3b5 100644
  #include "ksud.h"
  #include "supercalls.h"
  #include "ksu.h"
-@@ -49,16 +57,26 @@ int __init kernelsu_init(void)
+@@ -17,6 +25,7 @@
+ struct cred* ksu_cred;
+ 
+ extern void __init ksu_lsm_hook_init(void);
++#ifndef CONFIG_KSU_SUSFS
+ extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+ 					void *argv, void *envp, int *flags);
+ extern int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+@@ -28,6 +37,7 @@ int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
+ 	return ksu_handle_execveat_sucompat(fd, filename_ptr, argv, envp,
+ 					    flags);
+ }
++#endif // #ifndef CONFIG_KSU_SUSFS
+ 
+ int __init kernelsu_init(void)
+ {
+@@ -49,16 +59,26 @@ int __init kernelsu_init(void)
  	ksu_feature_init();
  
  	ksu_supercalls_init();
@@ -347,7 +363,7 @@ index 7742dad6..2845e3b5 100644
  
  	ksu_file_wrapper_init();
  
-@@ -78,11 +96,11 @@ void kernelsu_exit(void)
+@@ -78,11 +98,11 @@ void kernelsu_exit(void)
  	ksu_throne_tracker_exit();
  
  	ksu_observer_exit();
