@@ -1,6 +1,6 @@
-From e430ed8e9c0c84f0b7ad9a880a95c929b9e0588f Mon Sep 17 00:00:00 2001
+From d542cd885af84b3348048de5028fde58fec39a1e Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sat, 10 Jan 2026 18:37:36 +0700
+Date: Sat, 10 Jan 2026 18:53:54 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -990,7 +990,7 @@ index 49915092..bd5ff20f 100644
  extern void ksu_lsm_hook_init(void);
  void ksu_setuid_hook_init(void)
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index 609e0178..a201531b 100644
+index 609e0178..480e3052 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
 @@ -20,7 +20,11 @@
@@ -1014,8 +1014,8 @@ index 609e0178..a201531b 100644
  int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
  		int *mode, int *__unused_flags)
  {
-@@ -238,6 +243,123 @@ int __ksu_handle_devpts(struct inode *inode)
- 		sec->sid = ksu_file_sid;
+@@ -211,6 +216,123 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+ 
  	return 0;
  }
 +#else
@@ -1136,8 +1136,8 @@ index 609e0178..a201531b 100644
 +
 +#endif // #ifndef CONFIG_KSU_SUSFS
  
- // dead code: devpts handling
- int __maybe_unused ksu_handle_devpts(struct inode *inode)
+ int __ksu_handle_devpts(struct inode *inode)
+ {
 diff --git a/kernel/sucompat.h b/kernel/sucompat.h
 index 1999af84..6d82243d 100644
 --- a/kernel/sucompat.h
