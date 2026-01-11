@@ -1,6 +1,6 @@
-From fce9054e98ea0fa1666012ac4e01132d2c69033e Mon Sep 17 00:00:00 2001
+From a8b1fd1a4969e47f2ede05a4dbaffebbce7df9da Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sun, 11 Jan 2026 19:43:14 +0700
+Date: Mon, 12 Jan 2026 06:15:08 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -13,7 +13,7 @@ Subject: [PATCH] test sus
  kernel/extras.c          |  16 ++-
  kernel/kernel_umount.c   |   3 +
  kernel/ksu.c             |  26 ++++-
- kernel/ksud.c            | 175 +++++++++++++++++++++-----------
+ kernel/ksud.c            | 202 ++++++++++++++++++++++++-------------
  kernel/ksud.h            |  19 ++++
  kernel/selinux/rules.c   |   9 ++
  kernel/selinux/selinux.c | 211 ++++++++++++++++++++++++++++++++-------
@@ -23,7 +23,7 @@ Subject: [PATCH] test sus
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 147 +++++++++++++++++++++++++--
  kernel/throne_tracker.c  |  48 +--------
- 19 files changed, 923 insertions(+), 162 deletions(-)
+ 19 files changed, 942 insertions(+), 170 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 3f455e11..ab4c7930 100644
@@ -401,10 +401,10 @@ index 7742dad6..1bc8431c 100644
  
  	ksu_feature_exit();
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 82933bde..f857fcc6 100644
+index 82933bde..24d4f8e6 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
-@@ -68,12 +68,12 @@ static const char KERNEL_SU_RC[] =
+@@ -68,21 +68,20 @@ static const char KERNEL_SU_RC[] =
  
  	"\n";
  
@@ -419,7 +419,9 @@ index 82933bde..f857fcc6 100644
  static struct work_struct __maybe_unused stop_execve_hook_work;
  static struct work_struct __maybe_unused stop_input_hook_work;
  #else
-@@ -82,7 +82,6 @@ bool ksu_input_hook __read_mostly = true;
+-bool ksu_vfs_read_hook __read_mostly = true;
++bool ksu_init_rc_hook __read_mostly = true;
+ bool ksu_input_hook __read_mostly = true;
  #endif
  bool ksu_execveat_hook __read_mostly = true;
  
@@ -489,7 +491,7 @@ index 82933bde..f857fcc6 100644
  	return 0;
  }
  
-@@ -606,62 +615,66 @@ static bool check_init_path(char *dpath)
+@@ -606,62 +615,60 @@ static bool check_init_path(char *dpath)
  	return true;
  }
  
@@ -497,15 +499,14 @@ index 82933bde..f857fcc6 100644
 -				size_t *count_ptr, loff_t **pos)
 +bool is_init_rc(struct file *fp)
  {
- #ifndef KSU_KPROBES_HOOK
- 	if (!ksu_vfs_read_hook) {
+-#ifndef KSU_KPROBES_HOOK
+-	if (!ksu_vfs_read_hook) {
 -		return 0;
-+		return false;
- 	}
- #endif
+-	}
+-#endif
 -	struct file *file;
 -	size_t count;
- 
+-
  	if (strcmp(current->comm, "init")) {
 -		// we are only interest in `init` process
 -		return 0;
@@ -581,7 +582,7 @@ index 82933bde..f857fcc6 100644
  
  	// Now we need to proxy the read and modify the result!
  	// But, we can not modify the file_operations directly, because it's in read-only memory.
-@@ -678,19 +691,8 @@ int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
+@@ -678,19 +685,8 @@ int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
  	// replace the file_operations
  	file->f_op = &fops_proxy;
  
@@ -602,7 +603,7 @@ index 82933bde..f857fcc6 100644
  }
  
  static unsigned int volumedown_pressed_count = 0;
-@@ -786,10 +788,54 @@ static int sys_read_handler_pre(struct kprobe *p, struct pt_regs *regs)
+@@ -786,10 +782,54 @@ static int sys_read_handler_pre(struct kprobe *p, struct pt_regs *regs)
  {
  	struct pt_regs *real_regs = PT_REAL_REGS(regs);
  	unsigned int fd = PT_REGS_PARM1(real_regs);
@@ -660,7 +661,7 @@ index 82933bde..f857fcc6 100644
  }
  
  static int input_handle_event_handler_pre(struct kprobe *p,
-@@ -805,19 +851,27 @@ static struct kprobe execve_kp = {
+@@ -805,19 +845,27 @@ static struct kprobe execve_kp = {
  	.symbol_name = SYS_EXECVE_SYMBOL,
  	.pre_handler = sys_execve_handler_pre,
  };
@@ -691,11 +692,28 @@ index 82933bde..f857fcc6 100644
  }
  
  static void do_stop_execve_hook(struct work_struct *work)
-@@ -878,11 +932,11 @@ int __maybe_unused ksu_handle_compat_execve_ksud(
+@@ -878,14 +926,31 @@ int __maybe_unused ksu_handle_compat_execve_ksud(
  
  #endif
  
 -static void stop_vfs_read_hook()
++#ifdef CONFIG_KSU_SUSFS
++void ksu_handle_sys_newfstatat(int fd, loff_t *kstat_size_ptr) {
++    loff_t new_size = *kstat_size_ptr + ksu_rc_len;
++    struct file *file = fget(fd);
++
++    if (!file)
++        return;
++
++    if (is_init_rc(file)) {
++        pr_info("stat init.rc");
++        pr_info("adding ksu_rc_len: %lld -> %lld", *kstat_size_ptr, new_size);
++        *kstat_size_ptr = new_size;
++    }
++    fput(file);
++}
++#endif // #ifdef CONFIG_KSU_SUSFS
++
 +static void stop_init_rc_hook()
  {
  #ifdef KSU_KPROBES_HOOK
@@ -704,9 +722,14 @@ index 82933bde..f857fcc6 100644
 +	bool ret = schedule_work(&stop_init_rc_hook_work);
 +	pr_info("unregister init_rc_hook kprobe: %d!\n", ret);
  #else
- 	ksu_vfs_read_hook = false;
- 	pr_info("stop vfs_read_hook\n");
-@@ -895,19 +949,19 @@ static void stop_execve_hook()
+-	ksu_vfs_read_hook = false;
+-	pr_info("stop vfs_read_hook\n");
++	ksu_init_rc_hook = false;
++	pr_info("stop init_rc_hook\n");
+ #endif
+ }
+ 
+@@ -895,19 +960,19 @@ static void stop_execve_hook()
  	bool ret = schedule_work(&stop_execve_hook_work);
  	pr_info("unregister execve kprobe: %d!\n", ret);
  #else
@@ -728,7 +751,7 @@ index 82933bde..f857fcc6 100644
  	bool ret = schedule_work(&stop_input_hook_work);
  	pr_info("unregister input kprobe: %d!\n", ret);
  #else
-@@ -929,13 +983,16 @@ void ksu_ksud_init()
+@@ -929,13 +994,16 @@ void ksu_ksud_init()
  	ret = register_kprobe(&execve_kp);
  	pr_info("ksud: execve_kp: %d\n", ret);
  
@@ -748,7 +771,7 @@ index 82933bde..f857fcc6 100644
  	INIT_WORK(&stop_execve_hook_work, do_stop_execve_hook);
  	INIT_WORK(&stop_input_hook_work, do_stop_input_hook);
  #endif
-@@ -945,8 +1002,8 @@ void ksu_ksud_exit()
+@@ -945,8 +1013,8 @@ void ksu_ksud_exit()
  {
  #ifdef KSU_KPROBES_HOOK
  	unregister_kprobe(&execve_kp);

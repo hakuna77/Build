@@ -1,27 +1,22 @@
-From 0cea4dc4f2935bfdc252ebef39e350ad08620abc Mon Sep 17 00:00:00 2001
-From: backslashxx <118538522+backslashxx@users.noreply.github.com>
-Date: Sat, 22 Feb 2025 22:53:48 +0800
-Subject: [PATCH] KernelSU: integrate scope-minimized manual hooks - k4.14 v1.6
+From e75416de9f84b88d6a4841d0795d17eeb1cecd22 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Mon, 12 Jan 2026 06:12:18 +0700
+Subject: [PATCH] scope-minimized manual hooks v1.9
 
-This refactors original KSU hooks to replace deep kernel function hooks with targeted hooks.
-This backports KernelSU pr#1657 and having pr#2084 elements (32-bit sucompat).
-It reduces the scope of kernel function interception and still maintains full fucntionality.
-
-Signed-off-by: backslashxx <118538522+backslashxx@users.noreply.github.com>
 ---
  drivers/input/input.c | 11 +++++++++++
  fs/exec.c             | 12 ++++++++++++
  fs/open.c             |  9 +++++++++
- fs/read_write.c       | 10 ++++++++++
- fs/stat.c             | 11 +++++++++++
+ fs/read_write.c       |  9 +++++++++
+ fs/stat.c             | 18 ++++++++++++++++++
  kernel/reboot.c       |  8 ++++++++
- 6 files changed, 61 insertions(+)
+ 6 files changed, 67 insertions(+)
 
 diff --git a/drivers/input/input.c b/drivers/input/input.c
-index 85e9c9649da8..1a62de74b3a9 100644
+index 6f8217ec7..c21a47b29 100644
 --- a/drivers/input/input.c
 +++ b/drivers/input/input.c
-@@ -436,11 +436,22 @@ static void input_handle_event(struct input_dev *dev,
+@@ -515,11 +515,22 @@ static void input_handle_event(struct input_dev *dev,
   * to 'seed' initial state of a switch or initial position of absolute
   * axis, etc.
   */
@@ -45,10 +40,10 @@ index 85e9c9649da8..1a62de74b3a9 100644
  
  		spin_lock_irqsave(&dev->event_lock, flags);
 diff --git a/fs/exec.c b/fs/exec.c
-index dadeba10b894..c85c80fd909a 100644
+index 119a47437..2d5d6848e 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
-@@ -1886,12 +1886,21 @@ static int do_execveat_common(int fd, struct filename *filename,
+@@ -1854,12 +1854,21 @@ out_ret:
  	return retval;
  }
  
@@ -70,7 +65,7 @@ index dadeba10b894..c85c80fd909a 100644
  	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
  }
  
-@@ -1919,6 +1928,9 @@ static int compat_do_execve(struct filename *filename,
+@@ -1887,6 +1896,9 @@ static int compat_do_execve(struct filename *filename,
  		.is_compat = true,
  		.ptr.compat = __envp,
  	};
@@ -81,7 +76,7 @@ index dadeba10b894..c85c80fd909a 100644
  }
  
 diff --git a/fs/open.c b/fs/open.c
-index 548494f1277c..2c55e00647ec 100644
+index 3b62683fe..0f7134fe8 100644
 --- a/fs/open.c
 +++ b/fs/open.c
 @@ -354,6 +354,11 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
@@ -108,17 +103,16 @@ index 548494f1277c..2c55e00647ec 100644
  		return -EINVAL;
  
 diff --git a/fs/read_write.c b/fs/read_write.c
-index 0da6e4f19d7f..045f42acd80a 100644
+index 0da6e4f19..83390da58 100644
 --- a/fs/read_write.c
 +++ b/fs/read_write.c
-@@ -568,11 +568,21 @@ static inline void file_pos_write(struct file *file, loff_t pos)
+@@ -568,11 +568,20 @@ static inline void file_pos_write(struct file *file, loff_t pos)
  		file->f_pos = pos;
  }
  
 +#ifdef CONFIG_KSU
-+extern bool ksu_vfs_read_hook __read_mostly;
-+extern __attribute__((cold)) int ksu_handle_sys_read(unsigned int fd,
-+				char __user **buf_ptr, size_t *count_ptr);
++extern bool ksu_init_rc_hook __read_mostly;
++extern __attribute__((cold)) void ksu_handle_sys_read(unsigned int fd);
 +#endif
 +
  SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
@@ -127,53 +121,67 @@ index 0da6e4f19d7f..045f42acd80a 100644
  	ssize_t ret = -EBADF;
  
 +#ifdef CONFIG_KSU
-+	if (unlikely(ksu_vfs_read_hook)) 
-+		ksu_handle_sys_read(fd, &buf, &count);
++	if (unlikely(ksu_init_rc_hook)) 
++		ksu_handle_sys_read(fd);
 +#endif
  	if (f.file) {
  		loff_t pos = file_pos_read(f.file);
  		ret = vfs_read(f.file, buf, count, &pos);
 diff --git a/fs/stat.c b/fs/stat.c
-index 0fda4b6b8fb2..41446ee869eb 100644
+index 04550c0ba..c2af6e497 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
-@@ -353,6 +353,11 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+@@ -156,6 +156,10 @@ int vfs_fstat(int fd, struct kstat *stat)
+ 	return error;
+ }
+ 
++#ifdef CONFIG_KSU
++extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
++#endif
++
+ /**
+  * vfs_statx - Get basic and extra attributes by filename
+  * @dfd: A file descriptor representing the base dir for a relative filename
+@@ -178,6 +182,10 @@ static int vfs_statx(int dfd, const char __user *filename, int flags,
+ 	unsigned lookup_flags = 0;
+ 	int error;
+ 
++#ifdef CONFIG_KSU
++	ksu_handle_stat(&dfd, &filename, &flags);
++#endif
++
+ 	if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_EMPTY_PATH |
+ 		      AT_STATX_SYNC_TYPE))
+ 		return -EINVAL;
+@@ -373,6 +381,11 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
  	return cp_new_stat(&stat, statbuf);
  }
  
 +#ifdef CONFIG_KSU
-+extern __attribute__((hot)) int ksu_handle_stat(int *dfd,
-+			const char __user **filename_user, int *flags);
++extern bool ksu_init_rc_hook __read_mostly;
++extern void ksu_handle_sys_newfstatat(int fd, loff_t *kstat_size_ptr);
 +#endif
 +
  #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
  SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
  		struct stat __user *, statbuf, int, flag)
-@@ -360,6 +365,9 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+@@ -380,6 +393,11 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
  	struct kstat stat;
  	int error;
  
 +#ifdef CONFIG_KSU
-+	ksu_handle_stat(&dfd, &filename, &flag);
-+#endif
- 	error = vfs_fstatat(dfd, filename, &stat, flag);
- 	if (error)
- 		return error;
-@@ -504,6 +512,9 @@ SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,
- 	struct kstat stat;
- 	int error;
- 
-+#ifdef CONFIG_KSU
-+	ksu_handle_stat(&dfd, &filename, &flag); /* 32-bit su support */
++	if (unlikely(ksu_init_rc_hook)) {
++		ksu_handle_sys_newfstatat(dfd, &stat.size);
++	}
 +#endif
  	error = vfs_fstatat(dfd, filename, &stat, flag);
  	if (error)
  		return error;
 diff --git a/kernel/reboot.c b/kernel/reboot.c
-index 2946ed1d99d4..6806349c17f4 100644
+index eea91461e..ed89e96d2 100644
 --- a/kernel/reboot.c
 +++ b/kernel/reboot.c
-@@ -277,6 +277,11 @@ static DEFINE_MUTEX(reboot_mutex);
+@@ -284,6 +284,11 @@ static DEFINE_MUTEX(reboot_mutex);
   *
   * reboot doesn't sync: do that yourself before calling this.
   */
@@ -185,7 +193,7 @@ index 2946ed1d99d4..6806349c17f4 100644
  SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
  		void __user *, arg)
  {
-@@ -284,6 +289,9 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
+@@ -291,6 +296,9 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
  	char buffer[256];
  	int ret = 0;
  
@@ -195,3 +203,6 @@ index 2946ed1d99d4..6806349c17f4 100644
  	/* We only trust the superuser with rebooting the system. */
  	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))
  		return -EPERM;
+-- 
+2.51.2
+
