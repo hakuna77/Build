@@ -157,6 +157,7 @@ jobs:
             KSU_EXPECTED_HASH
             REMOVE_UNUSED_PACKAGES
             ENABLE_DEBUG
+            ADD_KPM
         )
 
         for CONFIG in "${CONFIG_LIST[@]}"; do
@@ -366,6 +367,7 @@ jobs:
             0001-backport-test.patch \
             ${{ env.MANUAL_HOOK }} \
             ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
+            add-slow_avc_audit-hook.patch \
             0001-upstream-avc.patch
           do
             if patch -p1 < "$patch_file"; then
@@ -529,6 +531,12 @@ jobs:
         fi
         if [ ${{ env.DISABLE_CC_WERROR }} = true ]; then
             echo "CONFIG_CC_WERROR=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+        fi
+        if [ ${{ env.ADD_KPM }} = true ]; then
+            echo "CONFIG_KALLSYMS_ALL=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+            echo "✅ KPM enabled"
+        else
+            echo "❌ KPM disabled"
         fi
 
     - name: Setup ccache
