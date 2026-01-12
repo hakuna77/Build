@@ -1,6 +1,6 @@
-From a8b1fd1a4969e47f2ede05a4dbaffebbce7df9da Mon Sep 17 00:00:00 2001
+From ebdde36645813923dac9ab2adffa6ecd57cfe1a9 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 12 Jan 2026 06:15:08 +0700
+Date: Tue, 13 Jan 2026 01:25:37 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -248,7 +248,7 @@ index bed501c4..d3a44bd2 100644
  
  #endif
 diff --git a/kernel/arch.h b/kernel/arch.h
-index b8930b07..8f2ff750 100644
+index b8930b07..5c7e2260 100644
 --- a/kernel/arch.h
 +++ b/kernel/arch.h
 @@ -22,6 +22,9 @@
@@ -265,7 +265,7 @@ index b8930b07..8f2ff750 100644
  #define REBOOT_SYMBOL "__x64_sys_reboot"
  #define SYS_READ_SYMBOL "__x64_sys_read"
  #define SYS_EXECVE_SYMBOL "__x64_sys_execve"
-+#define SYS_NEWFSTATAT_SYMBOL "__x64_sys_newfstat"
++#define SYS_FSTAT_SYMBOL "__x64_sys_newfstat"
  #define SYS_SETNS_SYMBOL __x64_sys_setns
  #else
  #define REBOOT_SYMBOL "sys_reboot"
