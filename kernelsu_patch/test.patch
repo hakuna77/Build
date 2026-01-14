@@ -1,6 +1,6 @@
-From ebdde36645813923dac9ab2adffa6ecd57cfe1a9 Mon Sep 17 00:00:00 2001
+From a923e0987502eabb40f5fe98bc3b5f4a91b5e631 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 13 Jan 2026 01:25:37 +0700
+Date: Wed, 14 Jan 2026 16:19:20 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -1487,7 +1487,7 @@ index 1999af84..6d82243d 100644
  				void *__never_use_argv, void *__never_use_envp,
  				int *__never_use_flags);
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index ff541ced..c92a3337 100644
+index febb7b1e..f9aeb59b 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
 @@ -11,6 +11,10 @@
@@ -1613,16 +1613,7 @@ index ff541ced..c92a3337 100644
  }
  
  static int do_get_hook_mode(void __user *arg)
-@@ -676,7 +710,7 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
- 	{ .cmd = 0, .name = NULL, .handler = NULL, .perm_check = NULL } // Sentinel
- };
- 
--#ifdef KSU_KPROBES_HOOK
-+#if defined(KSU_KPROBES_HOOK) && !defined(CONFIG_KSU_SUSFS)
- struct ksu_install_fd_tw {
- 	struct callback_head cb;
- 	int __user *outp;
-@@ -784,6 +818,97 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -687,6 +721,97 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		magic2);
  #endif
  
@@ -1720,7 +1711,16 @@ index ff541ced..c92a3337 100644
  	// Check if this is a request to install KSU fd
  	if (magic2 == KSU_INSTALL_MAGIC2) {
  		int fd = ksu_install_fd();
-@@ -856,7 +981,7 @@ void ksu_supercalls_init(void)
+@@ -749,7 +874,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+ 	return 0;
+ }
+ 
+-#ifdef KSU_KPROBES_HOOK
++#if defined(KSU_KPROBES_HOOK) && !defined(CONFIG_KSU_SUSFS)
+ struct ksu_install_fd_tw {
+ 	struct callback_head cb;
+ 	int __user *outp;
+@@ -800,7 +925,7 @@ void ksu_supercalls_init(void)
  		pr_info("  %-18s = 0x%08x\n", ksu_ioctl_handlers[i].name, ksu_ioctl_handlers[i].cmd);
  	}
  
@@ -1729,7 +1729,7 @@ index ff541ced..c92a3337 100644
  	int rc = register_kprobe(&reboot_kp);
  	if (rc) {
  		pr_err("reboot kprobe failed: %d\n", rc);
-@@ -870,9 +995,11 @@ void ksu_supercalls_init(void)
+@@ -814,9 +939,11 @@ void ksu_supercalls_init(void)
  }
  
  void ksu_supercalls_exit(void){
@@ -1817,5 +1817,5 @@ index ee9b4ddc..82f5c06e 100644
  	struct uid_data *np;
  
 -- 
-2.51.2
+2.52.0
 
