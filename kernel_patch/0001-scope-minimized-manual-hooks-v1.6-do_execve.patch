@@ -1,6 +1,6 @@
-From e75416de9f84b88d6a4841d0795d17eeb1cecd22 Mon Sep 17 00:00:00 2001
+From 5939043e30a1a053e1789339d0f21aaac66de40f Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 12 Jan 2026 06:12:18 +0700
+Date: Sat, 17 Jan 2026 23:59:50 +0700
 Subject: [PATCH] scope-minimized manual hooks v1.9
 
 ---
@@ -8,9 +8,9 @@ Subject: [PATCH] scope-minimized manual hooks v1.9
  fs/exec.c             | 12 ++++++++++++
  fs/open.c             |  9 +++++++++
  fs/read_write.c       |  9 +++++++++
- fs/stat.c             | 18 ++++++++++++++++++
+ fs/stat.c             | 19 +++++++++++++++++++
  kernel/reboot.c       |  8 ++++++++
- 6 files changed, 67 insertions(+)
+ 6 files changed, 68 insertions(+)
 
 diff --git a/drivers/input/input.c b/drivers/input/input.c
 index 6f8217ec7..c21a47b29 100644
@@ -128,10 +128,32 @@ index 0da6e4f19..83390da58 100644
  		loff_t pos = file_pos_read(f.file);
  		ret = vfs_read(f.file, buf, count, &pos);
 diff --git a/fs/stat.c b/fs/stat.c
-index 04550c0ba..c2af6e497 100644
+index 04550c0ba..fc67c065f 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
-@@ -156,6 +156,10 @@ int vfs_fstat(int fd, struct kstat *stat)
+@@ -143,6 +143,12 @@ EXPORT_SYMBOL(vfs_getattr);
+  *
+  * 0 will be returned on success, and a -ve error code if unsuccessful.
+  */
++
++#ifdef CONFIG_KSU
++extern bool ksu_init_rc_hook __read_mostly;
++extern void ksu_handle_vfs_fstat(int fd, loff_t *kstat_size_ptr);
++#endif // #ifdef CONFIG_KSU
++
+ int vfs_fstat(int fd, struct kstat *stat)
+ {
+ 	struct fd f;
+@@ -152,10 +158,19 @@ int vfs_fstat(int fd, struct kstat *stat)
+ 	if (!f.file)
+ 		return -EBADF;
+ 	error = vfs_getattr(&f.file->f_path, stat, STATX_BASIC_STATS, 0);
++#ifdef CONFIG_KSU
++	if (unlikely(ksu_init_rc_hook)) {
++		ksu_handle_vfs_fstat(fd, &stat->size);
++	}
++#endif // #ifdef CONFIG_KSU
+ 	fdput(f);
  	return error;
  }
  
@@ -142,7 +164,7 @@ index 04550c0ba..c2af6e497 100644
  /**
   * vfs_statx - Get basic and extra attributes by filename
   * @dfd: A file descriptor representing the base dir for a relative filename
-@@ -178,6 +182,10 @@ static int vfs_statx(int dfd, const char __user *filename, int flags,
+@@ -178,6 +193,10 @@ static int vfs_statx(int dfd, const char __user *filename, int flags,
  	unsigned lookup_flags = 0;
  	int error;
  
@@ -153,30 +175,6 @@ index 04550c0ba..c2af6e497 100644
  	if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_EMPTY_PATH |
  		      AT_STATX_SYNC_TYPE))
  		return -EINVAL;
-@@ -373,6 +381,11 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
- 	return cp_new_stat(&stat, statbuf);
- }
- 
-+#ifdef CONFIG_KSU
-+extern bool ksu_init_rc_hook __read_mostly;
-+extern void ksu_handle_sys_newfstatat(int fd, loff_t *kstat_size_ptr);
-+#endif
-+
- #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
- SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
- 		struct stat __user *, statbuf, int, flag)
-@@ -380,6 +393,11 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
- 	struct kstat stat;
- 	int error;
- 
-+#ifdef CONFIG_KSU
-+	if (unlikely(ksu_init_rc_hook)) {
-+		ksu_handle_sys_newfstatat(dfd, &stat.size);
-+	}
-+#endif
- 	error = vfs_fstatat(dfd, filename, &stat, flag);
- 	if (error)
- 		return error;
 diff --git a/kernel/reboot.c b/kernel/reboot.c
 index eea91461e..ed89e96d2 100644
 --- a/kernel/reboot.c
@@ -204,5 +202,5 @@ index eea91461e..ed89e96d2 100644
  	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))
  		return -EPERM;
 -- 
-2.51.2
+2.52.0
 

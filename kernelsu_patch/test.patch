@@ -1,6 +1,6 @@
-From a923e0987502eabb40f5fe98bc3b5f4a91b5e631 Mon Sep 17 00:00:00 2001
+From 1524887a12f368a652251631cfccdfea77c59abc Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Wed, 14 Jan 2026 16:19:20 +0700
+Date: Sun, 18 Jan 2026 00:05:31 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -401,7 +401,7 @@ index 7742dad6..1bc8431c 100644
  
  	ksu_feature_exit();
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 82933bde..24d4f8e6 100644
+index 82933bde..32fc5209 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
 @@ -68,21 +68,20 @@ static const char KERNEL_SU_RC[] =
@@ -698,7 +698,7 @@ index 82933bde..24d4f8e6 100644
  
 -static void stop_vfs_read_hook()
 +#ifdef CONFIG_KSU_SUSFS
-+void ksu_handle_sys_newfstatat(int fd, loff_t *kstat_size_ptr) {
++void ksu_handle_vfs_fstat(int fd, loff_t *kstat_size_ptr) {
 +    loff_t new_size = *kstat_size_ptr + ksu_rc_len;
 +    struct file *file = fget(fd);
 +
