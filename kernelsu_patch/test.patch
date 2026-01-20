@@ -1,6 +1,6 @@
-From 241e11525ac5fb58962d271d4f8faa2702f9f314 Mon Sep 17 00:00:00 2001
+From 2a94698de8b2f24fc0344aa70d8c8fc19f58368a Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sun, 18 Jan 2026 02:55:12 +0700
+Date: Tue, 20 Jan 2026 18:58:24 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -1517,7 +1517,7 @@ index 1999af84..6d82243d 100644
  				void *__never_use_argv, void *__never_use_envp,
  				int *__never_use_flags);
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index febb7b1e..f9aeb59b 100644
+index febb7b1e..fc238387 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
 @@ -11,6 +11,10 @@
@@ -1669,8 +1669,8 @@ index febb7b1e..f9aeb59b 100644
 +        }
 +#endif //#ifdef CONFIG_KSU_SUSFS_SUS_PATH
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+        if (cmd == CMD_SUSFS_HIDE_SUS_MNTS_FOR_ALL_PROCS) {
-+            susfs_set_hide_sus_mnts_for_all_procs(arg);
++        if (cmd == CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS) {
++            susfs_set_hide_sus_mnts_for_non_su_procs(arg);
 +            return 0;
 +        }
 +#endif //#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT

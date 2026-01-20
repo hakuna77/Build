@@ -1,6 +1,6 @@
-From 233274d5fcd73c2a4a644353699cf86a73635e9a Mon Sep 17 00:00:00 2001
+From 9eff2646816b791abf8e41541d3ab4a3d8438418 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sun, 18 Jan 2026 23:54:54 +0700
+Date: Tue, 20 Jan 2026 18:54:11 +0700
 Subject: [PATCH] susfs v2.0.0 without manual hook
 
 ---
@@ -12,7 +12,7 @@ Subject: [PATCH] susfs v2.0.0 without manual hook
  fs/proc/cmdline.c         |  10 +
  fs/proc/fd.c              |  22 +-
  fs/proc/task_mmu.c        |  71 ++-
- fs/proc_namespace.c       |  25 +
+ fs/proc_namespace.c       |  35 ++
  fs/readdir.c              | 279 ++++++++++-
  fs/stat.c                 |  19 +
  fs/statfs.c               |  16 +
@@ -24,7 +24,7 @@ Subject: [PATCH] susfs v2.0.0 without manual hook
  kernel/kallsyms.c         |  33 ++
  kernel/sys.c              |   7 +-
  security/selinux/avc.c    |  20 +
- 20 files changed, 2412 insertions(+), 5 deletions(-)
+ 20 files changed, 2422 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1218,10 +1218,10 @@ index 924dc8249..3613fc8a7 100644
  
  		len = min(count, PM_ENTRY_BYTES * pm.pos);
 diff --git a/fs/proc_namespace.c b/fs/proc_namespace.c
-index b859aaeec..da69b97e3 100644
+index b859aaeec..3b3158f35 100644
 --- a/fs/proc_namespace.c
 +++ b/fs/proc_namespace.c
-@@ -12,12 +12,19 @@
+@@ -12,12 +12,20 @@
  #include <linux/security.h>
  #include <linux/fs_struct.h>
  #include <linux/sched/task.h>
@@ -1235,18 +1235,22 @@ index b859aaeec..da69b97e3 100644
  #include "internal.h"
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+extern bool susfs_hide_sus_mnts_for_all_procs;
++extern bool susfs_hide_sus_mnts_for_non_su_procs;
++extern bool susfs_is_current_ksu_domain(void);
 +#endif
 +
  static unsigned mounts_poll(struct file *file, poll_table *wait)
  {
  	struct seq_file *m = file->private_data;
-@@ -102,6 +109,12 @@ static int show_vfsmnt(struct seq_file *m, struct vfsmount *mnt)
+@@ -102,6 +110,15 @@ static int show_vfsmnt(struct seq_file *m, struct vfsmount *mnt)
  	struct super_block *sb = mnt_path.dentry->d_sb;
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (susfs_hide_sus_mnts_for_all_procs && r->mnt_id >= DEFAULT_KSU_MNT_ID) {
++	if (susfs_hide_sus_mnts_for_non_su_procs &&
++		r->mnt_id >= DEFAULT_KSU_MNT_ID &&
++		!susfs_is_current_ksu_domain())
++	{
 +		return 0;
 +	}
 +#endif
@@ -1254,12 +1258,15 @@ index b859aaeec..da69b97e3 100644
  	if (sb->s_op->show_devname) {
  		err = sb->s_op->show_devname(m, mnt_path.dentry);
  		if (err)
-@@ -138,6 +151,12 @@ static int show_mountinfo(struct seq_file *m, struct vfsmount *mnt)
+@@ -138,6 +155,15 @@ static int show_mountinfo(struct seq_file *m, struct vfsmount *mnt)
  	struct path mnt_path = { .dentry = mnt->mnt_root, .mnt = mnt };
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (susfs_hide_sus_mnts_for_all_procs && r->mnt_id >= DEFAULT_KSU_MNT_ID) {
++	if (susfs_hide_sus_mnts_for_non_su_procs &&
++		r->mnt_id >= DEFAULT_KSU_MNT_ID &&
++		!susfs_is_current_ksu_domain())
++	{
 +		return 0;
 +	}
 +#endif
@@ -1267,12 +1274,15 @@ index b859aaeec..da69b97e3 100644
  	seq_printf(m, "%i %i %u:%u ", r->mnt_id, r->mnt_parent->mnt_id,
  		   MAJOR(sb->s_dev), MINOR(sb->s_dev));
  	if (sb->s_op->show_path) {
-@@ -202,6 +221,12 @@ static int show_vfsstat(struct seq_file *m, struct vfsmount *mnt)
+@@ -202,6 +228,15 @@ static int show_vfsstat(struct seq_file *m, struct vfsmount *mnt)
  	struct super_block *sb = mnt_path.dentry->d_sb;
  	int err;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+	if (susfs_hide_sus_mnts_for_all_procs && r->mnt_id >= DEFAULT_KSU_MNT_ID) {
++	if (susfs_hide_sus_mnts_for_non_su_procs &&
++		r->mnt_id >= DEFAULT_KSU_MNT_ID &&
++		!susfs_is_current_ksu_domain())
++	{
 +		return 0;
 +	}
 +#endif
@@ -1817,7 +1827,7 @@ index ca1084cbe..638abca3c 100644
  
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
-index 000000000..068854927
+index 000000000..ab76994c2
 --- /dev/null
 +++ b/fs/susfs.c
 @@ -0,0 +1,997 @@
@@ -2194,25 +2204,25 @@ index 000000000..068854927
 +static DEFINE_SPINLOCK(susfs_spin_lock_sus_mount);
 +// - Default to false now so zygisk can pick up the sus mounts without the need to turn it off manually in post-fs-data stage
 +//   otherwise user needs to turn it on in post-fs-data stage and turn it off in boot-completed stage
-+bool susfs_hide_sus_mnts_for_all_procs = false;
++bool susfs_hide_sus_mnts_for_non_su_procs = false;
 +
-+void susfs_set_hide_sus_mnts_for_all_procs(void __user **user_info) {
-+	struct st_susfs_hide_sus_mnts_for_all_procs info = {0};
++void susfs_set_hide_sus_mnts_for_non_su_procs(void __user **user_info) {
++	struct st_susfs_hide_sus_mnts_for_non_su_procs info = {0};
 +
-+	if (copy_from_user(&info, (struct st_susfs_hide_sus_mnts_for_all_procs __user*)*user_info, sizeof(info))) {
++	if (copy_from_user(&info, (struct st_susfs_hide_sus_mnts_for_non_su_procs __user*)*user_info, sizeof(info))) {
 +		info.err = -EFAULT;
 +		goto out_copy_to_user;
 +	}
 +	spin_lock(&susfs_spin_lock_sus_mount);
-+	susfs_hide_sus_mnts_for_all_procs = info.enabled;
++	susfs_hide_sus_mnts_for_non_su_procs = info.enabled;
 +	spin_unlock(&susfs_spin_lock_sus_mount);
-+	SUSFS_LOGI("susfs_hide_sus_mnts_for_all_procs: %d\n", info.enabled);
++	SUSFS_LOGI("susfs_hide_sus_mnts_for_non_su_procs: %d\n", info.enabled);
 +	info.err = 0;
 +out_copy_to_user:
-+	if (copy_to_user(&((struct st_susfs_hide_sus_mnts_for_all_procs __user*)*user_info)->err, &info.err, sizeof(info.err))) {
++	if (copy_to_user(&((struct st_susfs_hide_sus_mnts_for_non_su_procs __user*)*user_info)->err, &info.err, sizeof(info.err))) {
 +		info.err = -EFAULT;
 +	}
-+	SUSFS_LOGI("CMD_SUSFS_HIDE_SUS_MNTS_FOR_ALL_PROCS -> ret: %d\n", info.err);
++	SUSFS_LOGI("CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS -> ret: %d\n", info.err);
 +}
 +
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
@@ -2849,7 +2859,7 @@ index ae20f52f1..67a53b8c3 100644
  	/* CPU-specific state of this task: */
 diff --git a/include/linux/susfs.h b/include/linux/susfs.h
 new file mode 100644
-index 000000000..414979d92
+index 000000000..2a33895e4
 --- /dev/null
 +++ b/include/linux/susfs.h
 @@ -0,0 +1,222 @@
@@ -2905,7 +2915,7 @@ index 000000000..414979d92
 +
 +/* sus_mount */
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+struct st_susfs_hide_sus_mnts_for_all_procs {
++struct st_susfs_hide_sus_mnts_for_non_su_procs {
 +	bool                                    enabled;
 +	int                                     err;
 +};
@@ -3026,7 +3036,7 @@ index 000000000..414979d92
 +
 +/* sus_mount */
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+void susfs_set_hide_sus_mnts_for_all_procs(void __user **user_info);
++void susfs_set_hide_sus_mnts_for_non_su_procs(void __user **user_info);
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +
 +/* sus_kstat */
@@ -3077,7 +3087,7 @@ index 000000000..414979d92
 +#endif
 diff --git a/include/linux/susfs_def.h b/include/linux/susfs_def.h
 new file mode 100644
-index 000000000..ed2d5dc55
+index 000000000..02761d8e0
 --- /dev/null
 +++ b/include/linux/susfs_def.h
 @@ -0,0 +1,87 @@
@@ -3096,7 +3106,7 @@ index 000000000..ed2d5dc55
 +#define CMD_SUSFS_SET_SDCARD_ROOT_PATH 0x55552
 +#define CMD_SUSFS_ADD_SUS_PATH_LOOP 0x55553
 +#define CMD_SUSFS_ADD_SUS_MOUNT 0x55560 /* deprecated */
-+#define CMD_SUSFS_HIDE_SUS_MNTS_FOR_ALL_PROCS 0x55561
++#define CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS 0x55561
 +#define CMD_SUSFS_UMOUNT_FOR_ZYGOTE_ISO_SERVICE 0x55562 /* deprecated */
 +#define CMD_SUSFS_ADD_SUS_KSTAT 0x55570
 +#define CMD_SUSFS_UPDATE_SUS_KSTAT 0x55571
