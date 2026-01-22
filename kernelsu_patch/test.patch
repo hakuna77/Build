@@ -1,6 +1,6 @@
-From 8a6f903ab68956f34354fe9ca97883481278ef81 Mon Sep 17 00:00:00 2001
+From f6624629b4c414ecc5835cfd145969581e1f4a23 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Thu, 22 Jan 2026 00:21:00 +0700
+Date: Thu, 22 Jan 2026 14:38:16 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -21,11 +21,11 @@ Subject: [PATCH] test sus
  kernel/selinux/selinux.c | 211 ++++++++++++++++++++++++++++++++-------
  kernel/selinux/selinux.h |  19 +++-
  kernel/setuid_hook.c     | 115 +++++++++++++++++++++
- kernel/sucompat.c        | 133 +++++++++++++++++++++++-
+ kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 147 +++++++++++++++++++++++++--
  kernel/throne_tracker.c  |  50 +---------
- 21 files changed, 954 insertions(+), 172 deletions(-)
+ 21 files changed, 957 insertions(+), 172 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 3f455e11..f0cf9165 100644
@@ -1360,7 +1360,7 @@ index 49915092..6be2ff98 100644
  extern void ksu_lsm_hook_init(void);
  void ksu_setuid_hook_init(void)
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index 609e0178..39f67355 100644
+index 609e0178..3df88462 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
 @@ -20,7 +20,11 @@
@@ -1384,7 +1384,7 @@ index 609e0178..39f67355 100644
  int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
  		int *mode, int *__unused_flags)
  {
-@@ -211,6 +216,132 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+@@ -211,6 +216,135 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
  
  	return 0;
  }
@@ -1404,8 +1404,11 @@ index 609e0178..39f67355 100644
 +        if (unlikely(strcmp(filename->name, KSUD_PATH) == 0)) {
 +            pr_info("hook_manager: escape to root for init executing ksud: %d\n", current->pid);
 +            escape_to_root_for_init();
-+        } else if (likely(strstr(filename->name, "/app_process") == NULL && strstr(filename->name, "/adbd") == NULL)) {
-+            pr_info("hook_manager: unmark %d exec %s\n", current->pid, filename->name);
++        } else if (likely(strstr(filename->name, "/app_process") == NULL &&
++                    strstr(filename->name, "/adbd") == NULL) &&
++                    !susfs_is_current_proc_umounted())
++        {
++            pr_info("susfs: mark no sucompat checks for pid: '%d', exec: '%s'\n", current->pid, filename->name);
 +            susfs_set_current_proc_umounted();
 +        }
 +        return 0;
