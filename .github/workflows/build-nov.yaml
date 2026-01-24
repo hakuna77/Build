@@ -410,6 +410,8 @@ jobs:
     - name: Setup Configuration for Kernel
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        BUILD_DEF=arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+        STOCK_DEF=arch/${{ env.ARCH }}/configs/stock_defconfig
         if [ ${{ env.ENABLE_KERNELSU }} = true ]; then
             if grep -q "CONFIG_KSU" arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}; then
                 sed -i 's/# CONFIG_KSU is not set/CONFIG_KSU=y/g' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
@@ -450,9 +452,21 @@ jobs:
             echo "CONFIG_CC_WERROR=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
         fi
         if [ ${{ env.ADD_KPM }} = true ]; then
-            echo "CONFIG_KALLSYMS_ALL=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-            echo "CONFIG_KALLSYMS_BASE_RELATIVE=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-            echo "✅ KPM enabled"
+            for FILE in "$BUILD_DEF" "$STOCK_DEF"; do
+              [ -f "$FILE" ] || continue
+              echo "🔧 Editing $FILE"
+              for opt in CONFIG_KALLSYMS_ALL CONFIG_KALLSYMS_BASE_RELATIVE; do
+                if grep -q "^${opt}=y" "$FILE"; then
+                  echo "✔ ${opt} already enabled, skip"
+                else
+                  sed -i "/^# ${opt} is not set/d" "$FILE"
+                  sed -i "/^${opt}=.*/d" "$FILE"
+                  echo "${opt}=y" >> "$FILE"
+                  echo "➕ Enabled ${opt}"
+                fi
+              done
+            done
+            echo "✅ KPM enabled (begonia_user_defconfig + stock_defconfig)"
         else
             echo "❌ KPM disabled"
         fi
