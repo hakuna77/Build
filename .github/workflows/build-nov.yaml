@@ -439,8 +439,23 @@ jobs:
             echo "CONFIG_KPROBE_EVENTS=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
         fi
         if [ ${{ env.ADD_OVERLAYFS_CONFIG }} = true ]; then
-            echo "CONFIG_OVERLAY_FS=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-            echo "CONFIG_TMPFS_XATTR=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+            for FILE in "$BUILD_DEF" "$STOCK_DEF"; do
+              [ -f "$FILE" ] || continue
+              echo "🔧 Editing $FILE"
+              for opt in CONFIG_OVERLAY_FS CONFIG_TMPFS_XATTR; do
+                if grep -q "^${opt}=y" "$FILE"; then
+                  echo "✔ ${opt} already enabled, skip"
+                else
+                  sed -i "/^# ${opt} is not set/d" "$FILE"
+                  sed -i "/^${opt}=.*/d" "$FILE"
+                  echo "${opt}=y" >> "$FILE"
+                  echo "➕ Enabled ${opt}"
+                fi
+              done
+            done
+            echo "✅ OVERLAYFS & TMPFS enabled (begonia_user_defconfig + stock_defconfig)"
+        else
+            echo "❌ OVERLAYFS & TMPFS disabled"
         fi
         if [ ${{ env.DISABLE-LTO }} = true ]; then
             sed -i 's/CONFIG_LTO=y/CONFIG_LTO=n/' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
