@@ -451,6 +451,7 @@ jobs:
         fi
         if [ ${{ env.ADD_KPM }} = true ]; then
             echo "CONFIG_KALLSYMS_ALL=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+            echo "CONFIG_KALLSYMS_BASE_RELATIVE=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "✅ KPM enabled"
         else
             echo "❌ KPM disabled"
