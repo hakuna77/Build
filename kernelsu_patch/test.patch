@@ -1,6 +1,6 @@
-From f6624629b4c414ecc5835cfd145969581e1f4a23 Mon Sep 17 00:00:00 2001
+From 7ebc7d1defc928488a6194438173e64c9e5da9d7 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Thu, 22 Jan 2026 14:38:16 +0700
+Date: Sun, 25 Jan 2026 19:51:08 +0700
 Subject: [PATCH] test sus
 
 ---
@@ -23,9 +23,9 @@ Subject: [PATCH] test sus
  kernel/setuid_hook.c     | 115 +++++++++++++++++++++
  kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
- kernel/supercalls.c      | 147 +++++++++++++++++++++++++--
+ kernel/supercalls.c      | 149 +++++++++++++++++++++++++--
  kernel/throne_tracker.c  |  50 +---------
- 21 files changed, 957 insertions(+), 172 deletions(-)
+ 21 files changed, 958 insertions(+), 173 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 3f455e11..f0cf9165 100644
@@ -1537,7 +1537,7 @@ index 1999af84..6d82243d 100644
  				void *__never_use_argv, void *__never_use_envp,
  				int *__never_use_flags);
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index c7eb13f8..cb7818ca 100644
+index c7eb13f8..394b1b9e 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
 @@ -11,6 +11,10 @@
@@ -1663,6 +1663,15 @@ index c7eb13f8..cb7818ca 100644
  }
  
  static int do_get_hook_mode(void __user *arg)
+@@ -433,7 +467,7 @@ static int do_get_hook_mode(void __user *arg)
+ 	const char *type = "Kprobes";
+ 
+ #ifndef KSU_KPROBES_HOOK
+-	type = "Manual";
++	type = "Manual | SUSFS v2.0.0";
+ #endif
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
 @@ -688,6 +722,97 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		magic2);
  #endif
