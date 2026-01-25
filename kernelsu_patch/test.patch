@@ -1,10 +1,10 @@
-From 7ebc7d1defc928488a6194438173e64c9e5da9d7 Mon Sep 17 00:00:00 2001
+From cb50942eba6a95e811098297b6c14ddbfa2106c8 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sun, 25 Jan 2026 19:51:08 +0700
-Subject: [PATCH] test sus
+Date: Sun, 25 Jan 2026 21:53:15 +0700
+Subject: [PATCH] test sus1
 
 ---
- kernel/Kbuild            |   4 -
+ kernel/Kbuild            |   3 -
  kernel/Kconfig           |  90 +++++++++++++++++
  kernel/Makefile          |  10 ++
  kernel/allowlist.c       |   5 +-
@@ -12,10 +12,9 @@ Subject: [PATCH] test sus
  kernel/apk_sign.h        |   1 +
  kernel/arch.h            |   4 +
  kernel/extras.c          |  16 ++-
- kernel/feature.h         |   2 +
  kernel/kernel_umount.c   |   3 +
- kernel/ksu.c             |  26 ++++-
- kernel/ksud.c            | 206 +++++++++++++++++++++++++-------------
+ kernel/ksu.c             |  35 ++++++-
+ kernel/ksud.c            | 202 ++++++++++++++++++++++++-------------
  kernel/ksud.h            |  19 ++++
  kernel/selinux/rules.c   |   9 ++
  kernel/selinux/selinux.c | 211 ++++++++++++++++++++++++++++++++-------
@@ -23,12 +22,12 @@ Subject: [PATCH] test sus
  kernel/setuid_hook.c     | 115 +++++++++++++++++++++
  kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
- kernel/supercalls.c      | 149 +++++++++++++++++++++++++--
+ kernel/supercalls.c      | 147 +++++++++++++++++++++++++--
  kernel/throne_tracker.c  |  50 +---------
- 21 files changed, 958 insertions(+), 173 deletions(-)
+ 20 files changed, 960 insertions(+), 171 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
-index 3f455e11..f0cf9165 100644
+index 3f455e11..ab4c7930 100644
 --- a/kernel/Kbuild
 +++ b/kernel/Kbuild
 @@ -3,7 +3,6 @@ kernelsu-objs += allowlist.o
@@ -39,16 +38,15 @@ index 3f455e11..f0cf9165 100644
  kernelsu-objs += throne_tracker.o
  kernelsu-objs += pkg_observer.o
  kernelsu-objs += setuid_hook.o
-@@ -17,9 +16,6 @@ kernelsu-objs += ksud.o
- kernelsu-objs += seccomp_cache.o
- kernelsu-objs += file_wrapper.o
+@@ -19,8 +18,6 @@ kernelsu-objs += file_wrapper.o
  kernelsu-objs += util.o
+ kernelsu-objs += extras.o
+ 
 -kernelsu-objs += extras.o
 -
--kernelsu-objs += extras.o
- 
  kernelsu-objs += selinux/selinux.o
  kernelsu-objs += selinux/sepolicy.o
+ kernelsu-objs += selinux/rules.o
 diff --git a/kernel/Kconfig b/kernel/Kconfig
 index b382a63d..008fbcfc 100644
 --- a/kernel/Kconfig
@@ -315,21 +313,6 @@ index b4fe4cd8..30b366c4 100644
  
  void ksu_avc_spoof_disable(void)
  {
-diff --git a/kernel/feature.h b/kernel/feature.h
-index 9e2ff25a..12c3bf6c 100644
---- a/kernel/feature.h
-+++ b/kernel/feature.h
-@@ -7,8 +7,10 @@ enum ksu_feature_id {
- 	KSU_FEATURE_SU_COMPAT = 0,
- 	KSU_FEATURE_KERNEL_UMOUNT = 1,
- 
-+#ifndef CONFIG_KSU_SUSFS
-     // custom extensions
-     KSU_FEATURE_AVC_SPOOF = 10003,
-+#endif // #ifndef CONFIG_KSU_SUSFS
- 
-     KSU_FEATURE_MAX
- };
 diff --git a/kernel/kernel_umount.c b/kernel/kernel_umount.c
 index e4d1e60c..bcfac544 100644
 --- a/kernel/kernel_umount.c
@@ -352,7 +335,7 @@ index e4d1e60c..bcfac544 100644
  	pr_info("handle umount for uid: %d, pid: %d\n", new_uid, current->pid);
  
 diff --git a/kernel/ksu.c b/kernel/ksu.c
-index 7742dad6..1bc8431c 100644
+index 7742dad6..3f867ddb 100644
 --- a/kernel/ksu.c
 +++ b/kernel/ksu.c
 @@ -3,12 +3,20 @@
@@ -384,15 +367,20 @@ index 7742dad6..1bc8431c 100644
  extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
  					void *argv, void *envp, int *flags);
  extern int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
-@@ -28,6 +37,7 @@ int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
+@@ -28,6 +37,12 @@ int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
  	return ksu_handle_execveat_sucompat(fd, filename_ptr, argv, envp,
  					    flags);
  }
 +#endif // #ifndef CONFIG_KSU_SUSFS
++
++#ifdef CONFIG_KSU_SUSFS
++extern void ksu_avc_spoof_init(void);
++extern void ksu_avc_spoof_exit(void);
++#endif
  
  int __init kernelsu_init(void)
  {
-@@ -49,16 +59,26 @@ int __init kernelsu_init(void)
+@@ -49,16 +64,27 @@ int __init kernelsu_init(void)
  	ksu_feature_init();
  
  	ksu_supercalls_init();
@@ -405,6 +393,7 @@ index 7742dad6..1bc8431c 100644
 +    ksu_lsm_hook_init();
 +    ksu_setuid_hook_init();
 +    ksu_sucompat_init();
++    ksu_avc_spoof_init();
 +#endif // #ifndef CONFIG_KSU_SUSFS
  
  	ksu_allowlist_init();
@@ -420,7 +409,7 @@ index 7742dad6..1bc8431c 100644
  
  	ksu_file_wrapper_init();
  
-@@ -78,11 +98,11 @@ void kernelsu_exit(void)
+@@ -78,11 +104,14 @@ void kernelsu_exit(void)
  	ksu_throne_tracker_exit();
  
  	ksu_observer_exit();
@@ -431,11 +420,14 @@ index 7742dad6..1bc8431c 100644
  	ksu_syscall_hook_manager_exit();
 -
 +#endif // #ifndef CONFIG_KSU_SUSFS
++#ifdef CONFIG_KSU_SUSFS
++	ksu_avc_spoof_exit();
++#endif // #ifdef CONFIG_KSU_SUSFS
  	ksu_supercalls_exit();
  
  	ksu_feature_exit();
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 82933bde..e512c872 100644
+index 82933bde..32fc5209 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
 @@ -68,21 +68,20 @@ static const char KERNEL_SU_RC[] =
@@ -478,28 +470,15 @@ index 82933bde..e512c872 100644
  }
  
  extern void ext4_unregister_sysfs(struct super_block *sb);
-@@ -130,15 +127,20 @@ void on_module_mounted(void)
- 	ksu_module_mounted = true;
- }
- 
-+#ifndef CONFIG_KSU_SUSFS
- extern void ksu_avc_spoof_late_init();
-+#endif // #ifndef CONFIG_KSU_SUSFS
- void on_boot_completed(void)
- {
-     ksu_boot_completed = true;
-     pr_info("on_boot_completed!\n");
-     track_throne(true);
-+#ifndef CONFIG_KSU_SUSFS
+@@ -139,6 +136,7 @@ void on_boot_completed(void)
      ksu_avc_spoof_late_init();
-+#endif // #ifndef CONFIG_KSU_SUSFS
  }
  
 +#ifndef CONFIG_KSU_SUSFS
  #define MAX_ARG_STRINGS 0x7FFFFFFF
  struct user_arg_ptr {
  #ifdef CONFIG_COMPAT
-@@ -151,6 +153,7 @@ struct user_arg_ptr {
+@@ -151,6 +149,7 @@ struct user_arg_ptr {
  #endif
  	} ptr;
  };
@@ -507,7 +486,7 @@ index 82933bde..e512c872 100644
  
  static const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
  {
-@@ -396,6 +399,10 @@ static bool check_argv(struct user_arg_ptr argv, int index,
+@@ -396,6 +395,10 @@ static bool check_argv(struct user_arg_ptr argv, int index,
  	return !strcmp(buf, expected);
  }
  
@@ -518,7 +497,7 @@ index 82933bde..e512c872 100644
  // IMPORTANT NOTE: the call from execve_handler_pre WON'T provided correct value for envp and flags in GKI version
  int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
  				struct user_arg_ptr *argv,
-@@ -433,6 +440,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+@@ -433,6 +436,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
  		    check_argv(*argv, 1, "second_stage", buf, sizeof(buf))) {
  			pr_info("/system/bin/init second_stage executed\n");
  			apply_kernelsu_rules();
@@ -526,7 +505,7 @@ index 82933bde..e512c872 100644
  			setup_ksu_cred();
  			init_second_stage_executed = true;
  		}
-@@ -501,6 +509,11 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+@@ -501,6 +505,11 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
  		}
  	}
  
@@ -538,7 +517,7 @@ index 82933bde..e512c872 100644
  	return 0;
  }
  
-@@ -606,62 +619,60 @@ static bool check_init_path(char *dpath)
+@@ -606,62 +615,60 @@ static bool check_init_path(char *dpath)
  	return true;
  }
  
@@ -629,7 +608,7 @@ index 82933bde..e512c872 100644
  
  	// Now we need to proxy the read and modify the result!
  	// But, we can not modify the file_operations directly, because it's in read-only memory.
-@@ -678,19 +689,8 @@ int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
+@@ -678,19 +685,8 @@ int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
  	// replace the file_operations
  	file->f_op = &fops_proxy;
  
@@ -650,7 +629,7 @@ index 82933bde..e512c872 100644
  }
  
  static unsigned int volumedown_pressed_count = 0;
-@@ -786,10 +786,54 @@ static int sys_read_handler_pre(struct kprobe *p, struct pt_regs *regs)
+@@ -786,10 +782,54 @@ static int sys_read_handler_pre(struct kprobe *p, struct pt_regs *regs)
  {
  	struct pt_regs *real_regs = PT_REAL_REGS(regs);
  	unsigned int fd = PT_REGS_PARM1(real_regs);
@@ -708,7 +687,7 @@ index 82933bde..e512c872 100644
  }
  
  static int input_handle_event_handler_pre(struct kprobe *p,
-@@ -805,19 +849,27 @@ static struct kprobe execve_kp = {
+@@ -805,19 +845,27 @@ static struct kprobe execve_kp = {
  	.symbol_name = SYS_EXECVE_SYMBOL,
  	.pre_handler = sys_execve_handler_pre,
  };
@@ -739,7 +718,7 @@ index 82933bde..e512c872 100644
  }
  
  static void do_stop_execve_hook(struct work_struct *work)
-@@ -878,14 +930,31 @@ int __maybe_unused ksu_handle_compat_execve_ksud(
+@@ -878,14 +926,31 @@ int __maybe_unused ksu_handle_compat_execve_ksud(
  
  #endif
  
@@ -776,7 +755,7 @@ index 82933bde..e512c872 100644
  #endif
  }
  
-@@ -895,19 +964,19 @@ static void stop_execve_hook()
+@@ -895,19 +960,19 @@ static void stop_execve_hook()
  	bool ret = schedule_work(&stop_execve_hook_work);
  	pr_info("unregister execve kprobe: %d!\n", ret);
  #else
@@ -798,7 +777,7 @@ index 82933bde..e512c872 100644
  	bool ret = schedule_work(&stop_input_hook_work);
  	pr_info("unregister input kprobe: %d!\n", ret);
  #else
-@@ -929,13 +998,16 @@ void ksu_ksud_init()
+@@ -929,13 +994,16 @@ void ksu_ksud_init()
  	ret = register_kprobe(&execve_kp);
  	pr_info("ksud: execve_kp: %d\n", ret);
  
@@ -818,7 +797,7 @@ index 82933bde..e512c872 100644
  	INIT_WORK(&stop_execve_hook_work, do_stop_execve_hook);
  	INIT_WORK(&stop_input_hook_work, do_stop_input_hook);
  #endif
-@@ -945,8 +1017,8 @@ void ksu_ksud_exit()
+@@ -945,8 +1013,8 @@ void ksu_ksud_exit()
  {
  #ifdef KSU_KPROBES_HOOK
  	unregister_kprobe(&execve_kp);
@@ -1537,7 +1516,7 @@ index 1999af84..6d82243d 100644
  				void *__never_use_argv, void *__never_use_envp,
  				int *__never_use_flags);
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index c7eb13f8..394b1b9e 100644
+index c7eb13f8..cb7818ca 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
 @@ -11,6 +11,10 @@
@@ -1663,15 +1642,6 @@ index c7eb13f8..394b1b9e 100644
  }
  
  static int do_get_hook_mode(void __user *arg)
-@@ -433,7 +467,7 @@ static int do_get_hook_mode(void __user *arg)
- 	const char *type = "Kprobes";
- 
- #ifndef KSU_KPROBES_HOOK
--	type = "Manual";
-+	type = "Manual | SUSFS v2.0.0";
- #endif
- 
- #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
 @@ -688,6 +722,97 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		magic2);
  #endif
