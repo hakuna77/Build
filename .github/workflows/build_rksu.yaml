@@ -302,7 +302,6 @@ jobs:
         
         if [[ "${{ env.KERNEL_SOURCE_BRANCH }}" == "begonia" && "${{ env.MANUAL_HOOK }}" == "0001-scope-manual-hook-1.6.patch" ]]; then
           for patch_file in \
-            0001-cred-add-get_cred_rcu.patch \
             0002-BACKPORT-ptrace-Move-setting-clearing.patch \
             0003-BACKPORT-fs-namespace.c-path_umount-5.10.9.patch \
             0001-inotify-show-inotify-mask-flags-in-proc-fdinfo.patch \
@@ -328,7 +327,6 @@ jobs:
         
         if [[ "${{ env.KERNEL_SOURCE_BRANCH }}" == "begonia" && "${{ env.MANUAL_HOOK }}" == "None" ]]; then
           for patch_file in \
-            0001-cred-add-get_cred_rcu.patch \
             0002-BACKPORT-ptrace-Move-setting-clearing.patch \
             0003-BACKPORT-fs-namespace.c-path_umount-5.10.9.patch \
             0001-inotify-show-inotify-mask-flags-in-proc-fdinfo.patch \
@@ -353,7 +351,6 @@ jobs:
         
         if [[ "${{ env.KERNEL_SOURCE_BRANCH }}" == "begonia" && "${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }}" == "0001-susfs-v2.0.0-manual-hook-not-incluced.patch" ]]; then
           for patch_file in \
-            0001-cred-add-get_cred_rcu.patch \
             0002-BACKPORT-ptrace-Move-setting-clearing.patch \
             0003-BACKPORT-fs-namespace.c-path_umount-5.10.9.patch \
             0001-inotify-show-inotify-mask-flags-in-proc-fdinfo.patch \
@@ -367,6 +364,7 @@ jobs:
             0001-backport-test.patch \
             ${{ env.MANUAL_HOOK }} \
             ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
+            add-slow_avc_audit-hook.patch \
             0001-upstream-avc.patch
           do
             if patch -p1 < "$patch_file"; then
@@ -445,8 +443,8 @@ jobs:
           exit 1
         fi
         
-        KSU_VERSION=$(cd $KSU_DIR && expr $(/usr/bin/git rev-list --count HEAD) + 10200)
-        echo "UPLOADNAME=-RKSU_$KSU_VERSION" >> $GITHUB_ENV
+        KSU_VERSION=$(cd "$KSU_DIR" && echo $((30000 + $(git rev-list --count HEAD) + 60)))
+        echo "UPLOADNAME=-KSUN_$KSU_VERSION" >> $GITHUB_ENV
         echo "KSU_DIR=$KSU_DIR" >> $GITHUB_ENV
         
     - name: Patching KSUN
