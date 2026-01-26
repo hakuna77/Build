@@ -1,6 +1,6 @@
-From 9eff2646816b791abf8e41541d3ab4a3d8438418 Mon Sep 17 00:00:00 2001
+From 9d2028b165bb2b34884792fbc5f57f2af0509f7e Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 20 Jan 2026 18:54:11 +0700
+Date: Mon, 26 Jan 2026 21:40:48 +0700
 Subject: [PATCH] susfs v2.0.0 without manual hook
 
 ---
@@ -10,7 +10,7 @@ Subject: [PATCH] susfs v2.0.0 without manual hook
  fs/notify/fdinfo.c        |  53 ++
  fs/proc/base.c            |  31 ++
  fs/proc/cmdline.c         |  10 +
- fs/proc/fd.c              |  22 +-
+ fs/proc/fd.c              |  46 +-
  fs/proc/task_mmu.c        |  71 ++-
  fs/proc_namespace.c       |  35 ++
  fs/readdir.c              | 279 ++++++++++-
@@ -24,7 +24,7 @@ Subject: [PATCH] susfs v2.0.0 without manual hook
  kernel/kallsyms.c         |  33 ++
  kernel/sys.c              |   7 +-
  security/selinux/avc.c    |  20 +
- 20 files changed, 2422 insertions(+), 5 deletions(-)
+ 20 files changed, 2446 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -1034,7 +1034,7 @@ index 403cbb12a..7c3fad2cb 100644
  	return 0;
  }
 diff --git a/fs/proc/fd.c b/fs/proc/fd.c
-index 96fc70225..48d6eebcf 100644
+index 96fc70225..9ed1d4597 100644
 --- a/fs/proc/fd.c
 +++ b/fs/proc/fd.c
 @@ -12,6 +12,9 @@
@@ -1057,7 +1057,7 @@ index 96fc70225..48d6eebcf 100644
  
  	task = get_proc_task(m->private);
  	if (!task)
-@@ -52,10 +58,24 @@ static int seq_show(struct seq_file *m, void *v)
+@@ -52,10 +58,48 @@ static int seq_show(struct seq_file *m, void *v)
  
  	if (ret)
  		return ret;
@@ -1067,14 +1067,38 @@ index 96fc70225..48d6eebcf 100644
 +	if (likely(susfs_is_current_proc_umounted()) &&
 +				mnt->mnt_id >= DEFAULT_KSU_MNT_ID)
 +	{
-+		// - We have to iterate the mnt->mnt_parent until the mnt_id is not sus,
-+		//   doing real_mount(path.mnt)->mnt_id is wrong since this will retrieve
-+		//   the mnt_id of the umounted path.
++		struct path path;
++		char *pathname = kmalloc(PAGE_SIZE, GFP_KERNEL);
++		char *dpath;
++
 +		for (; mnt->mnt_id >= DEFAULT_KSU_MNT_ID; mnt = mnt->mnt_parent) { }
++
++		if (!pathname) {
++			goto out_seq_printf;
++		}
++		dpath = d_path(&file->f_path, pathname, PAGE_SIZE);
++		if (!dpath) {
++			goto out_free_pathname;
++		}
++		if (kern_path(dpath, 0, &path)) {
++			goto out_free_pathname;
++		}
++		seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\nino:\t%lu\n",
++				(long long)file->f_pos, f_flags,
++				mnt->mnt_id,
++				path.dentry->d_inode->i_ino);
++		path_put(&path);
++		kfree(pathname);
++		goto bypass_orig_flow;
++out_free_pathname:
++		kfree(pathname);
 +	}
-+	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\n",
++out_seq_printf:
++	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\nino:\t%lu\n",
 +			(long long)file->f_pos, f_flags,
-+			mnt->mnt_id);
++			mnt->mnt_id,
++			file_inode(file)->i_ino);
++bypass_orig_flow:
 +#else
  	seq_printf(m, "pos:\t%lli\nflags:\t0%o\nmnt_id:\t%i\n",
  		   (long long)file->f_pos, f_flags,
