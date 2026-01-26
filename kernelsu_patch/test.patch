@@ -1,6 +1,6 @@
-From 9e6f60e21707938331c1fdda5149a2277b28ff01 Mon Sep 17 00:00:00 2001
+From 81cc06e82bf291ad5e6bec5a14785b861060fbe0 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 26 Jan 2026 00:33:44 +0700
+Date: Mon, 26 Jan 2026 11:07:17 +0700
 Subject: [PATCH] test sus 2
 
 ---
@@ -19,12 +19,12 @@ Subject: [PATCH] test sus 2
  kernel/selinux/rules.c   |   9 ++
  kernel/selinux/selinux.c | 211 ++++++++++++++++++++++++++++++++-------
  kernel/selinux/selinux.h |  19 +++-
- kernel/setuid_hook.c     | 113 +++++++++++++++++++++
+ kernel/setuid_hook.c     | 115 +++++++++++++++++++++
  kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 145 +++++++++++++++++++++++++--
  kernel/throne_tracker.c  |  50 +---------
- 20 files changed, 932 insertions(+), 167 deletions(-)
+ 20 files changed, 934 insertions(+), 167 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 3f455e11..60de07b1 100644
@@ -1125,7 +1125,7 @@ index 84fda9d5..91294437 100644
 +
  #endif
 diff --git a/kernel/setuid_hook.c b/kernel/setuid_hook.c
-index 49915092..c4007c14 100644
+index 49915092..d947ea41 100644
 --- a/kernel/setuid_hook.c
 +++ b/kernel/setuid_hook.c
 @@ -15,6 +15,9 @@
@@ -1174,7 +1174,7 @@ index 49915092..c4007c14 100644
  int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
  {
      // we rely on the fact that zygote always call setresuid(3) with same uids
-@@ -96,6 +122,93 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+@@ -96,6 +122,95 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
  
      return 0;
  }
@@ -1184,6 +1184,8 @@ index 49915092..c4007c14 100644
 +    uid_t new_uid = ruid;
 +    uid_t old_uid = current_uid().val;
 +
++    pr_info("handle_setresuid from %d to %d\n", old_uid, new_uid);
++    
 +    // We only interest in process spwaned by zygote
 +    if (!susfs_is_sid_equal(current_cred(), susfs_zygote_sid)) {
 +        return 0;
