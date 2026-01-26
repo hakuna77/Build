@@ -1,6 +1,6 @@
-From 81cc06e82bf291ad5e6bec5a14785b861060fbe0 Mon Sep 17 00:00:00 2001
+From 48a6f668358a617536ff0658667ef542d7831c85 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 26 Jan 2026 11:07:17 +0700
+Date: Tue, 27 Jan 2026 03:55:03 +0700
 Subject: [PATCH] test sus 2
 
 ---
@@ -14,7 +14,7 @@ Subject: [PATCH] test sus 2
  kernel/extras.c          |  16 ++-
  kernel/kernel_umount.c   |   3 +
  kernel/ksu.c             |   8 ++
- kernel/ksud.c            | 202 ++++++++++++++++++++++++-------------
+ kernel/ksud.c            | 200 +++++++++++++++++++++++++------------
  kernel/ksud.h            |  19 ++++
  kernel/selinux/rules.c   |   9 ++
  kernel/selinux/selinux.c | 211 ++++++++++++++++++++++++++++++++-------
@@ -24,7 +24,7 @@ Subject: [PATCH] test sus 2
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 145 +++++++++++++++++++++++++--
  kernel/throne_tracker.c  |  50 +---------
- 20 files changed, 934 insertions(+), 167 deletions(-)
+ 20 files changed, 933 insertions(+), 166 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 3f455e11..60de07b1 100644
@@ -367,7 +367,7 @@ index 7742dad6..c02491a2 100644
  	ksu_ksud_init();
  
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 82933bde..32fc5209 100644
+index 82933bde..9129d280 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
 @@ -68,21 +68,20 @@ static const char KERNEL_SU_RC[] =
@@ -695,7 +695,7 @@ index 82933bde..32fc5209 100644
  #endif
  }
  
-@@ -895,19 +960,19 @@ static void stop_execve_hook()
+@@ -895,8 +960,8 @@ static void stop_execve_hook()
  	bool ret = schedule_work(&stop_execve_hook_work);
  	pr_info("unregister execve kprobe: %d!\n", ret);
  #else
@@ -705,18 +705,6 @@ index 82933bde..32fc5209 100644
  #endif
  }
  
- static void stop_input_hook()
- {
--#ifdef KSU_KPROBES_HOOK
- 	static bool input_hook_stopped = false;
- 	if (input_hook_stopped) {
- 		return;
- 	}
- 	input_hook_stopped = true;
-+#ifdef KSU_KPROBES_HOOK
- 	bool ret = schedule_work(&stop_input_hook_work);
- 	pr_info("unregister input kprobe: %d!\n", ret);
- #else
 @@ -929,13 +994,16 @@ void ksu_ksud_init()
  	ret = register_kprobe(&execve_kp);
  	pr_info("ksud: execve_kp: %d\n", ret);
