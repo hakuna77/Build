@@ -1,16 +1,16 @@
-From 5939043e30a1a053e1789339d0f21aaac66de40f Mon Sep 17 00:00:00 2001
+From fdeb59dd9f9693e21b19f7b3443f39da60961e7f Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sat, 17 Jan 2026 23:59:50 +0700
-Subject: [PATCH] scope-minimized manual hooks v1.9
+Date: Sun, 1 Feb 2026 04:45:02 +0700
+Subject: [PATCH] scope-minimized manual hooks v1.9 via do_execve_common
 
 ---
  drivers/input/input.c | 11 +++++++++++
- fs/exec.c             | 12 ++++++++++++
+ fs/exec.c             | 10 ++++++++++
  fs/open.c             |  9 +++++++++
  fs/read_write.c       |  9 +++++++++
  fs/stat.c             | 19 +++++++++++++++++++
  kernel/reboot.c       |  8 ++++++++
- 6 files changed, 68 insertions(+)
+ 6 files changed, 66 insertions(+)
 
 diff --git a/drivers/input/input.c b/drivers/input/input.c
 index 6f8217ec7..c21a47b29 100644
@@ -40,41 +40,33 @@ index 6f8217ec7..c21a47b29 100644
  
  		spin_lock_irqsave(&dev->event_lock, flags);
 diff --git a/fs/exec.c b/fs/exec.c
-index 119a47437..2d5d6848e 100644
+index 119a47437..5d62333f6 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
-@@ -1854,12 +1854,21 @@ out_ret:
- 	return retval;
- }
- 
+@@ -1709,6 +1709,13 @@ static int exec_binprm(struct linux_binprm *bprm)
+ /*
+  * sys_execve() executes a new program.
+  */
 +#ifdef CONFIG_KSU
 +__attribute__((hot))
-+extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
-+				void *argv, void *envp, int *flags);
++extern int ksu_handle_execveat(int *fd,
++			struct filename **filename_ptr,
++			void *argv, void *envp, int *flags);
 +#endif
 +
- int do_execve(struct filename *filename,
- 	const char __user *const __user *__argv,
- 	const char __user *const __user *__envp)
- {
- 	struct user_arg_ptr argv = { .ptr.native = __argv };
- 	struct user_arg_ptr envp = { .ptr.native = __envp };
+ static int do_execveat_common(int fd, struct filename *filename,
+ 			      struct user_arg_ptr argv,
+ 			      struct user_arg_ptr envp,
+@@ -1723,6 +1730,9 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 	if (IS_ERR(filename))
+ 		return PTR_ERR(filename);
+ 
 +#ifdef CONFIG_KSU
 +	ksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);
 +#endif
- 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
- }
- 
-@@ -1887,6 +1896,9 @@ static int compat_do_execve(struct filename *filename,
- 		.is_compat = true,
- 		.ptr.compat = __envp,
- 	};
-+#ifdef CONFIG_KSU // 32-bit ksud and 32-on-64 support
-+	ksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);
-+#endif
- 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
- }
- 
+ 	/*
+ 	 * We move the actual failure in case of RLIMIT_NPROC excess from
+ 	 * set*uid() to execve() because too many poorly written programs
 diff --git a/fs/open.c b/fs/open.c
 index 3b62683fe..0f7134fe8 100644
 --- a/fs/open.c
