@@ -1,34 +1,28 @@
-From b691d01581b4cc1621ae91f371fb27af14c34616 Mon Sep 17 00:00:00 2001
+From 2da3bf99cb73e4469802881f37e62bc9c84b6e95 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 2 Feb 2026 15:00:46 +0700
-Subject: [PATCH] test sus 2
+Date: Mon, 2 Feb 2026 21:42:37 +0700
+Subject: [PATCH] susfs v2.0.0
 
 ---
- kernel/Kbuild            |   4 -
- kernel/Kconfig           |  90 ++++++++++++++++
- kernel/Makefile          |  10 ++
- kernel/allowlist.c       |   5 +-
- kernel/apk_sign.c        |  52 ++++++++++
- kernel/apk_sign.h        |   1 +
- kernel/app_profile.c     |  13 ++-
- kernel/arch.h            |   4 +
- kernel/extras.c          |  16 ++-
+ kernel/Kbuild            |   4 --
+ kernel/Kconfig           |  90 ++++++++++++++++++++++++
+ kernel/Makefile          |  10 +++
+ kernel/extras.c          |  16 ++++-
  kernel/kernel_umount.c   |   3 +
- kernel/ksu.c             |  24 +++++
- kernel/ksud.c            | 205 +++++++++++++++++++++++++------------
- kernel/ksud.h            |  19 ++++
- kernel/selinux/rules.c   |   9 ++
- kernel/selinux/selinux.c | 215 ++++++++++++++++++++++++++++++++-------
- kernel/selinux/selinux.h |  21 +++-
- kernel/setuid_hook.c     | 117 +++++++++++++++++++++
- kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
- kernel/sucompat.h        |   4 +
- kernel/supercalls.c      | 143 ++++++++++++++++++++++++--
- kernel/throne_tracker.c  |  50 +--------
- 21 files changed, 967 insertions(+), 174 deletions(-)
+ kernel/ksu.c             |  24 +++++++
+ kernel/ksud.c            |  31 +++++++++
+ kernel/ksud.h            |  19 ++++++
+ kernel/selinux/rules.c   |   9 +++
+ kernel/selinux/selinux.c |  96 ++++++++++++++++++++++++++
+ kernel/selinux/selinux.h |  13 ++++
+ kernel/setuid_hook.c     | 117 ++++++++++++++++++++++++++++++++
+ kernel/sucompat.c        | 136 ++++++++++++++++++++++++++++++++++++-
+ kernel/sucompat.h        |   4 ++
+ kernel/supercalls.c      | 143 ++++++++++++++++++++++++++++++++++++---
+ 15 files changed, 699 insertions(+), 16 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
-index 3f455e11..f0cf9165 100644
+index de54c3cd..ed23943b 100644
 --- a/kernel/Kbuild
 +++ b/kernel/Kbuild
 @@ -3,7 +3,6 @@ kernelsu-objs += allowlist.o
@@ -168,161 +162,6 @@ index 5db16b01..35c4e1fb 100644
 +
  # Keep a new line here!! Because someone may append config
 \ No newline at end of file
-diff --git a/kernel/allowlist.c b/kernel/allowlist.c
-index 706b68b4..566dd143 100644
---- a/kernel/allowlist.c
-+++ b/kernel/allowlist.c
-@@ -433,7 +433,10 @@ void persistent_allow_list()
- 		goto put_task;
- 	}
- 	cb->func = do_persistent_allow_list;
--	task_work_add(tsk, cb, TWA_RESUME);
-+	if (task_work_add(tsk, cb, TWA_RESUME)) {
-+		kfree(cb);
-+		pr_warn("save_allow_list add task_work failed\n");
-+	}
- 
- put_task:
- 	put_task_struct(tsk);
-diff --git a/kernel/apk_sign.c b/kernel/apk_sign.c
-index 09d89273..0470b800 100644
---- a/kernel/apk_sign.c
-+++ b/kernel/apk_sign.c
-@@ -15,6 +15,7 @@
- #endif
- 
- #include "apk_sign.h"
-+#include "app_profile.h"
- #include "klog.h" // IWYU pragma: keep
- #include "kernel_compat.h"
- 
-@@ -313,7 +314,58 @@ module_param_cb(ksu_debug_manager_appid, &expected_size_ops,
- 
- #endif
- 
-+int get_pkg_from_apk_path(char *pkg, const char *path)
-+{
-+	int len = strlen(path);
-+	if (len >= KSU_MAX_PACKAGE_NAME || len < 1)
-+		return -1;
-+
-+	const char *last_slash = NULL;
-+	const char *second_last_slash = NULL;
-+
-+	int i;
-+	for (i = len - 1; i >= 0; i--) {
-+		if (path[i] == '/') {
-+			if (!last_slash) {
-+				last_slash = &path[i];
-+			} else {
-+				second_last_slash = &path[i];
-+				break;
-+			}
-+		}
-+	}
-+
-+	if (!last_slash || !second_last_slash)
-+		return -1;
-+
-+	const char *last_hyphen = strchr(second_last_slash, '-');
-+	if (!last_hyphen || last_hyphen > last_slash)
-+		return -1;
-+
-+	int pkg_len = last_hyphen - second_last_slash - 1;
-+	if (pkg_len >= KSU_MAX_PACKAGE_NAME || pkg_len <= 0)
-+		return -1;
-+
-+	// Copying the package name
-+	strncpy(pkg, second_last_slash + 1, pkg_len);
-+	pkg[pkg_len] = '\0';
-+
-+	return 0;
-+}
-+
- bool is_manager_apk(char *path)
- {
-+#ifdef KSU_MANAGER_PACKAGE
-+	char pkg[KSU_MAX_PACKAGE_NAME];
-+	if (get_pkg_from_apk_path(pkg, path) < 0) {
-+		pr_err("Failed to get package name from apk path: %s\n", path);
-+		return false;
-+	}
-+
-+	// pkg is `<real package>`
-+	if (strncmp(pkg, KSU_MANAGER_PACKAGE, sizeof(KSU_MANAGER_PACKAGE))) {
-+		return false;
-+	}
-+#endif
- 	return check_v2_signature(path, EXPECTED_MANAGER_SIZE, EXPECTED_MANAGER_HASH);
- }
-diff --git a/kernel/apk_sign.h b/kernel/apk_sign.h
-index bed501c4..d3a44bd2 100644
---- a/kernel/apk_sign.h
-+++ b/kernel/apk_sign.h
-@@ -4,5 +4,6 @@
- #include <linux/types.h>
- 
- bool is_manager_apk(char *path);
-+int get_pkg_from_apk_path(char *pkg, const char *path);
- 
- #endif
-diff --git a/kernel/app_profile.c b/kernel/app_profile.c
-index 99987cc8..ace716ae 100644
---- a/kernel/app_profile.c
-+++ b/kernel/app_profile.c
-@@ -314,13 +314,13 @@ void escape_with_root_profile(void)
- 	       sizeof(cred->cap_bset));
- 
- 	setup_groups(profile, cred);
-+	
-+	setup_selinux(profile->selinux_domain, cred);
- 
- 	commit_creds(cred);
- 
- 	disable_seccomp();
- 
--	setup_selinux(profile->selinux_domain);
--
- #ifdef KSU_KPROBES_HOOK
- 	struct task_struct *p = current;
- 	struct task_struct *t;
-@@ -333,5 +333,12 @@ void escape_with_root_profile(void)
- }
- 
- void escape_to_root_for_init(void) {
--	setup_selinux(KERNEL_SU_CONTEXT);
-+	struct cred *cred = prepare_creds();
-+    if (!cred) {
-+        pr_err("Failed to prepare init's creds!\n");
-+        return;
-+    }
-+
-+    setup_selinux(KERNEL_SU_CONTEXT, cred);
-+    commit_creds(cred);
- }
-\ No newline at end of file
-diff --git a/kernel/arch.h b/kernel/arch.h
-index b8930b07..5c7e2260 100644
---- a/kernel/arch.h
-+++ b/kernel/arch.h
-@@ -22,6 +22,9 @@
- #define REBOOT_SYMBOL "__arm64_sys_reboot"
- #define SYS_READ_SYMBOL "__arm64_sys_read"
- #define SYS_EXECVE_SYMBOL "__arm64_sys_execve"
-+// https://cs.android.com/android/kernel/superproject/+/common-android-mainline:common/scripts/syscalltbl.sh;l=57;drc=9142be9e6443fd641ca37f820efe00d9cd890eb1
-+// https://cs.android.com/android/kernel/superproject/+/common-android-mainline:common/scripts/syscall.tbl;l=104;drc=b36d4b6aa88ef039647228b98c59a875e92f8c8e
-+#define SYS_FSTAT_SYMBOL "__arm64_sys_newfstat"
- #define SYS_SETNS_SYMBOL __arm64_sys_setns
- #else
- #define REBOOT_SYMBOL "sys_reboot"
-@@ -50,6 +53,7 @@
- #define REBOOT_SYMBOL "__x64_sys_reboot"
- #define SYS_READ_SYMBOL "__x64_sys_read"
- #define SYS_EXECVE_SYMBOL "__x64_sys_execve"
-+#define SYS_FSTAT_SYMBOL "__x64_sys_newfstat"
- #define SYS_SETNS_SYMBOL __x64_sys_setns
- #else
- #define REBOOT_SYMBOL "sys_reboot"
 diff --git a/kernel/extras.c b/kernel/extras.c
 index b4fe4cd8..30b366c4 100644
 --- a/kernel/extras.c
@@ -453,57 +292,16 @@ index 7742dad6..2c9ed554 100644
  	ksu_supercalls_exit();
  
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 82933bde..dc8206e6 100644
+index 73b4b47f..214299ed 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
-@@ -68,21 +68,20 @@ static const char KERNEL_SU_RC[] =
- 
- 	"\n";
- 
--static void stop_vfs_read_hook();
-+static void stop_init_rc_hook();
- static void stop_execve_hook();
- static void stop_input_hook();
- 
- #ifdef KSU_KPROBES_HOOK
--static struct work_struct __maybe_unused stop_vfs_read_work;
-+static struct work_struct __maybe_unused stop_init_rc_hook_work;
- static struct work_struct __maybe_unused stop_execve_hook_work;
- static struct work_struct __maybe_unused stop_input_hook_work;
- #else
--bool ksu_vfs_read_hook __read_mostly = true;
-+bool ksu_init_rc_hook __read_mostly = true;
- bool ksu_input_hook __read_mostly = true;
- #endif
- bool ksu_execveat_hook __read_mostly = true;
- 
--u32 ksu_file_sid;
- void on_post_fs_data(void)
- {
- 	static bool done = false;
-@@ -92,13 +91,11 @@ void on_post_fs_data(void)
- 	}
- 	done = true;
- 	pr_info("on_post_fs_data!\n");
-+
- 	ksu_load_allow_list();
- 	ksu_observer_init();
- 	// sanity check, this may influence the performance
- 	stop_input_hook();
--
--	ksu_file_sid = ksu_get_ksu_file_sid();
--	pr_info("ksu_file sid: %d\n", ksu_file_sid);
- }
- 
- extern void ext4_unregister_sysfs(struct super_block *sb);
-@@ -130,15 +127,21 @@ void on_module_mounted(void)
+@@ -127,15 +127,20 @@ void on_module_mounted(void)
  	ksu_module_mounted = true;
  }
  
 +#ifndef CONFIG_KSU_SUSFS
  extern void ksu_avc_spoof_late_init();
 +#endif // #ifndef CONFIG_KSU_SUSFS
-+
  void on_boot_completed(void)
  {
      ksu_boot_completed = true;
@@ -518,7 +316,7 @@ index 82933bde..dc8206e6 100644
  #define MAX_ARG_STRINGS 0x7FFFFFFF
  struct user_arg_ptr {
  #ifdef CONFIG_COMPAT
-@@ -151,6 +154,7 @@ struct user_arg_ptr {
+@@ -148,6 +153,7 @@ struct user_arg_ptr {
  #endif
  	} ptr;
  };
@@ -526,8 +324,8 @@ index 82933bde..dc8206e6 100644
  
  static const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
  {
-@@ -396,6 +400,10 @@ static bool check_argv(struct user_arg_ptr argv, int index,
- 	return !strcmp(buf, expected);
+@@ -237,6 +243,10 @@ fail:
+ 	return false;
  }
  
 +#ifdef CONFIG_KSU_SUSFS
@@ -536,233 +334,22 @@ index 82933bde..dc8206e6 100644
 +
  // IMPORTANT NOTE: the call from execve_handler_pre WON'T provided correct value for envp and flags in GKI version
  int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
- 				struct user_arg_ptr *argv,
-@@ -433,6 +441,7 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
- 		    check_argv(*argv, 1, "second_stage", buf, sizeof(buf))) {
- 			pr_info("/system/bin/init second_stage executed\n");
- 			apply_kernelsu_rules();
-+			cache_sid();
- 			setup_ksu_cred();
- 			init_second_stage_executed = true;
- 		}
-@@ -501,6 +510,11 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
- 		}
- 	}
- 
+                              struct user_arg_ptr *argv,
+@@ -291,6 +301,10 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+             stop_execve_hook();
+         }
+     }
 +#ifdef CONFIG_KSU_SUSFS
 +    // - We need to run ksu_handle_execveat_init() at the very end in case the above checks are skipped
 +    (void)ksu_handle_execveat_init(filename);
 +#endif // #ifdef CONFIG_KSU_SUSFS
-+
- 	return 0;
+ 
+     return 0;
  }
- 
-@@ -606,62 +620,60 @@ static bool check_init_path(char *dpath)
- 	return true;
- }
- 
--int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
--				size_t *count_ptr, loff_t **pos)
-+bool is_init_rc(struct file *fp)
- {
--#ifndef KSU_KPROBES_HOOK
--	if (!ksu_vfs_read_hook) {
--		return 0;
--	}
--#endif
--	struct file *file;
--	size_t count;
--
- 	if (strcmp(current->comm, "init")) {
--		// we are only interest in `init` process
--		return 0;
--	}
--
--	file = *file_ptr;
--	if (IS_ERR(file)) {
--		return 0;
-+		return false;
- 	}
- 
--	if (!d_is_reg(file->f_path.dentry)) {
--		return 0;
-+	if (!d_is_reg(fp->f_path.dentry)) {
-+		return false;
- 	}
- 
--	const char *short_name = file->f_path.dentry->d_name.name;
-+	const char *short_name = fp->f_path.dentry->d_name.name;
- 	if (strcmp(short_name, "init.rc")) {
- 		// we are only interest `init.rc` file name file
--		return 0;
-+		return false;
- 	}
- 	char path[256];
--	char *dpath = d_path(&file->f_path, path, sizeof(path));
-+	char *dpath = d_path(&fp->f_path, path, sizeof(path));
- 
- 	if (IS_ERR(dpath)) {
--		return 0;
-+		return false;
- 	}
- 
- 	if (!check_init_path(dpath)) {
--		return 0;
-+		return false;
-+	}
-+	
-+	return true;
-+}
-+
-+void ksu_handle_sys_read(unsigned int fd)
-+{
-+	struct file *file = fget(fd);
-+	if (!file) {
-+		return;
-+	}
-+
-+	if (!is_init_rc(file)) {
-+		goto skip;
- 	}
- 
- 	// we only process the first read
- 	static bool rc_hooked = false;
- 	if (rc_hooked) {
--		// we don't need this kprobe, unregister it!
--		stop_vfs_read_hook();
--		return 0;
-+		// we don't need these kprobe, unregister it!
-+		stop_init_rc_hook();
-+		goto skip;
- 	}
- 	rc_hooked = true;
- 
- 	// now we can sure that the init process is reading
- 	// `/system/etc/init/init.rc`
--	count = *count_ptr;
- 
--	pr_info("vfs_read: %s, comm: %s, count: %zu, rc_count: %zu\n", dpath,
--		current->comm, count, ksu_rc_len);
-+	pr_info("read init.rc, comm: %s, rc_count: %zu\n", current->comm,
-+		ksu_rc_len);
- 
- 	// Now we need to proxy the read and modify the result!
- 	// But, we can not modify the file_operations directly, because it's in read-only memory.
-@@ -678,19 +690,8 @@ int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
- 	// replace the file_operations
- 	file->f_op = &fops_proxy;
- 
--	return 0;
--}
--
--int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr,
--				size_t *count_ptr)
--{
--	struct file *file = fget(fd);
--	if (!file) {
--		return 0;
--	}
--	int result = ksu_handle_vfs_read(&file, buf_ptr, count_ptr, NULL);
-+skip:
- 	fput(file);
--	return result;
- }
- 
- static unsigned int volumedown_pressed_count = 0;
-@@ -786,10 +787,54 @@ static int sys_read_handler_pre(struct kprobe *p, struct pt_regs *regs)
- {
- 	struct pt_regs *real_regs = PT_REAL_REGS(regs);
- 	unsigned int fd = PT_REGS_PARM1(real_regs);
--	char __user **buf_ptr = (char __user **)&PT_REGS_PARM2(real_regs);
--	size_t count_ptr = (size_t *)&PT_REGS_PARM3(real_regs);
- 
--	return ksu_handle_sys_read(fd, buf_ptr, count_ptr);
-+	ksu_handle_sys_read(fd);
-+	return 0;
-+}
-+
-+static int sys_fstat_handler_pre(struct kretprobe_instance *p,
-+					struct pt_regs *regs)
-+{
-+	struct pt_regs *real_regs = PT_REAL_REGS(regs);
-+	unsigned int fd = PT_REGS_PARM1(real_regs);
-+	void *statbuf = PT_REGS_PARM2(real_regs);
-+	*(void **)&p->data = NULL;
-+
-+	struct file *file = fget(fd);
-+	if (!file)
-+		return 1;
-+	if (is_init_rc(file)) {
-+		pr_info("stat init.rc");
-+		fput(file);
-+		*(void **)&p->data = statbuf;
-+		return 0;
-+	}
-+	fput(file);
-+	return 1;
-+}
-+
-+static int sys_fstat_handler_post(struct kretprobe_instance *p,
-+					struct pt_regs *regs)
-+{
-+	void __user *statbuf = *(void **)&p->data;
-+	if (statbuf) {
-+		void __user *st_size_ptr = statbuf + offsetof(struct stat, st_size);
-+		long size, new_size;
-+		if (!copy_from_user_nofault(&size, st_size_ptr, sizeof(long))) {
-+			new_size = size + ksu_rc_len;
-+			pr_info("adding ksu_rc_len: %ld -> %ld", size, new_size);
-+			if (!copy_to_user_nofault(st_size_ptr, &new_size, sizeof(long))) {
-+				pr_info("added ksu_rc_len");
-+			} else {
-+				pr_err("add ksu_rc_len failed: statbuf 0x%lx",
-+					(unsigned long)st_size_ptr);
-+			}
-+		} else {
-+			pr_err("read statbuf 0x%lx failed", (unsigned long)st_size_ptr);
-+		}
-+	}
-+
-+	return 0;
- }
- 
- static int input_handle_event_handler_pre(struct kprobe *p,
-@@ -805,19 +850,27 @@ static struct kprobe execve_kp = {
- 	.symbol_name = SYS_EXECVE_SYMBOL,
- 	.pre_handler = sys_execve_handler_pre,
- };
--static struct kprobe vfs_read_kp = {
-+static struct kprobe sys_read_kp = {
- 	.symbol_name = SYS_READ_SYMBOL,
- 	.pre_handler = sys_read_handler_pre,
- };
- 
-+static struct kretprobe sys_fstat_kp = {
-+	.kp.symbol_name = SYS_FSTAT_SYMBOL,
-+	.entry_handler = sys_fstat_handler_pre,
-+	.handler = sys_fstat_handler_post,
-+	.data_size = sizeof(void *),
-+};
-+
- static struct kprobe input_event_kp = {
- 	.symbol_name = "input_event",
- 	.pre_handler = input_handle_event_handler_pre,
- };
- 
--static void do_stop_vfs_read_hook(struct work_struct *work)
-+static void do_stop_init_rc_hook(struct work_struct *work)
- {
--	unregister_kprobe(&vfs_read_kp);
-+	unregister_kprobe(&sys_read_kp);
-+	unregister_kretprobe(&sys_fstat_kp);
- }
- 
- static void do_stop_execve_hook(struct work_struct *work)
-@@ -878,14 +931,31 @@ int __maybe_unused ksu_handle_compat_execve_ksud(
+@@ -717,6 +731,23 @@ bool __maybe_unused ksu_vfs_read_hook = true;
  
  #endif
  
--static void stop_vfs_read_hook()
 +#ifdef CONFIG_KSU_SUSFS
 +void ksu_handle_vfs_fstat(int fd, loff_t *kstat_size_ptr) {
 +    loff_t new_size = *kstat_size_ptr + ksu_rc_len;
@@ -780,64 +367,11 @@ index 82933bde..dc8206e6 100644
 +}
 +#endif // #ifdef CONFIG_KSU_SUSFS
 +
-+static void stop_init_rc_hook()
+ static void stop_init_rc_hook()
  {
  #ifdef KSU_KPROBES_HOOK
--	bool ret = schedule_work(&stop_vfs_read_work);
--	pr_info("unregister vfs_read kprobe: %d!\n", ret);
-+	bool ret = schedule_work(&stop_init_rc_hook_work);
-+	pr_info("unregister init_rc_hook kprobe: %d!\n", ret);
- #else
--	ksu_vfs_read_hook = false;
--	pr_info("stop vfs_read_hook\n");
-+	ksu_init_rc_hook = false;
-+	pr_info("stop init_rc_hook\n");
- #endif
- }
- 
-@@ -895,8 +965,8 @@ static void stop_execve_hook()
- 	bool ret = schedule_work(&stop_execve_hook_work);
- 	pr_info("unregister execve kprobe: %d!\n", ret);
- #else
--	pr_info("stop execve_hook\n");
- 	ksu_execveat_hook = false;
-+	pr_info("stop execve_hook\n");
- #endif
- }
- 
-@@ -929,13 +999,16 @@ void ksu_ksud_init()
- 	ret = register_kprobe(&execve_kp);
- 	pr_info("ksud: execve_kp: %d\n", ret);
- 
--	ret = register_kprobe(&vfs_read_kp);
--	pr_info("ksud: vfs_read_kp: %d\n", ret);
-+	ret = register_kprobe(&sys_read_kp);
-+	pr_info("ksud: sys_read_kp: %d\n", ret);
-+
-+	ret = register_kretprobe(&sys_fstat_kp);
-+	pr_info("ksud: sys_fstat_kp: %d\n", ret);
- 
- 	ret = register_kprobe(&input_event_kp);
- 	pr_info("ksud: input_event_kp: %d\n", ret);
- 
--	INIT_WORK(&stop_vfs_read_work, do_stop_vfs_read_hook);
-+	INIT_WORK(&stop_init_rc_hook_work, do_stop_init_rc_hook);
- 	INIT_WORK(&stop_execve_hook_work, do_stop_execve_hook);
- 	INIT_WORK(&stop_input_hook_work, do_stop_input_hook);
- #endif
-@@ -945,8 +1018,8 @@ void ksu_ksud_exit()
- {
- #ifdef KSU_KPROBES_HOOK
- 	unregister_kprobe(&execve_kp);
--	// this should be done before unregister vfs_read_kp
--	// unregister_kprobe(&vfs_read_kp);
-+	// this should be done before unregister sys_read_kp
-+	// unregister_kprobe(&sys_read_kp);
- 	unregister_kprobe(&input_event_kp);
- #endif
- }
 diff --git a/kernel/ksud.h b/kernel/ksud.h
-index af0ddbd1..8710b4bb 100644
+index 7779fbb4..05cfa3ba 100644
 --- a/kernel/ksud.h
 +++ b/kernel/ksud.h
 @@ -20,6 +20,25 @@ extern u32 ksu_file_sid;
@@ -864,8 +398,8 @@ index af0ddbd1..8710b4bb 100644
 +#endif // #ifdef CONFIG_KSU_SUSFS
 +
  extern bool ksu_execveat_hook __read_mostly;
- extern int ksu_handle_pre_ksud(const char *filename);
  
+ #endif
 diff --git a/kernel/selinux/rules.c b/kernel/selinux/rules.c
 index f216fe39..e12b87b3 100644
 --- a/kernel/selinux/rules.c
@@ -887,197 +421,13 @@ index f216fe39..e12b87b3 100644
  }
  
 diff --git a/kernel/selinux/selinux.c b/kernel/selinux/selinux.c
-index 89d46b00..08bd4955 100644
+index c5e415f9..a9a56444 100644
 --- a/kernel/selinux/selinux.c
 +++ b/kernel/selinux/selinux.c
-@@ -7,6 +7,23 @@
- #include "../klog.h" // IWYU pragma: keep
- #include "../ksu.h"
- 
-+/*
-+ * Cached SID values for frequently checked contexts.
-+ * These are resolved once at init and used for fast u32 comparison
-+ * instead of expensive string operations on every check.
-+ *
-+ * A value of 0 means "no cached SID is available" for that context.
-+ * This covers both the initial "not yet cached" state and any case
-+ * where resolving the SID (e.g. via security_secctx_to_secid) failed.
-+ * In all such cases we intentionally fall back to the slower
-+ * string-based comparison path; this degrades performance only and
-+ * does not cause a functional failure.
-+ */
-+static u32 cached_su_sid __read_mostly = 0;
-+static u32 cached_zygote_sid __read_mostly = 0;
-+static u32 cached_init_sid __read_mostly = 0;
-+u32 ksu_file_sid __read_mostly = 0;
-+
- static int transive_to_domain(const char *domain, struct cred *cred)
+@@ -244,3 +244,99 @@ bool is_init(const struct cred *cred)
  {
-     struct task_security_struct *tsec;
-@@ -56,15 +73,15 @@ is_ksu_transition(const struct task_security_struct *old_tsec,
+     return is_sid_match(cred, cached_init_sid, INIT_CONTEXT);
  }
- #endif
- 
--void setup_selinux(const char *domain)
-+void setup_selinux(const char *domain, struct cred *cred)
- {
--    if (transive_to_domain(domain, (struct cred *)__task_cred(current))) {
-+    if (transive_to_domain(domain, cred)) {
-         pr_err("transive domain failed.\n");
-         return;
-     }
- }
- 
--void setup_ksu_cred()
-+void setup_ksu_cred(void)
- {
-     if (ksu_cred && transive_to_domain(KERNEL_SU_CONTEXT, ksu_cred)) {
-         pr_err("setup ksu cred failed.\n");
-@@ -82,7 +99,7 @@ void setenforce(bool enforce)
- #endif
- }
- 
--bool getenforce()
-+bool getenforce(void)
- {
- #ifdef CONFIG_SECURITY_SELINUX_DISABLE
- #ifdef KSU_COMPAT_USE_SELINUX_STATE
-@@ -119,40 +136,62 @@ static int __security_secid_to_secctx(u32 secid, struct lsm_context *cp)
- }
- static void __security_release_secctx(struct lsm_context *cp)
- {
--    return security_release_secctx(cp->context, cp->len);
-+    security_release_secctx(cp->context, cp->len);
- }
- #else
- #define __security_secid_to_secctx security_secid_to_secctx
- #define __security_release_secctx security_release_secctx
- #endif
- 
--bool is_task_ksu_domain(const struct cred *cred)
-+/*
-+ * Initialize cached SID values for frequently checked SELinux contexts.
-+ * Called once after SELinux policy is loaded (post-fs-data).
-+ * This eliminates expensive string comparisons in hot paths.
-+ */
-+void cache_sid(void)
- {
--    struct lsm_context ctx;
--    bool result;
--    if (!cred) {
--        return false;
-+    int err;
-+
-+    err = security_secctx_to_secid(KERNEL_SU_CONTEXT, strlen(KERNEL_SU_CONTEXT),
-+                                   &cached_su_sid);
-+    if (err) {
-+        pr_warn("Failed to cache kernel su domain SID: %d\n", err);
-+        cached_su_sid = 0;
-+    } else {
-+        pr_info("Cached su SID: %u\n", cached_su_sid);
-     }
--    const struct task_security_struct *tsec = selinux_cred(cred);
--    if (!tsec) {
--        return false;
-+    err = security_secctx_to_secid(ZYGOTE_CONTEXT, strlen(ZYGOTE_CONTEXT),
-+                                   &cached_zygote_sid);
-+    if (err) {
-+        pr_warn("Failed to cache zygote SID: %d\n", err);
-+        cached_zygote_sid = 0;
-+    } else {
-+        pr_info("Cached zygote SID: %u\n", cached_zygote_sid);
-     }
--    int err = __security_secid_to_secctx(tsec->sid, &ctx);
-+    err = security_secctx_to_secid(INIT_CONTEXT, strlen(INIT_CONTEXT),
-+                                   &cached_init_sid);
-     if (err) {
--        return false;
-+        pr_warn("Failed to cache init SID: %d\n", err);
-+        cached_init_sid = 0;
-+    } else {
-+        pr_info("Cached init SID: %u\n", cached_init_sid);
-+    }
-+    err = security_secctx_to_secid(KSU_FILE_CONTEXT, strlen(KSU_FILE_CONTEXT),
-+                                   &ksu_file_sid);
-+    if (err) {
-+        pr_warn("Failed to cache ksu_file SID: %d\n", err);
-+        ksu_file_sid = 0;
-+    } else {
-+        pr_info("Cached ksu_file SID: %u\n", ksu_file_sid);
-     }
--    result = strncmp(KERNEL_SU_CONTEXT, ctx.context, ctx.len) == 0;
--    __security_release_secctx(&ctx);
--    return result;
--}
--
--bool is_ksu_domain()
--{
--    current_sid();
--    return is_task_ksu_domain(current_cred());
- }
- 
--bool is_context(const struct cred *cred, const char *context)
-+/*
-+ * Fast path: compare task's SID directly against cached value.
-+ * Falls back to string comparison if cache is not initialized.
-+ */
-+static bool is_sid_match(const struct cred *cred, u32 cached_sid,
-+                         const char *fallback_context)
- {
-     if (!cred) {
-         return false;
-@@ -161,36 +200,136 @@ bool is_context(const struct cred *cred, const char *context)
-     if (!tsec) {
-         return false;
-     }
-+    // Fast path: use cached SID if available
-+    if (likely(cached_sid != 0)) {
-+        return tsec->sid == cached_sid;
-+    }
-+
-+    // Slow path fallback: string comparison (only before cache is initialized)
-     struct lsm_context ctx;
-     bool result;
--    int err = __security_secid_to_secctx(tsec->sid, &ctx);
--    if (err) {
-+    if (__security_secid_to_secctx(tsec->sid, &ctx)) {
-         return false;
-     }
--    result = strncmp(context, ctx.context, ctx.len) == 0;
-+    result = strncmp(fallback_context, ctx.context, ctx.len) == 0;
-     __security_release_secctx(&ctx);
-     return result;
- }
- 
--bool is_zygote(const struct cred* cred)
-+bool is_task_ksu_domain(const struct cred* cred)
- {
--    return is_context(cred, "u:r:zygote:s0");
-+    return is_sid_match(cred, cached_su_sid, KERNEL_SU_CONTEXT);
- }
- 
--bool is_init(const struct cred* cred)
-+bool is_ksu_domain(void)
- {
--    return is_context(cred, "u:r:init:s0");
-+    return is_task_ksu_domain(current_cred());
- }
- 
- #define KSU_FILE_DOMAIN "u:object_r:ksu_file:s0"
- 
--u32 ksu_get_ksu_file_sid()
-+bool is_zygote(const struct cred *cred)
-+{
-+    return is_sid_match(cred, cached_zygote_sid, ZYGOTE_CONTEXT);
-+}
-+
-+bool is_init(const struct cred *cred)
- {
--    u32 ksu_file_sid = 0;
--    int err = security_secctx_to_secid(KSU_FILE_CONTEXT, strlen(KSU_FILE_CONTEXT),
--                       &ksu_file_sid);
-+    return is_sid_match(cred, cached_init_sid, INIT_CONTEXT);
-+}
 +
 +#ifdef CONFIG_KSU_SUSFS
 +#define KERNEL_INIT_DOMAIN "u:r:init:s0"
@@ -1100,12 +450,10 @@ index 89d46b00..08bd4955 100644
 +
 +    err = security_secctx_to_secid(secctx_name, strlen(secctx_name),
 +                       out_sid);
-     if (err) {
--        pr_info("get ksufile sid err %d\n", err);
++    if (err) {
 +        pr_err("failed setting sid for '%s', err: %d\n", secctx_name, err);
 +        return;
-     }
--    return ksu_file_sid;
++    }
 +    pr_info("sid '%u' is set for secctx_name '%s'\n", *out_sid, secctx_name);
 +}
 +
@@ -1174,38 +522,13 @@ index 89d46b00..08bd4955 100644
 +void susfs_set_priv_app_sid(void)
 +{
 +    susfs_set_sid(KERNEL_PRIV_APP_DOMAIN, &susfs_priv_app_sid);
- }
++}
 +#endif // #ifdef CONFIG_KSU_SUSFS
 diff --git a/kernel/selinux/selinux.h b/kernel/selinux/selinux.h
-index 84fda9d5..9aa718fe 100644
+index 214c964b..9aa718fe 100644
 --- a/kernel/selinux/selinux.h
 +++ b/kernel/selinux/selinux.h
-@@ -37,13 +37,17 @@ static inline u32 current_sid(void)
- 
- #define KERNEL_SU_CONTEXT "u:r:" KERNEL_SU_DOMAIN ":s0"
- #define KSU_FILE_CONTEXT "u:object_r:" KERNEL_SU_FILE ":s0"
-+#define ZYGOTE_CONTEXT "u:r:zygote:s0"
-+#define INIT_CONTEXT "u:r:init:s0"
- 
--void setup_selinux(const char *);
-+void setup_selinux(const char *, struct cred *);
- 
- void setenforce(bool);
- 
- bool getenforce();
- 
-+void cache_sid(void);
-+
- bool is_task_ksu_domain(const struct cred* cred);
- 
- bool is_ksu_domain();
-@@ -54,10 +58,21 @@ bool is_init(const struct cred* cred);
- 
- void apply_kernelsu_rules();
- 
--u32 ksu_get_ksu_file_sid();
--
- int handle_sepolicy(unsigned long arg3, void __user *arg4);
+@@ -62,4 +62,17 @@ int handle_sepolicy(unsigned long arg3, void __user *arg4);
  
  void setup_ksu_cred();
  
@@ -1557,20 +880,20 @@ index 1999af84..6d82243d 100644
  				void *__never_use_argv, void *__never_use_envp,
  				int *__never_use_flags);
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index c7eb13f8..cc048f88 100644
+index c7eb13f8..9fe06914 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
-@@ -11,6 +11,10 @@
- #include <linux/task_work.h>
+@@ -12,6 +12,10 @@
  #include <linux/uaccess.h>
  #include <linux/version.h>
+ #include <linux/utsname.h> // utsname() and uts_sem
 +#ifdef CONFIG_KSU_SUSFS
 +#include <linux/namei.h>
 +#include <linux/susfs.h>
 +#endif // #ifdef CONFIG_KSU_SUSFS
- #include <linux/utsname.h> // utsname() and uts_sem
  
  #include "supercalls.h"
+ #include "arch.h"
 @@ -25,7 +29,9 @@
  #include "manager.h"
  #include "selinux/selinux.h"
@@ -1802,98 +1125,10 @@ index c7eb13f8..cc048f88 100644
 -#endif
 +#else
 +    pr_info("susfs: do nothing\n");
-+#endif // #ifndef CONFIG_KSU_SUSFS
++#endif // #if defined(KSU_KPROBES_HOOK) && !defined(CONFIG_KSU_SUSFS)
  }
  
  // IOCTL dispatcher
-diff --git a/kernel/throne_tracker.c b/kernel/throne_tracker.c
-index ee9b4ddc..69e5f9ff 100644
---- a/kernel/throne_tracker.c
-+++ b/kernel/throne_tracker.c
-@@ -7,6 +7,7 @@
- #include <linux/version.h>
- 
- #include "allowlist.h"
-+#include "apk_sign.h"
- #include "klog.h" // IWYU pragma: keep
- #include "manager.h"
- #include "throne_tracker.h"
-@@ -22,45 +23,6 @@ struct uid_data {
- 	char package[KSU_MAX_PACKAGE_NAME];
- };
- 
--static int get_pkg_from_apk_path(char *pkg, const char *path)
--{
--	int len = strlen(path);
--	if (len >= KSU_MAX_PACKAGE_NAME || len < 1)
--		return -1;
--
--	const char *last_slash = NULL;
--	const char *second_last_slash = NULL;
--
--	int i;
--	for (i = len - 1; i >= 0; i--) {
--		if (path[i] == '/') {
--			if (!last_slash) {
--				last_slash = &path[i];
--			} else {
--				second_last_slash = &path[i];
--				break;
--			}
--		}
--	}
--
--	if (!last_slash || !second_last_slash)
--		return -1;
--
--	const char *last_hyphen = strchr(second_last_slash, '-');
--	if (!last_hyphen || last_hyphen > last_slash)
--		return -1;
--
--	int pkg_len = last_hyphen - second_last_slash - 1;
--	if (pkg_len >= KSU_MAX_PACKAGE_NAME || pkg_len <= 0)
--		return -1;
--
--	// Copying the package name
--	strncpy(pkg, second_last_slash + 1, pkg_len);
--	pkg[pkg_len] = '\0';
--
--	return 0;
--}
--
- static void crown_manager(const char *apk, struct list_head *uid_data)
- {
- 	char pkg[KSU_MAX_PACKAGE_NAME];
-@@ -71,14 +33,6 @@ static void crown_manager(const char *apk, struct list_head *uid_data)
- 
- 	pr_info("manager pkg: %s\n", pkg);
- 
--#ifdef KSU_MANAGER_PACKAGE
--	// pkg is `/<real package>`
--	if (strncmp(pkg, KSU_MANAGER_PACKAGE, sizeof(KSU_MANAGER_PACKAGE))) {
--		pr_info("manager package is inconsistent with kernel build: %s\n",
--				KSU_MANAGER_PACKAGE);
--		return;
--	}
--#endif
- 	struct list_head *list = (struct list_head *)uid_data;
- 	struct uid_data *np;
- 
-@@ -320,12 +274,14 @@ void track_throne(bool prune_only)
- 		char *package = strsep(&tmp, delim);
- 		char *uid = strsep(&tmp, delim);
- 		if (!uid || !package) {
-+			kfree(data);
- 			pr_err("update_uid: package or uid is NULL!\n");
- 			break;
- 		}
- 
- 		u32 res;
- 		if (kstrtou32(uid, 10, &res)) {
-+			kfree(data);
- 			pr_err("update_uid: uid parse err\n");
- 			break;
- 		}
 -- 
 2.52.0
 
