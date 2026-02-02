@@ -1,30 +1,30 @@
-From 9d2028b165bb2b34884792fbc5f57f2af0509f7e Mon Sep 17 00:00:00 2001
+From 23914c58698ee7af84700f5f83d93bbaf1399f2a Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 26 Jan 2026 21:40:48 +0700
+Date: Mon, 2 Feb 2026 14:48:14 +0700
 Subject: [PATCH] susfs v2.0.0 without manual hook
 
 ---
- fs/Makefile               |   2 +
- fs/namei.c                | 262 +++++++++-
- fs/namespace.c            | 254 ++++++++++
- fs/notify/fdinfo.c        |  53 ++
- fs/proc/base.c            |  31 ++
- fs/proc/cmdline.c         |  10 +
- fs/proc/fd.c              |  46 +-
- fs/proc/task_mmu.c        |  71 ++-
- fs/proc_namespace.c       |  35 ++
- fs/readdir.c              | 279 ++++++++++-
- fs/stat.c                 |  19 +
- fs/statfs.c               |  16 +
- fs/susfs.c                | 997 ++++++++++++++++++++++++++++++++++++++
- include/linux/mount.h     |   3 +
- include/linux/sched.h     |   4 +
- include/linux/susfs.h     | 222 +++++++++
- include/linux/susfs_def.h |  87 ++++
- kernel/kallsyms.c         |  33 ++
- kernel/sys.c              |   7 +-
- security/selinux/avc.c    |  20 +
- 20 files changed, 2446 insertions(+), 5 deletions(-)
+ fs/Makefile               |    2 +
+ fs/namei.c                |  262 ++++++++-
+ fs/namespace.c            |  254 +++++++++
+ fs/notify/fdinfo.c        |   53 ++
+ fs/proc/base.c            |   31 ++
+ fs/proc/cmdline.c         |   10 +
+ fs/proc/fd.c              |   46 +-
+ fs/proc/task_mmu.c        |   71 ++-
+ fs/proc_namespace.c       |   35 ++
+ fs/readdir.c              |  279 +++++++++-
+ fs/stat.c                 |   19 +
+ fs/statfs.c               |   16 +
+ fs/susfs.c                | 1071 +++++++++++++++++++++++++++++++++++++
+ include/linux/mount.h     |    3 +
+ include/linux/sched.h     |    4 +
+ include/linux/susfs.h     |  224 ++++++++
+ include/linux/susfs_def.h |   87 +++
+ kernel/kallsyms.c         |   33 ++
+ kernel/sys.c              |    7 +-
+ security/selinux/avc.c    |   20 +
+ 20 files changed, 2522 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -475,7 +475,7 @@ index 3817aa28b..8b2217f5c 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index a159f5f4c..98959064a 100644
+index a159f5f4c..a8e8e532a 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,23 @@
@@ -491,7 +491,7 @@ index a159f5f4c..98959064a 100644
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +extern bool susfs_is_current_ksu_domain(void);
-+extern bool susfs_is_boot_completed_triggered __read_mostly;
++extern bool susfs_is_sdcard_android_data_decrypted __read_mostly;
 +
 +static DEFINE_IDA(susfs_ksu_mnt_group_ida);
 +static atomic64_t susfs_ksu_mounts = ATOMIC64_INIT(0);
@@ -530,12 +530,12 @@ index a159f5f4c..98959064a 100644
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	int res;
 +
-+	/* - At frist susfs_is_boot_completed_triggered is set to false in kernel,
++	/* - At frist susfs_is_sdcard_android_data_decrypted is set to false in kernel,
 +	 *   and it is still allowed to assign our custom mnt_group_id via susfs_ksu_mnt_group_ida
-+	 *   if it is ksu mounts, until susfs_is_boot_completed_triggered is set to true
++	 *   if it is ksu mounts, until susfs_is_sdcard_android_data_decrypted is set to true
 +	 *   when boot-completed stage is triggered in core_hook.c 
 +	 */
-+	if (!susfs_is_boot_completed_triggered && mnt->mnt_id >= DEFAULT_KSU_MNT_ID) {
++	if (!susfs_is_sdcard_android_data_decrypted && mnt->mnt_id >= DEFAULT_KSU_MNT_ID) {
 +		res = ida_alloc_min(&susfs_ksu_mnt_group_ida, DEFAULT_KSU_MNT_GROUP_ID, GFP_KERNEL);
 +		goto bypass_orig_flow;
 +	}
@@ -553,15 +553,15 @@ index a159f5f4c..98959064a 100644
  {
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	/* - when boot-completed stage is triggered in core_hook.c,
-+	 *   susfs_is_boot_completed_triggered will be set to true.
-+	 * - Please note that if susfs_is_boot_completed_triggered is true, then
++	 *   susfs_is_sdcard_android_data_decrypted will be set to true.
++	 * - Please note that if susfs_is_sdcard_android_data_decrypted is true, then
 +	 *   it no longer checks for the sus mnt_group_id, and the allocated
 +	 *   sus mnt_group_id will stay in kernel memory forever, and if user
 +	 *   suddenly umounts the sus mount in global mnt namespace, the ida_free()
 +	 *   function will throw error to kernel log, but it won't affect the system,
 +	 *   so it is fine.
 +	 */
-+	if (!susfs_is_boot_completed_triggered && mnt->mnt_group_id >= DEFAULT_KSU_MNT_GROUP_ID) {
++	if (!susfs_is_sdcard_android_data_decrypted && mnt->mnt_group_id >= DEFAULT_KSU_MNT_GROUP_ID) {
 +		ida_free(&susfs_ksu_mnt_group_ida, mnt->mnt_group_id);
 +		mnt->mnt_group_id = 0;
 +		return;
@@ -708,7 +708,7 @@ index a159f5f4c..98959064a 100644
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +    // We keep checking for ksu process only until boot-completed stage is triggered
-+	if (!susfs_is_boot_completed_triggered && susfs_is_current_ksu_domain()) {
++	if (!susfs_is_sdcard_android_data_decrypted && susfs_is_current_ksu_domain()) {
 +		mnt = susfs_alloc_sus_vfsmnt(name);
 +		atomic64_add(1, &susfs_ksu_mounts);
 +		goto bypass_orig_flow;
@@ -737,7 +737,7 @@ index a159f5f4c..98959064a 100644
 +
 +	// - We do not check anymore for ksu process if boot-completed stage is triggered
 +	//   just to stop the performance loss
-+	if (susfs_is_boot_completed_triggered) {
++	if (susfs_is_sdcard_android_data_decrypted) {
 +		goto skip_checking_for_ksu_proc;
 +	}
 +
@@ -1851,10 +1851,10 @@ index ca1084cbe..638abca3c 100644
  
 diff --git a/fs/susfs.c b/fs/susfs.c
 new file mode 100644
-index 000000000..ab76994c2
+index 000000000..a98c9f892
 --- /dev/null
 +++ b/fs/susfs.c
-@@ -0,0 +1,997 @@
+@@ -0,0 +1,1071 @@
 +#include <linux/version.h>
 +#include <linux/cred.h>
 +#include <linux/fs.h>
@@ -1871,6 +1871,8 @@ index 000000000..ab76994c2
 +#include <linux/fdtable.h>
 +#include <linux/statfs.h>
 +#include <linux/random.h>
++#include <linux/kthread.h>
++#include <linux/delay.h>
 +#include <linux/susfs.h>
 +#include "mount.h"
 +
@@ -2841,11 +2843,83 @@ index 000000000..ab76994c2
 +	SUSFS_LOGI("CMD_SUSFS_SHOW_VERSION -> ret: %d\n", info.err);
 +}
 +
++/* kthread for checking if /sdcard/Android/data is accessible */
++#define SDCARD_ANDROID_DATA_PATH "/sdcard/Android/data"
++#define SDCARD_MONITOR_INTERVAL_MS 5000
++#define SDCARD_MONITOR_MAX_ATTEMPTS 60 /* 60 x 5 = 300s = 5 mins */
++extern void setup_selinux(const char *domain, struct cred *cred);
++extern bool susfs_is_current_ksu_domain(void);
++bool susfs_is_sdcard_android_data_decrypted __read_mostly = false;
++static struct task_struct *susfs_sdcard_monitor_thread;
++static int susfs_sdcard_monitor_fn(void *data)
++{
++	struct cred *cred = prepare_creds();
++	struct path path;
++	int err = 0, max_attempts = SDCARD_MONITOR_MAX_ATTEMPTS;
++
++	if (!cred) {
++		SUSFS_LOGE("Failed to prepare creds!\n");
++		return -ENOMEM;
++	}
++
++	setup_selinux("u:r:su:s0", cred);
++	commit_creds(cred);
++
++	if (!susfs_is_current_ksu_domain()) {
++		SUSFS_LOGE("Domain is not su, exiting the thread\n");
++		susfs_sdcard_monitor_thread = NULL;
++		return -EINVAL;
++	}
++
++	SUSFS_LOGI("Start monitoring path '%s' in loop per '%d' ms with maximum '%d' attempts\n",
++				SDCARD_ANDROID_DATA_PATH, SDCARD_MONITOR_INTERVAL_MS, SDCARD_MONITOR_MAX_ATTEMPTS);
++
++	while (!kthread_should_stop() && max_attempts > 0) {
++		err = kern_path(SDCARD_ANDROID_DATA_PATH, LOOKUP_FOLLOW, &path);
++
++		if (!err) {
++			SUSFS_LOGI("'%s' is now accessible\n", SDCARD_ANDROID_DATA_PATH);
++			path_put(&path);
++
++			SUSFS_LOGI("Sleeping for '%d' more ms just in case some other modules are still mounting stuff\n",
++						SDCARD_MONITOR_INTERVAL_MS);
++			msleep(SDCARD_MONITOR_INTERVAL_MS);
++
++			SUSFS_LOGI("set susfs_is_sdcard_android_data_decrypted to true\n");
++
++			err = 0;
++
++			goto out_finish;
++		}
++
++		max_attempts--;
++		SUSFS_LOGI("%d attempts left\n", max_attempts);
++		msleep(SDCARD_MONITOR_INTERVAL_MS);
++	}
++
++	SUSFS_LOGI("No more attempts, assuming susfs_is_sdcard_android_data_decrypted is true now\n");
++
++out_finish:
++	WRITE_ONCE(susfs_is_sdcard_android_data_decrypted, true);
++	WRITE_ONCE(susfs_sdcard_monitor_thread, NULL);
++	return err;
++}
++
++void susfs_start_sdcard_monitor_fn(void) {
++	susfs_sdcard_monitor_thread = kthread_run(susfs_sdcard_monitor_fn, NULL, "susfs_sdcard_monitor");
++	if (IS_ERR(susfs_sdcard_monitor_thread)) {
++		SUSFS_LOGE("Failed to create thread susfs_sdcard_monitor\n");
++		SUSFS_LOGI("set susfs_is_sdcard_android_data_decrypted to true\n");
++		susfs_is_sdcard_android_data_decrypted = true;
++	}
++}
++
 +/* susfs_init */
 +void susfs_init(void) {
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +	susfs_my_uname_init();
 +#endif
++
 +	SUSFS_LOGI("susfs is initialized! version: " SUSFS_VERSION " \n");
 +}
 +
@@ -2883,10 +2957,10 @@ index ae20f52f1..67a53b8c3 100644
  	/* CPU-specific state of this task: */
 diff --git a/include/linux/susfs.h b/include/linux/susfs.h
 new file mode 100644
-index 000000000..2a33895e4
+index 000000000..af195e0d8
 --- /dev/null
 +++ b/include/linux/susfs.h
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,224 @@
 +#ifndef KSU_SUSFS_H
 +#define KSU_SUSFS_H
 +
@@ -3104,6 +3178,8 @@ index 000000000..2a33895e4
 +void susfs_get_enabled_features(void __user **user_info);
 +void susfs_show_variant(void __user **user_info);
 +void susfs_show_version(void __user **user_info);
++
++void susfs_start_sdcard_monitor_fn(void);
 +
 +/* susfs_init */
 +void susfs_init(void);
