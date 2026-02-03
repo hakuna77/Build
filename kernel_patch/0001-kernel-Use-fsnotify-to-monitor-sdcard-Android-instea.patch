@@ -1,15 +1,15 @@
-From 60fcf874bf04f390e36b39096292b2068ebaac5c Mon Sep 17 00:00:00 2001
+From baa6f0479dde3ccf7cf09c5135c085498f111cf7 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 3 Feb 2026 13:24:35 +0700
+Date: Tue, 3 Feb 2026 14:02:49 +0700
 Subject: [PATCH] kernel: Use fsnotify to monitor /sdcard/Android instead of
  the kern_path loop
 
 ---
- fs/susfs.c | 167 +++++++++++++++++++++++++++++++++++++++++------------
- 1 file changed, 129 insertions(+), 38 deletions(-)
+ fs/susfs.c | 195 ++++++++++++++++++++++++++++++++++++++++++-----------
+ 1 file changed, 157 insertions(+), 38 deletions(-)
 
 diff --git a/fs/susfs.c b/fs/susfs.c
-index a98c9f892..f9e9a8017 100644
+index a98c9f892..76e511e3a 100644
 --- a/fs/susfs.c
 +++ b/fs/susfs.c
 @@ -16,6 +16,7 @@
@@ -20,7 +20,7 @@ index a98c9f892..f9e9a8017 100644
  #include <linux/susfs.h>
  #include "mount.h"
  
-@@ -986,22 +987,127 @@ out_copy_to_user:
+@@ -986,22 +987,155 @@ out_copy_to_user:
  	SUSFS_LOGI("CMD_SUSFS_SHOW_VERSION -> ret: %d\n", info.err);
  }
  
@@ -119,8 +119,36 @@ index a98c9f892..f9e9a8017 100644
 +	return 0;
 +}
 +
++static int susfs_fsnotify_handle_event_4_14(
++    struct fsnotify_group *group,
++    struct inode *inode,
++    struct fsnotify_mark *inode_mark,
++    struct fsnotify_mark *vfsmount_mark,
++    u32 mask,
++    const void *data,
++    int data_type,
++    const unsigned char *file_name,
++    u32 cookie,
++    struct fsnotify_iter_info *iter_info
++)
++{
++    const struct qstr *qname = NULL;
++
++    if (data_type == FSNOTIFY_EVENT_INODE)
++        qname = data;
++
++    return susfs_handle_sdcard_inode_event(
++        inode_mark,
++        mask,
++        inode,
++        NULL,
++        qname,
++        cookie
++    );
++}
++
 +static const struct fsnotify_ops fsnotify_ops = {
-+	.handle_event = susfs_handle_sdcard_inode_event,
++	.handle_event = susfs_fsnotify_handle_event_4_14,
 +};
 +
 +static int add_mark_on_inode(struct inode *inode, u32 mask,
@@ -135,7 +163,7 @@ index a98c9f892..f9e9a8017 100644
 +	fsnotify_init_mark(m, g);
 +	m->mask = mask;
 +
-+	if (fsnotify_add_mark(m, inode, 0)) {
++	if (fsnotify_add_mark(m, inode, NULL, 0)) {
 +		fsnotify_put_mark(m);
 +		return -EINVAL;
 +	}
@@ -156,7 +184,7 @@ index a98c9f892..f9e9a8017 100644
  		return -ENOMEM;
  	}
  
-@@ -1009,49 +1115,34 @@ static int susfs_sdcard_monitor_fn(void *data)
+@@ -1009,49 +1143,34 @@ static int susfs_sdcard_monitor_fn(void *data)
  	commit_creds(cred);
  
  	if (!susfs_is_current_ksu_domain()) {
@@ -168,9 +196,7 @@ index a98c9f892..f9e9a8017 100644
  
 -	SUSFS_LOGI("Start monitoring path '%s' in loop per '%d' ms with maximum '%d' attempts\n",
 -				SDCARD_ANDROID_DATA_PATH, SDCARD_MONITOR_INTERVAL_MS, SDCARD_MONITOR_MAX_ATTEMPTS);
-+	SUSFS_LOGI("start monitoring path '%s' using fsnotify\n",
-+				SDCARD_ANDROID_DATA_PATH);
- 
+-
 -	while (!kthread_should_stop() && max_attempts > 0) {
 -		err = kern_path(SDCARD_ANDROID_DATA_PATH, LOOKUP_FOLLOW, &path);
 -
@@ -185,7 +211,9 @@ index a98c9f892..f9e9a8017 100644
 -			SUSFS_LOGI("set susfs_is_sdcard_android_data_decrypted to true\n");
 -
 -			err = 0;
--
++	SUSFS_LOGI("start monitoring path '%s' using fsnotify\n",
++				SDCARD_ANDROID_DATA_PATH);
+ 
 -			goto out_finish;
 -		}
 -
