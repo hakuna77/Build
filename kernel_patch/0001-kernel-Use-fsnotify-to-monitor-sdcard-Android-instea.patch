@@ -1,15 +1,15 @@
-From 0b2a1ac141ca2f3d51f49fed22125df2460e183f Mon Sep 17 00:00:00 2001
+From 60fcf874bf04f390e36b39096292b2068ebaac5c Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 3 Feb 2026 11:43:32 +0700
+Date: Tue, 3 Feb 2026 13:24:35 +0700
 Subject: [PATCH] kernel: Use fsnotify to monitor /sdcard/Android instead of
  the kern_path loop
 
 ---
- fs/susfs.c | 164 ++++++++++++++++++++++++++++++++++++++++-------------
- 1 file changed, 126 insertions(+), 38 deletions(-)
+ fs/susfs.c | 167 +++++++++++++++++++++++++++++++++++++++++------------
+ 1 file changed, 129 insertions(+), 38 deletions(-)
 
 diff --git a/fs/susfs.c b/fs/susfs.c
-index a98c9f892..2b9301993 100644
+index a98c9f892..f9e9a8017 100644
 --- a/fs/susfs.c
 +++ b/fs/susfs.c
 @@ -16,6 +16,7 @@
@@ -20,7 +20,7 @@ index a98c9f892..2b9301993 100644
  #include <linux/susfs.h>
  #include "mount.h"
  
-@@ -986,22 +987,124 @@ out_copy_to_user:
+@@ -986,22 +987,127 @@ out_copy_to_user:
  	SUSFS_LOGI("CMD_SUSFS_SHOW_VERSION -> ret: %d\n", info.err);
  }
  
@@ -50,9 +50,12 @@ index a98c9f892..2b9301993 100644
 +static struct watch_dir g_watch = { .path = "/sdcard",
 +									.mask = (FS_CREATE | FS_MOVE | FS_EVENT_ON_CHILD) };
 +
++static int add_mark_on_inode(struct inode *inode, u32 mask,
++								struct fsnotify_mark **out);
++
 +static int watch_one_dir(struct watch_dir *wd)
 +{
-+	int ret = kern_path(wd->path, LOOKUP_FOLLOW, &wd->kpath);
++	int ret = kern_path(wd->path, 0, &wd->kpath);
 +	if (ret) {
 +		SUSFS_LOGI("path not ready: %s (%d)\n", wd->path, ret);
 +		return ret;
@@ -117,7 +120,7 @@ index a98c9f892..2b9301993 100644
 +}
 +
 +static const struct fsnotify_ops fsnotify_ops = {
-+	.handle_inode_event = susfs_handle_sdcard_inode_event,
++	.handle_event = susfs_handle_sdcard_inode_event,
 +};
 +
 +static int add_mark_on_inode(struct inode *inode, u32 mask,
@@ -132,7 +135,7 @@ index a98c9f892..2b9301993 100644
 +	fsnotify_init_mark(m, g);
 +	m->mask = mask;
 +
-+	if (fsnotify_add_inode_mark(m, inode, 0)) {
++	if (fsnotify_add_mark(m, inode, 0)) {
 +		fsnotify_put_mark(m);
 +		return -EINVAL;
 +	}
@@ -153,7 +156,7 @@ index a98c9f892..2b9301993 100644
  		return -ENOMEM;
  	}
  
-@@ -1009,49 +1112,34 @@ static int susfs_sdcard_monitor_fn(void *data)
+@@ -1009,49 +1115,34 @@ static int susfs_sdcard_monitor_fn(void *data)
  	commit_creds(cred);
  
  	if (!susfs_is_current_ksu_domain()) {
