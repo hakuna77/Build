@@ -1,15 +1,16 @@
-From b6b8f36c0aa38c1d86eb1331998ba52aabef2f20 Mon Sep 17 00:00:00 2001
+From 05f4dcd0b7f1174530849d0dafcf6e7d66d695a1 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Wed, 4 Feb 2026 07:20:14 +0700
+Date: Wed, 4 Feb 2026 08:01:30 +0700
 Subject: [PATCH] kernel: Use fsnotify to monitor /sdcard/Android instead of 
  the kern_path loop
 
 ---
- fs/susfs.c | 176 ++++++++++++++++++++++++++++++++++++++++-------------
- 1 file changed, 135 insertions(+), 41 deletions(-)
+ fs/susfs.c                | 176 +++++++++++++++++++++++++++++---------
+ include/linux/susfs_def.h |  41 +++++++++
+ 2 files changed, 176 insertions(+), 41 deletions(-)
 
 diff --git a/fs/susfs.c b/fs/susfs.c
-index a98c9f892..20f86ee12 100644
+index a98c9f892..c1f95cc4e 100644
 --- a/fs/susfs.c
 +++ b/fs/susfs.c
 @@ -16,6 +16,7 @@
@@ -46,7 +47,7 @@ index a98c9f892..20f86ee12 100644
 +
 +static struct fsnotify_group *g;
 +
-+static struct watch_dir g_watch = { .path = "//data/media/0", // we choose the underlying f2fs /data/media/0 instead of the FUSE /sdcard
++static struct watch_dir g_watch = { .path = "/data/media/0", // we choose the underlying f2fs /data/media/0 instead of the FUSE /sdcard
 +									.mask = (FS_EVENT_ON_CHILD | FS_ISDIR | FS_OPEN_PERM) };
 +
 +static int add_mark_on_inode(struct inode *inode, u32 mask,
@@ -227,6 +228,65 @@ index a98c9f892..20f86ee12 100644
  		SUSFS_LOGI("set susfs_is_sdcard_android_data_decrypted to true\n");
  		susfs_is_sdcard_android_data_decrypted = true;
  	}
+diff --git a/include/linux/susfs_def.h b/include/linux/susfs_def.h
+index 02761d8e0..57af04ebd 100644
+--- a/include/linux/susfs_def.h
++++ b/include/linux/susfs_def.h
+@@ -2,6 +2,7 @@
+ #define KSU_SUSFS_DEF_H
+ 
+ #include <linux/bits.h>
++#include <linux/version.h> // We need check kernel version.
+ 
+ /********/
+ /* ENUM */
+@@ -76,6 +77,46 @@
+  
+ #define MAGIC_MOUNT_WORKDIR "/debug_ramdisk/workdir"
+ 
++/* From KernelSU */
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
++typedef const struct qstr *susfs_fname_t;
++#define susfs_fname_len(f) ((f)->len)
++#define susfs_fname_arg(f) ((f)->name)
++#else
++typedef const unsigned char *susfs_fname_t;
++#define susfs_fname_len(f) (strlen(f))
++#define susfs_fname_arg(f) (f)
++#endif
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
++#define SUSFS_DECL_FSNOTIFY_OPS(name)                                            \
++int name(struct fsnotify_mark *mark, u32 mask, struct inode *inode,    \
++struct inode *dir, const struct qstr *file_name, u32 cookie)
++#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
++#define SUSFS_DECL_FSNOTIFY_OPS(name)                                            \
++int name(struct fsnotify_group *group, struct inode *inode, u32 mask,  \
++const void *data, int data_type, susfs_fname_t file_name,       \
++u32 cookie, struct fsnotify_iter_info *iter_info)
++#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
++#define SUSFS_DECL_FSNOTIFY_OPS(name)                                            \
++int name(struct fsnotify_group *group, struct inode *inode, u32 mask,  \
++const void *data, int data_type, susfs_fname_t file_name,       \
++u32 cookie, struct fsnotify_iter_info *iter_info)
++#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
++#define SUSFS_DECL_FSNOTIFY_OPS(name)                                            \
++int name(struct fsnotify_group *group, struct inode *inode,            \
++struct fsnotify_mark *inode_mark,                             \
++struct fsnotify_mark *vfsmount_mark, u32 mask,                \
++const void *data, int data_type, susfs_fname_t file_name,       \
++u32 cookie, struct fsnotify_iter_info *iter_info)
++#else
++#define SUSFS_DECL_FSNOTIFY_OPS(name)                                            \
++int name(struct fsnotify_group *group, struct inode *inode,            \
++struct fsnotify_mark *inode_mark,                             \
++struct fsnotify_mark *vfsmount_mark, u32 mask, void *data,    \
++int data_type, susfs_fname_t file_name, u32 cookie)
++#endif
++
+ static inline bool susfs_is_current_proc_umounted(void) {
+ 	return test_ti_thread_flag(&current->thread_info, TIF_PROC_UMOUNTED);
+ }
 -- 
 2.52.0
 
