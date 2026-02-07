@@ -1,10 +1,10 @@
-From 2da3bf99cb73e4469802881f37e62bc9c84b6e95 Mon Sep 17 00:00:00 2001
+From 874c8cfab581d7a03d7a83d61cb55b764432d5e7 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 2 Feb 2026 21:42:37 +0700
+Date: Sun, 8 Feb 2026 00:28:13 +0700
 Subject: [PATCH] susfs v2.0.0
 
 ---
- kernel/Kbuild            |   4 --
+ kernel/Kbuild            |   2 -
  kernel/Kconfig           |  90 ++++++++++++++++++++++++
  kernel/Makefile          |  10 +++
  kernel/extras.c          |  16 ++++-
@@ -19,10 +19,10 @@ Subject: [PATCH] susfs v2.0.0
  kernel/sucompat.c        | 136 ++++++++++++++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 ++
  kernel/supercalls.c      | 143 ++++++++++++++++++++++++++++++++++++---
- 15 files changed, 699 insertions(+), 16 deletions(-)
+ 15 files changed, 699 insertions(+), 14 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
-index de54c3cd..ed23943b 100644
+index 7cf47b30..ed23943b 100644
 --- a/kernel/Kbuild
 +++ b/kernel/Kbuild
 @@ -3,7 +3,6 @@ kernelsu-objs += allowlist.o
@@ -33,12 +33,10 @@ index de54c3cd..ed23943b 100644
  kernelsu-objs += throne_tracker.o
  kernelsu-objs += pkg_observer.o
  kernelsu-objs += setuid_hook.o
-@@ -17,9 +16,6 @@ kernelsu-objs += ksud.o
+@@ -17,7 +16,6 @@ kernelsu-objs += ksud.o
  kernelsu-objs += seccomp_cache.o
  kernelsu-objs += file_wrapper.o
  kernelsu-objs += util.o
--kernelsu-objs += extras.o
--
 -kernelsu-objs += extras.o
  
  kernelsu-objs += selinux/selinux.o
@@ -292,10 +290,10 @@ index 7742dad6..2c9ed554 100644
  	ksu_supercalls_exit();
  
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 73b4b47f..214299ed 100644
+index 8861b6ac..780f40fe 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
-@@ -127,15 +127,20 @@ void on_module_mounted(void)
+@@ -128,15 +128,20 @@ void on_module_mounted(void)
  	ksu_module_mounted = true;
  }
  
@@ -316,7 +314,7 @@ index 73b4b47f..214299ed 100644
  #define MAX_ARG_STRINGS 0x7FFFFFFF
  struct user_arg_ptr {
  #ifdef CONFIG_COMPAT
-@@ -148,6 +153,7 @@ struct user_arg_ptr {
+@@ -149,6 +154,7 @@ struct user_arg_ptr {
  #endif
  	} ptr;
  };
@@ -324,7 +322,7 @@ index 73b4b47f..214299ed 100644
  
  static const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
  {
-@@ -237,6 +243,10 @@ fail:
+@@ -238,6 +244,10 @@ fail:
  	return false;
  }
  
@@ -335,7 +333,7 @@ index 73b4b47f..214299ed 100644
  // IMPORTANT NOTE: the call from execve_handler_pre WON'T provided correct value for envp and flags in GKI version
  int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
                               struct user_arg_ptr *argv,
-@@ -291,6 +301,10 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+@@ -292,6 +302,10 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
              stop_execve_hook();
          }
      }
@@ -346,7 +344,7 @@ index 73b4b47f..214299ed 100644
  
      return 0;
  }
-@@ -717,6 +731,23 @@ bool __maybe_unused ksu_vfs_read_hook = true;
+@@ -724,6 +738,23 @@ int __maybe_unused ksu_handle_vfs_read(struct file **file_ptr, char __user **buf
  
  #endif
  
