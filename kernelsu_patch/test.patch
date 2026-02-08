@@ -1,7 +1,7 @@
-From 874c8cfab581d7a03d7a83d61cb55b764432d5e7 Mon Sep 17 00:00:00 2001
+From 9643cceca0dc39c94fef0ce7107f766453f15d20 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sun, 8 Feb 2026 00:28:13 +0700
-Subject: [PATCH] susfs v2.0.0
+Date: Sun, 8 Feb 2026 09:54:28 +0700
+Subject: [PATCH] test sus 3
 
 ---
  kernel/Kbuild            |   2 -
@@ -10,7 +10,7 @@ Subject: [PATCH] susfs v2.0.0
  kernel/extras.c          |  16 ++++-
  kernel/kernel_umount.c   |   3 +
  kernel/ksu.c             |  24 +++++++
- kernel/ksud.c            |  31 +++++++++
+ kernel/ksud.c            |  63 ++++++++++-------
  kernel/ksud.h            |  19 ++++++
  kernel/selinux/rules.c   |   9 +++
  kernel/selinux/selinux.c |  96 ++++++++++++++++++++++++++
@@ -19,7 +19,7 @@ Subject: [PATCH] susfs v2.0.0
  kernel/sucompat.c        | 136 ++++++++++++++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 ++
  kernel/supercalls.c      | 143 ++++++++++++++++++++++++++++++++++++---
- 15 files changed, 699 insertions(+), 14 deletions(-)
+ 15 files changed, 706 insertions(+), 39 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 7cf47b30..ed23943b 100644
@@ -290,10 +290,18 @@ index 7742dad6..2c9ed554 100644
  	ksu_supercalls_exit();
  
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 8861b6ac..780f40fe 100644
+index 8861b6ac..ba94fe61 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
-@@ -128,15 +128,20 @@ void on_module_mounted(void)
+@@ -78,7 +78,6 @@ static struct work_struct __maybe_unused stop_execve_hook_work;
+ static struct work_struct __maybe_unused stop_input_hook_work;
+ #else
+ bool ksu_init_rc_hook __read_mostly = true;
+-bool __maybe_unused ksu_vfs_read_hook = true;
+ bool ksu_input_hook __read_mostly = true;
+ bool ksu_execveat_hook __read_mostly = true;
+ #endif
+@@ -128,15 +127,20 @@ void on_module_mounted(void)
  	ksu_module_mounted = true;
  }
  
@@ -314,7 +322,7 @@ index 8861b6ac..780f40fe 100644
  #define MAX_ARG_STRINGS 0x7FFFFFFF
  struct user_arg_ptr {
  #ifdef CONFIG_COMPAT
-@@ -149,6 +154,7 @@ struct user_arg_ptr {
+@@ -149,6 +153,7 @@ struct user_arg_ptr {
  #endif
  	} ptr;
  };
@@ -322,7 +330,7 @@ index 8861b6ac..780f40fe 100644
  
  static const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
  {
-@@ -238,6 +244,10 @@ fail:
+@@ -238,6 +243,10 @@ fail:
  	return false;
  }
  
@@ -333,7 +341,7 @@ index 8861b6ac..780f40fe 100644
  // IMPORTANT NOTE: the call from execve_handler_pre WON'T provided correct value for envp and flags in GKI version
  int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
                               struct user_arg_ptr *argv,
-@@ -292,6 +302,10 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+@@ -292,6 +301,10 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
              stop_execve_hook();
          }
      }
@@ -344,30 +352,86 @@ index 8861b6ac..780f40fe 100644
  
      return 0;
  }
-@@ -724,6 +738,23 @@ int __maybe_unused ksu_handle_vfs_read(struct file **file_ptr, char __user **buf
+@@ -427,14 +440,22 @@ static bool is_init_rc(struct file *fp)
+     return true;
+ }
  
- #endif
+-static void ksu_apply_init_rc_proxy(struct file *file)
++static void ksu_handle_sys_read(unsigned int fd))
+ {
++    struct file *file = fget(fd);
++	if (!file) {
++		return;
++	}
++
++	if (!is_init_rc(file)) {
++		goto skip;
++ 	}
+     // we only process the first read
+     static bool rc_hooked = false;
+     if (rc_hooked) {
+         // we don't need these kprobe, unregister it!
+         stop_init_rc_hook();
+-        return;
++        goto skip;
+     }
+     rc_hooked = true;
  
+@@ -458,17 +479,7 @@ static void ksu_apply_init_rc_proxy(struct file *file)
+     }
+     // replace the file_operations
+     file->f_op = &fops_proxy;
+-}
+-
+-void ksu_handle_sys_read(unsigned int fd)
+-{
+-    struct file *file = fget(fd);
+-    if (!file) return;
+-
+-    if (is_init_rc(file)) {
+-        ksu_apply_init_rc_proxy(file);
+-    }
+-
++skip:
+     fput(file);
+ }
+ 
+@@ -707,22 +718,24 @@ int __maybe_unused ksu_handle_compat_execve_ksud(
+ }
+ #endif /* COMPAT & 64BIT */
+ 
+-// working dummies for manual hooks
+-int __maybe_unused ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
+-                size_t *count_ptr, loff_t **pos)
+-{
+-    struct file *file = *file_ptr;
++#endif
++
 +#ifdef CONFIG_KSU_SUSFS
 +void ksu_handle_vfs_fstat(int fd, loff_t *kstat_size_ptr) {
 +    loff_t new_size = *kstat_size_ptr + ksu_rc_len;
 +    struct file *file = fget(fd);
-+
+ 
+-    if (IS_ERR_OR_NULL(file)) return 0;
 +    if (!file)
 +        return;
-+
-+    if (is_init_rc(file)) {
+ 
+     if (is_init_rc(file)) {
+-        ksu_apply_init_rc_proxy(file);
 +        pr_info("stat init.rc");
 +        pr_info("adding ksu_rc_len: %lld -> %lld", *kstat_size_ptr, new_size);
 +        *kstat_size_ptr = new_size;
-+    }
+     }
+-
+-    return 0;
 +    fput(file);
-+}
+ }
+-
+-#endif
 +#endif // #ifdef CONFIG_KSU_SUSFS
-+
+ 
  static void stop_init_rc_hook()
  {
- #ifdef KSU_KPROBES_HOOK
 diff --git a/kernel/ksud.h b/kernel/ksud.h
 index 7779fbb4..05cfa3ba 100644
 --- a/kernel/ksud.h
