@@ -1,10 +1,11 @@
-From 8d04c6a8445de55ccf60650891609ad7cb28ffd9 Mon Sep 17 00:00:00 2001
+From 4bf230d1fec9d3ff9b33f744f16f42b00481f88c Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Thu, 5 Feb 2026 05:57:39 +0700
+Date: Sun, 8 Feb 2026 17:12:58 +0700
 Subject: [PATCH] susfs v2.0.0 without manual hook
 
 ---
  fs/Makefile               |    2 +
+ fs/devpts/inode.c         |   13 +
  fs/namei.c                |  262 ++++++++-
  fs/namespace.c            |  239 ++++++++
  fs/notify/fdinfo.c        |   53 ++
@@ -24,7 +25,7 @@ Subject: [PATCH] susfs v2.0.0 without manual hook
  kernel/kallsyms.c         |   33 ++
  kernel/sys.c              |    7 +-
  security/selinux/avc.c    |   20 +
- 20 files changed, 2583 insertions(+), 5 deletions(-)
+ 21 files changed, 2596 insertions(+), 5 deletions(-)
  create mode 100644 fs/susfs.c
  create mode 100644 include/linux/susfs.h
  create mode 100644 include/linux/susfs_def.h
@@ -42,6 +43,44 @@ index d34068c3c..77b5efc7e 100644
  ifeq ($(CONFIG_BLOCK),y)
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
  else
+diff --git a/fs/devpts/inode.c b/fs/devpts/inode.c
+index 8790c475c..fd8960cdb 100644
+--- a/fs/devpts/inode.c
++++ b/fs/devpts/inode.c
+@@ -27,6 +27,9 @@
+ #include <linux/parser.h>
+ #include <linux/fsnotify.h>
+ #include <linux/seq_file.h>
++#ifdef CONFIG_KSU_SUSFS
++#include <linux/susfs_def.h>
++#endif
+ 
+ #define DEVPTS_DEFAULT_MODE 0600
+ /*
+@@ -581,6 +584,9 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
+ 	return dentry;
+ }
+ 
++#ifdef CONFIG_KSU_SUSFS
++extern int __ksu_handle_devpts(struct inode*);
++#endif
+ /**
+  * devpts_get_priv -- get private data for a slave
+  * @pts_inode: inode of the slave
+@@ -589,6 +595,13 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
+  */
+ void *devpts_get_priv(struct dentry *dentry)
+ {
++#ifdef CONFIG_KSU_SUSFS
++	if (likely(susfs_is_current_proc_umounted())) {
++		goto orig_flow;
++	}
++	__ksu_handle_devpts(dentry->d_inode);
++orig_flow:
++#endif
+ 	if (dentry->d_sb->s_magic != DEVPTS_SUPER_MAGIC)
+ 		return NULL;
+ 	return dentry->d_fsdata;
 diff --git a/fs/namei.c b/fs/namei.c
 index 3817aa28b..8b2217f5c 100644
 --- a/fs/namei.c
