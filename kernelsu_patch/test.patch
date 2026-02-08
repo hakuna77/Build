@@ -1,6 +1,6 @@
-From 3e89bffa2ff067ab98d91b0e51926397b3b9dd15 Mon Sep 17 00:00:00 2001
+From d2a93e5a5d10694d3fe725e6aa204307523ac34f Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sun, 8 Feb 2026 10:07:23 +0700
+Date: Sun, 8 Feb 2026 10:21:14 +0700
 Subject: [PATCH] test sus 3
 
 ---
@@ -290,7 +290,7 @@ index 7742dad6..2c9ed554 100644
  	ksu_supercalls_exit();
  
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 8861b6ac..c6f4c1b3 100644
+index 8861b6ac..b4d12817 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
 @@ -78,7 +78,6 @@ static struct work_struct __maybe_unused stop_execve_hook_work;
@@ -357,7 +357,7 @@ index 8861b6ac..c6f4c1b3 100644
  }
  
 -static void ksu_apply_init_rc_proxy(struct file *file)
-+static void ksu_handle_sys_read(unsigned int fd)
++void ksu_handle_sys_read(unsigned int fd)
  {
 +    struct file *file = fget(fd);
 +	if (!file) {
@@ -406,13 +406,13 @@ index 8861b6ac..c6f4c1b3 100644
 -{
 -    struct file *file = *file_ptr;
 +#endif
-+
+ 
+-    if (IS_ERR_OR_NULL(file)) return 0;
 +#ifdef CONFIG_KSU_SUSFS
 +void ksu_handle_vfs_fstat(int fd, loff_t *kstat_size_ptr) {
 +    loff_t new_size = *kstat_size_ptr + ksu_rc_len;
 +    struct file *file = fget(fd);
- 
--    if (IS_ERR_OR_NULL(file)) return 0;
++
 +    if (!file)
 +        return;
  
