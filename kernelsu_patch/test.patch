@@ -1,25 +1,25 @@
-From dd7554d5a41029d2e7453fa757c2a32e6e0e30c9 Mon Sep 17 00:00:00 2001
+From 4ea5690c8f4959b7b5ec81dfd2082b882efd7e89 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 9 Feb 2026 13:32:36 +0700
+Date: Mon, 9 Feb 2026 14:13:35 +0700
 Subject: [PATCH] test sus 4
 
 ---
  kernel/Kbuild            |   2 -
- kernel/Kconfig           |  90 ++++++++++++++++++++++
- kernel/Makefile          |  10 +++
- kernel/extras.c          |  16 +++-
+ kernel/Kconfig           |  90 +++++++++++++++++
+ kernel/Makefile          |  10 ++
+ kernel/extras.c          |  16 ++-
  kernel/kernel_umount.c   |   3 +
- kernel/ksu.c             |  24 ++++++
- kernel/ksud.c            |  63 +++++++++------
- kernel/ksud.h            |  19 +++++
- kernel/selinux/rules.c   |   9 +++
- kernel/selinux/selinux.c |  96 +++++++++++++++++++++++
- kernel/selinux/selinux.h |  13 ++++
- kernel/setuid_hook.c     | 117 ++++++++++++++++++++++++++++
- kernel/sucompat.c        | 136 +++++++++++++++++++++++++++++++-
+ kernel/ksu.c             |  24 +++++
+ kernel/ksud.c            |  63 +++++++-----
+ kernel/ksud.h            |  19 ++++
+ kernel/selinux/rules.c   |   9 ++
+ kernel/selinux/selinux.c |  96 ++++++++++++++++++
+ kernel/selinux/selinux.h |  13 +++
+ kernel/setuid_hook.c     | 117 ++++++++++++++++++++++
+ kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
- kernel/supercalls.c      | 162 ++++++++++++++++++++++++++++++++++++---
- 15 files changed, 725 insertions(+), 39 deletions(-)
+ kernel/supercalls.c      | 208 ++++++++++++++++++++++++++++++++-------
+ 15 files changed, 748 insertions(+), 62 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 7cf47b30..ed23943b 100644
@@ -942,7 +942,7 @@ index 1999af84..6d82243d 100644
  				void *__never_use_argv, void *__never_use_envp,
  				int *__never_use_flags);
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index c7eb13f8..e892b589 100644
+index c7eb13f8..26f715e8 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
 @@ -12,6 +12,10 @@
@@ -1061,7 +1061,37 @@ index c7eb13f8..e892b589 100644
  }
  
  static int do_get_hook_mode(void __user *arg)
-@@ -688,6 +718,98 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -677,6 +707,29 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
+ 	{ .cmd = 0, .name = NULL, .handler = NULL, .perm_check = NULL } // Sentinel
+ };
+ 
++struct ksu_install_fd_tw {
++	struct callback_head cb;
++	int __user *outp;
++};
++
++static void ksu_install_fd_tw_func(struct callback_head *cb)
++{
++	struct ksu_install_fd_tw *tw = container_of(cb, struct ksu_install_fd_tw, cb);
++	int fd = ksu_install_fd();
++	pr_info("[%d] install ksu fd: %d\n", current->pid, fd);
++
++	if (copy_to_user(tw->outp, &fd, sizeof(fd))) {
++		pr_err("install ksu fd reply err\n");
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
++		close_fd(fd);
++#else
++		__close_fd(current->files, fd);
++#endif
++	}
++
++	kfree(tw);
++}
++
+ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+ 			  void __user **arg)
+ {
+@@ -688,6 +741,98 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		magic2);
  #endif
  
@@ -1160,7 +1190,7 @@ index c7eb13f8..e892b589 100644
  	// Check if this is a request to install KSU fd
  	if (magic2 == KSU_INSTALL_MAGIC2) {
  		int fd = ksu_install_fd();
-@@ -702,6 +824,24 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -702,6 +847,24 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		}
  		return 0;
  	}
@@ -1185,18 +1215,34 @@ index c7eb13f8..e892b589 100644
  
  	// extensions 
  	u64 reply = (u64)*arg;
-@@ -824,7 +964,6 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -824,30 +987,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  	return 0;
  }
  
 -#ifdef KSU_KPROBES_HOOK
- struct ksu_install_fd_tw {
- 	struct callback_head cb;
- 	int __user *outp;
-@@ -848,6 +987,7 @@ static void ksu_install_fd_tw_func(struct callback_head *cb)
- 	kfree(tw);
- }
- 
+-struct ksu_install_fd_tw {
+-	struct callback_head cb;
+-	int __user *outp;
+-};
+-
+-static void ksu_install_fd_tw_func(struct callback_head *cb)
+-{
+-	struct ksu_install_fd_tw *tw = container_of(cb, struct ksu_install_fd_tw, cb);
+-	int fd = ksu_install_fd();
+-	pr_info("[%d] install ksu fd: %d\n", current->pid, fd);
+-
+-	if (copy_to_user(tw->outp, &fd, sizeof(fd))) {
+-		pr_err("install ksu fd reply err\n");
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+-		close_fd(fd);
+-#else
+-		__close_fd(current->files, fd);
+-#endif
+-	}
+-
+-	kfree(tw);
+-}
+-
 +#if defined(KSU_KPROBES_HOOK) && !defined(CONFIG_KSU_SUSFS)
  static int reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
  {
