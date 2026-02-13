@@ -1,0 +1,48 @@
+From 0085ec70317351ea54a79066a42c003a4a9d557b Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Fri, 13 Feb 2026 15:51:24 +0700
+Subject: [PATCH 1/2] cpufreq: schedutil: Fix iowait boost reset
+
+---
+ kernel/sched/cpufreq_schedutil.c | 18 ++++++++++--------
+ 1 file changed, 10 insertions(+), 8 deletions(-)
+
+diff --git a/kernel/sched/cpufreq_schedutil.c b/kernel/sched/cpufreq_schedutil.c
+index 79d752f8c..e9ff9ad83 100644
+--- a/kernel/sched/cpufreq_schedutil.c
++++ b/kernel/sched/cpufreq_schedutil.c
+@@ -259,6 +259,16 @@ static void sugov_set_iowait_boost(struct sugov_cpu *sg_cpu, u64 time,
+ {
+ 	unsigned int max_boost;
+ 
++	/* Clear iowait_boost if the CPU apprears to have been idle. */
++	if (sg_cpu->iowait_boost) {
++		s64 delta_ns = time - sg_cpu->last_update;
++
++		if (delta_ns > TICK_NSEC) {
++			sg_cpu->iowait_boost = 0;
++			sg_cpu->iowait_boost_pending = false;
++		}
++	}
++	
+ 	if (flags & SCHED_CPUFREQ_IOWAIT) {
+ 		if (sg_cpu->iowait_boost_pending)
+ 			return;
+@@ -285,14 +295,6 @@ static void sugov_set_iowait_boost(struct sugov_cpu *sg_cpu, u64 time,
+ 		} else {
+ 			sg_cpu->iowait_boost = sg_cpu->min_boost;
+ 		}
+-	} else if (sg_cpu->iowait_boost) {
+-		s64 delta_ns = time - sg_cpu->last_update;
+-
+-		/* Clear iowait_boost if the CPU apprears to have been idle. */
+-		if (delta_ns > TICK_NSEC) {
+-			sg_cpu->iowait_boost = 0;
+-			sg_cpu->iowait_boost_pending = false;
+-		}
+ 	}
+ }
+ 
+-- 
+2.52.0
+
