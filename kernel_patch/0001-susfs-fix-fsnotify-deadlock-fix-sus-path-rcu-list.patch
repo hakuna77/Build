@@ -1,14 +1,14 @@
-From 65d6abe288ba28feb4615c44d332b962a76b04c8 Mon Sep 17 00:00:00 2001
+From 48d13c9c5a4a2beadd42d51fb627b2422d1d665f Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Fri, 13 Feb 2026 13:06:09 +0700
+Date: Fri, 13 Feb 2026 13:22:59 +0700
 Subject: [PATCH] susfs: fix/fsnotify-deadlock & fix/sus-path-rcu-list
 
 ---
- fs/susfs.c | 92 ++++++++++++++++++++++++++++++++++++------------------
- 1 file changed, 62 insertions(+), 30 deletions(-)
+ fs/susfs.c | 93 ++++++++++++++++++++++++++++++++++++------------------
+ 1 file changed, 63 insertions(+), 30 deletions(-)
 
 diff --git a/fs/susfs.c b/fs/susfs.c
-index 9727e53bc..ef31f1683 100644
+index 9727e53bc..ccac9084f 100644
 --- a/fs/susfs.c
 +++ b/fs/susfs.c
 @@ -16,6 +16,7 @@
@@ -167,7 +167,7 @@ index 9727e53bc..ef31f1683 100644
  static int susfs_handle_sdcard_inode_event(struct fsnotify_group *group,
  											struct inode *inode,
  											struct fsnotify_mark *inode_mark,
-@@ -1040,27 +1084,13 @@ static int susfs_handle_sdcard_inode_event(struct fsnotify_group *group,
+@@ -1040,27 +1084,14 @@ static int susfs_handle_sdcard_inode_event(struct fsnotify_group *group,
  											const unsigned char *file_name, u32 cookie,
  											struct fsnotify_iter_info *iter_info)
  {
@@ -196,12 +196,13 @@ index 9727e53bc..ef31f1683 100644
 +	if (test_and_set_bit(0, &sdcard_cleanup_scheduled))
 +		return 0;
 +	
++	SUSFS_LOGI("'%s' detected, mask: 0x%x\n", SDCARD_ANDROID_DATA_PATH, mask);
 +	SUSFS_LOGI("deferring cleanup for 5 seconds\n");
 +	queue_delayed_work(system_unbound_wq, &sdcard_cleanup_dwork, 5 * HZ);
  	return 0;
  }
  
-@@ -1108,6 +1138,8 @@ static int susfs_sdcard_monitor_fn(void *data)
+@@ -1108,6 +1139,8 @@ static int susfs_sdcard_monitor_fn(void *data)
  
  	SUSFS_LOGI("start monitoring path '%s' using fsnotify\n",
  				SDCARD_ANDROID_DATA_PATH);
