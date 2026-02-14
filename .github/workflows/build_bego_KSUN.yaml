@@ -365,6 +365,8 @@ jobs:
             ${{ env.MANUAL_HOOK }} \
             ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
             0001-susfs-fix-fsnotify-deadlock-fix-sus-path-rcu-list.patch \
+            0001-kernel-Various-fixes-for-SUS_PATH-and-SUS_MOUNT-plus.patch \
+            0001-unicode_bypass_fix.patch \
             0001-upstream-avc.patch \
             0001-cpufreq-schedutil-Fix-iowait-boost-reset.patch \
             0002-cpufreq-schedutil-Cleanup-and-document-iowait-boost.patch \
