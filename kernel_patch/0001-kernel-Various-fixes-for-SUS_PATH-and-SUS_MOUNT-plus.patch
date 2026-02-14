@@ -1,7 +1,7 @@
-From 2ffc3deaf21c4922380f5805d0683427b7264976 Mon Sep 17 00:00:00 2001
+From 844b0cc4cecb45d6af2dcc1d38a1278429029d86 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sat, 14 Feb 2026 08:12:21 +0700
-Subject: [PATCH] kernel: Various fixes for SUS_PATH and SUS_MOUNT, plus
+Date: Sat, 14 Feb 2026 13:57:58 +0700
+Subject: [PATCH] kernel: Various fixes for SUS_PATH and SUS_MOUNT, plus 
  overall code improvement and optimization
 
 ---
@@ -11,9 +11,9 @@ Subject: [PATCH] kernel: Various fixes for SUS_PATH and SUS_MOUNT, plus
  fs/proc/task_mmu.c        |  18 +-
  fs/readdir.c              | 169 -----------------
  fs/stat.c                 |   5 +-
- fs/susfs.c                | 378 ++++++++++++++------------------------
+ fs/susfs.c                | 387 ++++++++++++++------------------------
  include/linux/susfs_def.h |  10 -
- 8 files changed, 199 insertions(+), 590 deletions(-)
+ 8 files changed, 205 insertions(+), 593 deletions(-)
 
 diff --git a/fs/namei.c b/fs/namei.c
 index 8b2217f5c..65304c3e8 100644
@@ -762,7 +762,7 @@ index d2d69065d..8669b1bb1 100644
  		stat->mode = inode->i_mode;
  		stat->rdev = inode->i_rdev;
 diff --git a/fs/susfs.c b/fs/susfs.c
-index ccac9084f..20b05b488 100644
+index ccac9084f..563038a26 100644
 --- a/fs/susfs.c
 +++ b/fs/susfs.c
 @@ -19,6 +19,7 @@
@@ -773,7 +773,7 @@ index ccac9084f..20b05b488 100644
  #include "mount.h"
  
  extern bool susfs_is_current_ksu_domain(void);
-@@ -44,148 +45,69 @@ bool susfs_starts_with(const char *str, const char *prefix) {
+@@ -44,148 +45,71 @@ bool susfs_starts_with(const char *str, const char *prefix) {
  #ifdef CONFIG_KSU_SUSFS_SUS_PATH
  static DEFINE_SPINLOCK(susfs_spin_lock_sus_path);
  static LIST_HEAD(LH_SUS_PATH_LOOP);
@@ -873,10 +873,11 @@ index ccac9084f..20b05b488 100644
 +	inode = d_backing_inode(path.dentry);
 +	if (!inode || !inode->i_mapping) {
 +		SUSFS_LOGE("inode || inode->i_mapping is NULL\n");
++		info.err = -ENOENT;
  		goto out_path_put_path;
  	}
 -	inode = d_inode(path.dentry);
--
+ 
 -	if (strstr(info.target_pathname, android_data_path.target_pathname)) {
 -		if (!android_data_path.is_inited) {
 -			info.err = -EINVAL;
@@ -944,7 +945,7 @@ index ccac9084f..20b05b488 100644
  	info.err = 0;
  out_path_put_path:
  	path_put(&path);
-@@ -199,38 +121,16 @@ out_copy_to_user:
+@@ -199,38 +123,16 @@ out_copy_to_user:
  void susfs_add_sus_path_loop(void __user **user_info) {
  	struct st_susfs_sus_path_list *new_list = NULL;
  	struct st_susfs_sus_path info = {0};
@@ -984,7 +985,7 @@ index ccac9084f..20b05b488 100644
  	}
  	new_list->info.target_ino = info.target_ino;
  	strncpy(new_list->info.target_pathname, info.target_pathname, SUSFS_MAX_LEN_PATHNAME - 1);
-@@ -243,13 +143,7 @@ void susfs_add_sus_path_loop(void __user **user_info) {
+@@ -243,13 +145,7 @@ void susfs_add_sus_path_loop(void __user **user_info) {
  	spin_unlock(&susfs_spin_lock_sus_path);
  	SUSFS_LOGI("target_ino: '%lu', target_pathname: '%s', i_uid: '%u', is successfully added to LH_SUS_PATH_LOOP\n",
  				new_list->info.target_ino, new_list->target_pathname, new_list->info.i_uid);
@@ -998,7 +999,7 @@ index ccac9084f..20b05b488 100644
  out_copy_to_user:
  	if (copy_to_user(&((struct st_susfs_sus_path __user*)*user_info)->err, &info.err, sizeof(info.err))) {
  		info.err = -EFAULT;
-@@ -261,94 +155,57 @@ void susfs_run_sus_path_loop(uid_t uid) {
+@@ -261,94 +157,57 @@ void susfs_run_sus_path_loop(uid_t uid) {
  	struct st_susfs_sus_path_list *cursor = NULL;
  	struct path path;
  	struct inode *inode;
@@ -1126,7 +1127,7 @@ index ccac9084f..20b05b488 100644
  		is_i_uid_not_allowed(i_uid_into_vfsuid(idmap, inode).val)))
  	{
  		SUSFS_LOGI("hiding path with ino '%lu'\n", inode->i_ino);
-@@ -358,7 +215,23 @@ bool susfs_is_inode_sus_path(struct mnt_idmap* idmap, struct inode *inode) {
+@@ -358,7 +217,23 @@ bool susfs_is_inode_sus_path(struct mnt_idmap* idmap, struct inode *inode) {
  }
  #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
  bool susfs_is_inode_sus_path(struct inode *inode) {
@@ -1151,7 +1152,7 @@ index ccac9084f..20b05b488 100644
  		is_i_uid_not_allowed(i_uid_into_mnt(i_user_ns(inode), inode).val)))
  	{
  		SUSFS_LOGI("hiding path with ino '%lu'\n", inode->i_ino);
-@@ -368,7 +241,23 @@ bool susfs_is_inode_sus_path(struct inode *inode) {
+@@ -368,7 +243,23 @@ bool susfs_is_inode_sus_path(struct inode *inode) {
  }
  #else
  bool susfs_is_inode_sus_path(struct inode *inode) {
@@ -1176,7 +1177,7 @@ index ccac9084f..20b05b488 100644
  		is_i_uid_not_allowed(inode->i_uid.val)))
  	{
  		SUSFS_LOGI("hiding path with ino '%lu'\n", inode->i_ino);
-@@ -377,7 +266,6 @@ bool susfs_is_inode_sus_path(struct inode *inode) {
+@@ -377,7 +268,6 @@ bool susfs_is_inode_sus_path(struct inode *inode) {
  	return false;
  }
  #endif
@@ -1184,7 +1185,15 @@ index ccac9084f..20b05b488 100644
  #endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
  
  /* sus_mount */
-@@ -413,29 +301,27 @@ out_copy_to_user:
+@@ -405,7 +295,6 @@ out_copy_to_user:
+ 	}
+ 	SUSFS_LOGI("CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS -> ret: %d\n", info.err);
+ }
+-
+ #endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+ 
+ /* sus_kstat */
+@@ -413,29 +302,27 @@ out_copy_to_user:
  static DEFINE_SPINLOCK(susfs_spin_lock_sus_kstat);
  static DEFINE_HASHTABLE(SUS_KSTAT_HLIST, 10);
  static int susfs_update_sus_kstat_inode(char *target_pathname) {
@@ -1227,7 +1236,7 @@ index ccac9084f..20b05b488 100644
  	return 0;
  }
  
-@@ -472,9 +358,9 @@ void susfs_add_sus_kstat(void __user **user_info) {
+@@ -472,9 +359,9 @@ void susfs_add_sus_kstat(void __user **user_info) {
  	new_entry->target_ino = info.target_ino;
  	memcpy(&new_entry->info, &info, sizeof(info));
  
@@ -1239,7 +1248,7 @@ index ccac9084f..20b05b488 100644
  		goto out_copy_to_user;
  	}
  
-@@ -523,8 +409,8 @@ void susfs_update_sus_kstat(void __user **user_info) {
+@@ -523,8 +410,8 @@ void susfs_update_sus_kstat(void __user **user_info) {
  
  	hash_for_each_safe(SUS_KSTAT_HLIST, bkt, tmp_node, tmp_entry, node) {
  		if (!strcmp(tmp_entry->info.target_pathname, info.target_pathname)) {
@@ -1250,7 +1259,7 @@ index ccac9084f..20b05b488 100644
  				goto out_copy_to_user;
  			}
  			new_entry = kmalloc(sizeof(struct st_susfs_sus_kstat_hlist), GFP_KERNEL);
-@@ -736,29 +622,27 @@ static DEFINE_SPINLOCK(susfs_spin_lock_open_redirect);
+@@ -736,29 +623,27 @@ static DEFINE_SPINLOCK(susfs_spin_lock_open_redirect);
  static DEFINE_HASHTABLE(OPEN_REDIRECT_HLIST, 10);
  
  static int susfs_update_open_redirect_inode(struct st_susfs_open_redirect_hlist *new_entry) {
@@ -1290,7 +1299,7 @@ index ccac9084f..20b05b488 100644
  	return err;
  }
  
-@@ -827,18 +711,17 @@ void susfs_add_sus_map(void __user **user_info) {
+@@ -827,18 +712,17 @@ void susfs_add_sus_map(void __user **user_info) {
  
  	info.err = kern_path(info.target_pathname, LOOKUP_FOLLOW, &path);
  	if (info.err) {
@@ -1314,7 +1323,7 @@ index ccac9084f..20b05b488 100644
  	SUSFS_LOGI("pathname: '%s', is flagged as AS_FLAGS_SUS_MAP\n", info.target_pathname);
  	info.err = 0;
  out_path_put_path:
-@@ -1000,7 +883,7 @@ out_copy_to_user:
+@@ -1000,7 +884,7 @@ out_copy_to_user:
  
  /* kthread for checking if /sdcard/Android is accessible via fsnoitfy */
  /* code is straightly borrowed from KernelSU's pkg_observer.c */
@@ -1323,7 +1332,7 @@ index ccac9084f..20b05b488 100644
  extern void setup_selinux(const char *domain, struct cred *cred);
  extern bool susfs_is_current_ksu_domain(void);
  bool susfs_is_sdcard_android_data_decrypted __read_mostly = false;
-@@ -1055,12 +938,17 @@ static int watch_one_dir(struct watch_dir *wd)
+@@ -1055,12 +939,17 @@ static int watch_one_dir(struct watch_dir *wd)
  		SUSFS_LOGI("path not ready: %s (%d)\n", wd->path, ret);
  		return ret;
  	}
@@ -1343,24 +1352,35 @@ index ccac9084f..20b05b488 100644
  		iput(wd->inode);
  		wd->inode = NULL;
  		path_put(&wd->kpath);
-@@ -1089,7 +977,7 @@ static int susfs_handle_sdcard_inode_event(struct fsnotify_group *group,
+@@ -1084,12 +973,14 @@ static int susfs_handle_sdcard_inode_event(struct fsnotify_group *group,
+ 											const unsigned char *file_name, u32 cookie,
+ 											struct fsnotify_iter_info *iter_info)
+ {
+-	if (!file_name || strlen(file_name) != 7 || memcmp(file_name, "Android", 7))
++	if (!file_name || strlen(file_name) != 7 ||
++		memcmp(file_name, "Android", 7))
+ 		return 0;
++
  	if (test_and_set_bit(0, &sdcard_cleanup_scheduled))
  		return 0;
- 	
+-	
 -	SUSFS_LOGI("'%s' detected, mask: 0x%x\n", SDCARD_ANDROID_DATA_PATH, mask);
++
 +	SUSFS_LOGI("'%s' detected, mask: 0x%x\n", SDCARD_ANDROID_PATH, mask);
  	SUSFS_LOGI("deferring cleanup for 5 seconds\n");
  	queue_delayed_work(system_unbound_wq, &sdcard_cleanup_dwork, 5 * HZ);
  	return 0;
-@@ -1138,7 +1026,7 @@ static int susfs_sdcard_monitor_fn(void *data)
+@@ -1138,8 +1029,8 @@ static int susfs_sdcard_monitor_fn(void *data)
  	}
  
  	SUSFS_LOGI("start monitoring path '%s' using fsnotify\n",
 -				SDCARD_ANDROID_DATA_PATH);
+-	
 +				SDCARD_ANDROID_PATH);
- 	
++
  	INIT_DELAYED_WORK(&sdcard_cleanup_dwork, susfs_sdcard_cleanup_fn);
  
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
 diff --git a/include/linux/susfs_def.h b/include/linux/susfs_def.h
 index 02761d8e0..3813ec4f7 100644
 --- a/include/linux/susfs_def.h
