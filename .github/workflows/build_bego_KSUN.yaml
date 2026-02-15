@@ -365,8 +365,6 @@ jobs:
             ${{ env.MANUAL_HOOK }} \
             ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} \
             0001-susfs-fix-fsnotify-deadlock-fix-sus-path-rcu-list.patch \
-            0001-kernel-Various-fixes-for-SUS_PATH-and-SUS_MOUNT-plus.patch \
-            0001-unicode_bypass_fix.patch \
             0001-upstream-avc.patch \
             0001-cpufreq-schedutil-Fix-iowait-boost-reset.patch \
             0002-cpufreq-schedutil-Cleanup-and-document-iowait-boost.patch \
@@ -507,8 +505,8 @@ jobs:
                 echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
                 echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
                 echo "CONFIG_KSU_SUSFS_SUS_MAP=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-                echo "CONFIG_KSU_MANUAL_HOOK=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-                echo "CONFIG_KSU_KPROBES_HOOK=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+                echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+                echo "CONFIG_KSU_KPROBES_HOOK=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             fi
         fi
         
