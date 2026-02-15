@@ -308,6 +308,19 @@ jobs:
           done
         fi
         
+        if [ "${{ env.KERNEL_SOURCE_BRANCH }}" == "fifteen-fixed-ksu" ]; then
+          for patch_file in \
+            add-slow_avc_audit-hook.patch
+          do
+            if patch -p1 < "$patch_file"; then
+              echo "✅ $patch_file applied successfully."
+            else
+              echo "❌ Patch failed to apply!"
+              exit 1
+            fi
+          done
+        fi
+        
         if [ "${{ env.KERNEL_SOURCE_BRANCH }}" == "begonia-r-oss" ]; then
           for patch_file in \
             0001-BACKPORT-proc-less-memory-for-proc-map_files-readdir.patch \
@@ -349,7 +362,7 @@ jobs:
           exit 1
         fi
         
-        KSU_VERSION=$(cd "$KSU_DIR" && echo $((30000 + $(git rev-list --count HEAD) + 60)))
+        KSU_VERSION=$(cd "$KSU_DIR" && echo $((30000 + $(git rev-list --count HEAD) + 94)))
         echo "UPLOADNAME=-KSUN_$KSU_VERSION" >> $GITHUB_ENV
         echo "KSU_DIR=$KSU_DIR" >> $GITHUB_ENV
         
