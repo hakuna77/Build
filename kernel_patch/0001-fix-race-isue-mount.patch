@@ -1,0 +1,118 @@
+From daaac8e255c23bf8f2b739a07c16ded99de34b84 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Sun, 15 Feb 2026 15:12:40 +0700
+Subject: [PATCH] fix race isue mount
+
+---
+ fs/namespace.c | 20 ++++++++++----------
+ fs/susfs.c     | 23 +++++++++++++++--------
+ 2 files changed, 25 insertions(+), 18 deletions(-)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 2f05b9968..abab605b6 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -3863,28 +3863,28 @@ void susfs_reorder_mnt_id(void) {
+ 	struct mount *mnt;
+ 	int first_mnt_id = 0;
+ 
+-	if (!mnt_ns) {
+-		return;
+-	}
+-
+ 	// Do not reorder the mnt_id if there is no any ksu mount at all
+-	if (atomic64_read(&susfs_ksu_mounts) == 0) {
++	if (atomic64_read(&susfs_ksu_mounts) == 0)
+ 		return;
+-	}
+ 
+-	get_mnt_ns(mnt_ns);
++	down_read(&namespace_sem); // needed when manipulating mnt_namespace
++	lock_mount_hash(); // needed when modifying mount
+ 
++	// - It is safe here as there should not be any first mnt with the sus mnt_id,
++	//   mount cloned by ksu proc is already handled in clone_mnt()
+ 	first_mnt_id = list_first_entry(&mnt_ns->list, struct mount, mnt_list)->mnt_id;
+ 	list_for_each_entry(mnt, &mnt_ns->list, mnt_list) {
+ 		// It is very important that we don't reorder the sus mount if it is not umounted
+-		if (mnt->mnt_id == DEFAULT_KSU_MNT_ID) {
++		if (mnt->mnt_id == DEFAULT_KSU_MNT_ID)
+ 			continue;
+-		}
++
++		// We just still explicitly tell compiler not to optimizie this
+ 		WRITE_ONCE(mnt->mnt.susfs_mnt_id_backup, READ_ONCE(mnt->mnt_id));
+ 		WRITE_ONCE(mnt->mnt_id, first_mnt_id++);
+ 	}
+ 
+-	put_mnt_ns(mnt_ns);
++	unlock_mount_hash();
++	up_read(&namespace_sem);
+ }
+ 
+ #endif
+diff --git a/fs/susfs.c b/fs/susfs.c
+index ccac9084f..4c6a570de 100644
+--- a/fs/susfs.c
++++ b/fs/susfs.c
+@@ -1000,7 +1000,7 @@ out_copy_to_user:
+ 
+ /* kthread for checking if /sdcard/Android is accessible via fsnoitfy */
+ /* code is straightly borrowed from KernelSU's pkg_observer.c */
+-#define SDCARD_ANDROID_DATA_PATH "/data/media/0/Android"
++#define SDCARD_ANDROID_PATH "/data/media/0/Android"
+ extern void setup_selinux(const char *domain, struct cred *cred);
+ extern bool susfs_is_current_ksu_domain(void);
+ bool susfs_is_sdcard_android_data_decrypted __read_mostly = false;
+@@ -1055,12 +1055,17 @@ static int watch_one_dir(struct watch_dir *wd)
+ 		SUSFS_LOGI("path not ready: %s (%d)\n", wd->path, ret);
+ 		return ret;
+ 	}
+-	wd->inode = d_inode(wd->kpath.dentry);
++	wd->inode = d_backing_inode(wd->kpath.dentry);
++	if (!wd->inode) {
++		SUSFS_LOGE("wd->inode is NULL\n");
++		path_put(&wd->kpath);
++		return -ENOENT;
++	}
+ 	ihold(wd->inode);
+ 
+ 	ret = add_mark_on_inode(wd->inode, wd->mask, &wd->mark);
+ 	if (ret) {
+-		SUSFS_LOGE("Add mark failed for %s (%d)\n", wd->path, ret);
++		SUSFS_LOGE("add mark failed for %s (%d)\n", wd->path, ret);
+ 		iput(wd->inode);
+ 		wd->inode = NULL;
+ 		path_put(&wd->kpath);
+@@ -1084,12 +1089,14 @@ static int susfs_handle_sdcard_inode_event(struct fsnotify_group *group,
+ 											const unsigned char *file_name, u32 cookie,
+ 											struct fsnotify_iter_info *iter_info)
+ {
+-	if (!file_name || strlen(file_name) != 7 || memcmp(file_name, "Android", 7))
++	if (!file_name || strlen(file_name) != 7 ||
++		memcmp(file_name, "Android", 7))
+ 		return 0;
++
+ 	if (test_and_set_bit(0, &sdcard_cleanup_scheduled))
+ 		return 0;
+-	
+-	SUSFS_LOGI("'%s' detected, mask: 0x%x\n", SDCARD_ANDROID_DATA_PATH, mask);
++
++	SUSFS_LOGI("'%s' detected, mask: 0x%x\n", SDCARD_ANDROID_PATH, mask);
+ 	SUSFS_LOGI("deferring cleanup for 5 seconds\n");
+ 	queue_delayed_work(system_unbound_wq, &sdcard_cleanup_dwork, 5 * HZ);
+ 	return 0;
+@@ -1138,8 +1145,8 @@ static int susfs_sdcard_monitor_fn(void *data)
+ 	}
+ 
+ 	SUSFS_LOGI("start monitoring path '%s' using fsnotify\n",
+-				SDCARD_ANDROID_DATA_PATH);
+-	
++				SDCARD_ANDROID_PATH);
++
+ 	INIT_DELAYED_WORK(&sdcard_cleanup_dwork, susfs_sdcard_cleanup_fn);
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+-- 
+2.52.0
+
