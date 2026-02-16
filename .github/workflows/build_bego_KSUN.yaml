@@ -369,7 +369,8 @@ jobs:
             0001-upstream-avc.patch \
             0001-cpufreq-schedutil-Fix-iowait-boost-reset.patch \
             0002-cpufreq-schedutil-Cleanup-and-document-iowait-boost.patch \
-            0001-sched-util_est-Fix-util_est_dequeue-for-throttled-cf.patch
+            0001-sched-util_est-Fix-util_est_dequeue-for-throttled-cf.patch \
+            0001-cpufreq-schedutil-Use-kobject-release-method-to-free.patch
           do
             if patch -p1 < "$patch_file"; then
               echo "✅ $patch_file applied successfully."

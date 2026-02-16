@@ -1,0 +1,67 @@
+From 035ccbf192eb8e257b4a5d19c020a2592c81edbb Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Tue, 17 Feb 2026 04:29:33 +0700
+Subject: [PATCH] cpufreq: schedutil: Use kobject release() method to free
+ sugov_tunables
+
+---
+ kernel/sched/cpufreq_schedutil.c | 16 +++++++++++-----
+ 1 file changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/kernel/sched/cpufreq_schedutil.c b/kernel/sched/cpufreq_schedutil.c
+index 4ae9a3275..431dcc72c 100644
+--- a/kernel/sched/cpufreq_schedutil.c
++++ b/kernel/sched/cpufreq_schedutil.c
+@@ -737,9 +737,17 @@ static struct attribute *sugov_attributes[] = {
+ 	NULL
+ };
+ 
++static void sugov_tunables_free(struct kobject *kobj)
++{
++	struct gov_attr_set *attr_set = container_of(kobj, struct gov_attr_set, kobj);
++
++	kfree(to_sugov_tunables(attr_set));
++}
++
+ static struct kobj_type sugov_tunables_ktype = {
+ 	.default_attrs = sugov_attributes,
+ 	.sysfs_ops = &governor_sysfs_ops,
++	.release = &sugov_tunables_free,
+ };
+ 
+ /********************** cpufreq governor interface *********************/
+@@ -829,12 +837,10 @@ static struct sugov_tunables *sugov_tunables_alloc(struct sugov_policy *sg_polic
+ 	return tunables;
+ }
+ 
+-static void sugov_tunables_free(struct sugov_tunables *tunables)
++static void sugov_clear_global_tunables(void)
+ {
+ 	if (!have_governor_per_policy())
+ 		global_tunables = NULL;
+-
+-	kfree(tunables);
+ }
+ 
+ static int sugov_init(struct cpufreq_policy *policy)
+@@ -898,7 +904,7 @@ out:
+ fail:
+ 	kobject_put(&tunables->attr_set.kobj);
+ 	policy->governor_data = NULL;
+-	sugov_tunables_free(tunables);
++	sugov_clear_global_tunables();
+ 
+ stop_kthread:
+ 	sugov_kthread_stop(sg_policy);
+@@ -925,7 +931,7 @@ static void sugov_exit(struct cpufreq_policy *policy)
+ 	count = gov_attr_set_put(&tunables->attr_set, &sg_policy->tunables_hook);
+ 	policy->governor_data = NULL;
+ 	if (!count)
+-		sugov_tunables_free(tunables);
++		sugov_clear_global_tunables();
+ 
+ 	mutex_unlock(&global_tunables_lock);
+ 
+-- 
+2.52.0
+
