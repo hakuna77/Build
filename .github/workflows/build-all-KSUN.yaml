@@ -73,6 +73,7 @@ on:
         type: choice
         options:
           - 'test.patch'
+          - '0001-fix-build-error.patch'
       build_boot_img:
         description: 'enable BUILD BOOT IMG'
         required: true
