@@ -5,7 +5,7 @@ on:
 jobs:
   build:
     name: Build Kernel by ${{ github.actor }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
@@ -91,7 +91,12 @@ jobs:
         echo "BUILD_TIME=$(TZ=Asia/Shanghai date "+%Y%m%d%H%M")" >> $GITHUB_ENV
         echo "DEVICE=$(echo ${{ env.KERNEL_CONFIG }} | sed 's!vendor/!!;s/_defconfig//;s/_user//;s/-perf//')" >> $GITHUB_ENV
         sudo apt-get update
-        sudo apt-get install git ccache automake flex lzop bison gperf build-essential zip curl zlib1g-dev g++-multilib libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 lib32ncurses5-dev libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip device-tree-compiler python2 python3
+        sudo apt install -y git device-tree-compiler lz4 xz-utils zlib1g-dev openjdk-17-jdk gcc g++ python3 python-is-python3 p7zip-full android-sdk-libsparse-utils erofs-utils \
+             default-jdk gnupg flex bison gperf build-essential zip curl libc6-dev libncurses-dev libx11-dev libreadline-dev libgl1 libgl1-mesa-dev \
+             python3 make gcc g++ bc grep tofrodos python3-markdown libxml2-utils xsltproc zlib1g-dev python-is-python3 libc6-dev libtinfo6 \
+             make repo cpio kmod openssl libelf-dev pahole libssl-dev libarchive-tools zstd rsync pigz \
+             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+             gcc-arm-linux-gnueabi g++-arm-linux-gnueabi binutils-arm-linux-gnueabi --fix-missing
         mkdir -p $GITHUB_WORKSPACE/kernel_workspace
 
     - name: Cache Clang
@@ -120,62 +125,6 @@ jobs:
         wget -O clang.tar.gz ${{ env.CUSTOM_CLANG_SOURCE }}
         mkdir clang-aosp
         tar -C clang-aosp/ -zxvf clang.tar.gz
-
-    - name: Download Gcc-aosp
-      if: env.USE_CUSTOM_GCC_64 != 'true' || env.USE_CUSTOM_GCC_32 != 'true'
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        if [ ${{ env.ENABLE_GCC_ARM64 }} = true ]; then
-            mkdir gcc-64
-            wget -O gcc-aarch64.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/tags/android-12.1.0_r27.tar.gz
-            tar -C gcc-64/ -zxvf gcc-aarch64.tar.gz
-            echo "GCC_64=CROSS_COMPILE=$GITHUB_WORKSPACE/kernel_workspace/gcc-64/bin/aarch64-linux-android-" >> $GITHUB_ENV
-        fi
-
-        if [ ${{ env.ENABLE_GCC_ARM32 }} = true ]; then
-            mkdir gcc-32
-            wget -O gcc-arm.tar.gz https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/tags/android-12.1.0_r27.tar.gz
-            tar -C gcc-32/ -zxvf gcc-arm.tar.gz
-            echo "GCC_32=CROSS_COMPILE_ARM32=$GITHUB_WORKSPACE/kernel_workspace/gcc-32/bin/arm-linux-androideabi-" >> $GITHUB_ENV
-        fi
-
-    - name: Download Custom-Gcc
-      if: env.USE_CUSTOM_GCC_64 == 'true' || env.USE_CUSTOM_GCC_32 == 'true'
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        if [ ${{ env.USE_CUSTOM_GCC_64 }} = true ]; then
-          if [[ ${{ env.CUSTOM_GCC_64_SOURCE }} =~ git ]]; then
-              if [[ ${{ env.CUSTOM_GCC_64_SOURCE }} == *'.tar.gz' ]]; then
-                wget -O gcc-64.tar.gz ${{ env.CUSTOM_GCC_64_SOURCE }}
-                mkdir gcc-64
-                tar -C gcc-64/ -zxvf gcc-64.tar.gz
-              else
-                git clone ${{ env.CUSTOM_GCC_64_SOURCE }} -b ${{ env.CUSTOM_GCC_64_BRANCH }} gcc-64 --depth=1
-              fi
-          else
-              wget -O gcc-64.zip ${{ env.CUSTOM_GCC_64_SOURCE }}
-              mkdir gcc-64
-              unzip gcc-64.zip -d gcc-64/
-          fi
-          echo "GCC_64=CROSS_COMPILE=$GITHUB_WORKSPACE/kernel_workspace/gcc-64/bin/${{ env.CUSTOM_GCC_64_BIN }}" >> $GITHUB_ENV
-        fi
-
-        if [ ${{ env.USE_CUSTOM_GCC_32 }} = true ]; then
-          if [[ ${{ env.CUSTOM_GCC_32_SOURCE }} =~ git ]]; then
-              if [[ ${{ env.CUSTOM_GCC_32_SOURCE }} == *'.tar.gz' ]]; then
-                wget -O gcc-32.tar.gz ${{ env.CUSTOM_GCC_32_SOURCE }}
-                mkdir gcc-32
-                tar -C gcc-32/ -zxvf gcc-32.tar.gz
-              else
-                git clone ${{ env.CUSTOM_GCC_32_SOURCE }} -b ${{ env.CUSTOM_GCC_32_BRANCH }} gcc-32 --depth=1
-              fi
-          else
-            wget -O gcc-32.zip ${{ env.CUSTOM_GCC_32_SOURCE }}
-            mkdir gcc-32
-            unzip gcc-32.zip -d gcc-32/
-          fi
-          echo "GCC_32=CROSS_COMPILE=$GITHUB_WORKSPACE/kernel_workspace/gcc-32/bin/${{ env.CUSTOM_GCC_32_BIN }}" >> $GITHUB_ENV
-        fi
 
     - name: Download mkbootimg tools
       if: env.BUILD_BOOT_IMG == 'true'
@@ -333,9 +282,9 @@ jobs:
         fi
         make -j$(nproc --all) CC=clang O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} ${{ env.GCC_64 }} ${{ env.GCC_32 }} ${{ env.KERNEL_CONFIG }}
         if [ ${{ env.ENABLE_CCACHE }} = true ]; then
-            make -j$(nproc --all) CC="ccache clang" O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} ${{ env.GCC_64 }} ${{ env.GCC_32 }}
+            make -j$(nproc --all) CC="ccache clang" O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
         else
-            make -j$(nproc --all) CC=clang O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} ${{ env.GCC_64 }} ${{ env.GCC_32 }}
+            make -j$(nproc --all) CC=clang O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
         fi
     
     - name: Verify compile.h for Clang version
