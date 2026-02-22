@@ -10,6 +10,7 @@ on:
         options:
           - 'fifteen-fixed-ksu'
           - 'bka'
+          - 'nova-miui'
       enable_kernelsu:
         description: 'Enable KernelSU integration?'
         required: true
@@ -179,6 +180,10 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         if [[ ${{ env.KERNEL_SOURCE_BRANCH }} == 'fifteen-fixed-ksu' ]]; then 
+          git clone --recursive https://github.com/hakuna77/kernel_xiaomi_mt6785.git -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
+        fi
+        
+        if [[ ${{ env.KERNEL_SOURCE_BRANCH }} == 'nova-miui' ]]; then 
           git clone --recursive https://github.com/hakuna77/kernel_xiaomi_mt6785.git -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
         fi
         
