@@ -1,6 +1,6 @@
-From 6b327680eecf9f902d64a68ab8b3172e17d41174 Mon Sep 17 00:00:00 2001
+From a11a23653eb2bf0c4563f517c2f8232b50ac0e05 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sun, 22 Feb 2026 21:54:07 +0700
+Date: Sun, 22 Feb 2026 22:24:18 +0700
 Subject: [PATCH] susfs: Fix various bugs and overall improvement for SUS_PATH
  and SUS_MOUNT
 
@@ -71,7 +71,7 @@ index 65304c3e8..f63113dfd 100644
  		dentry = NULL;
  		found_sus_path = true;
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 22c6fbc80..05e02d90f 100644
+index 22c6fbc80..2a37e9a50 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -35,9 +35,9 @@
@@ -241,7 +241,7 @@ index 22c6fbc80..05e02d90f 100644
  	if (!susfs_is_sdcard_android_data_decrypted && susfs_is_current_ksu_domain()) {
 -		mnt = susfs_alloc_sus_vfsmnt(name);
 -		atomic64_add(1, &susfs_ksu_mounts);
-+		mnt = susfs_alloc_non_unshare_ksu_vfsmnt(fc->source ?: "none");
++		mnt = susfs_alloc_non_unshare_ksu_vfsmnt(name);
  		goto bypass_orig_flow;
  	}
 -#endif
