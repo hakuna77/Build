@@ -1,0 +1,392 @@
+From 6beb2f89959c668601140d0db24e12a7832d1879 Mon Sep 17 00:00:00 2001
+From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
+Date: Mon, 23 Feb 2026 19:30:48 +0700
+Subject: [PATCH] susfs kernel: Adding null check for inode->i_mapping and
+ harden the current uid check
+
+---
+ fs/namei.c         | 44 +++++++++++++-----------
+ fs/proc/base.c     | 16 +++++----
+ fs/proc/task_mmu.c | 67 ++++++++++++++++++++----------------
+ fs/stat.c          |  5 +--
+ fs/susfs.c         | 84 ++++++++++++++++------------------------------
+ 5 files changed, 105 insertions(+), 111 deletions(-)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index f63113dfd..e4e727c65 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -3854,6 +3854,7 @@ struct file *do_filp_open(int dfd, struct filename *pathname,
+ 	struct file *filp;
+ #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+ 	struct filename *fake_pathname;
++	struct inode *inode;
+ #endif
+ 
+ 	set_nameidata(&nd, dfd, pathname);
+@@ -3863,26 +3864,29 @@ struct file *do_filp_open(int dfd, struct filename *pathname,
+ 	if (unlikely(filp == ERR_PTR(-ESTALE)))
+ 		filp = path_openat(&nd, op, flags | LOOKUP_REVAL);
+ #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+-	if (!IS_ERR(filp) &&
+-		unlikely(test_bit(AS_FLAGS_OPEN_REDIRECT, &filp->f_inode->i_mapping->flags) &&
+-		current_uid().val < 11000))
+-	{
+-		fake_pathname = susfs_get_redirected_path(filp->f_inode->i_ino);
+-		if (!IS_ERR(fake_pathname)) {
+-			restore_nameidata();
+-			filp_close(filp, NULL);
+-			// no need to do `putname(pathname);` here as it will be done by calling process
+-			set_nameidata(&nd, dfd, fake_pathname);
+-			filp = path_openat(&nd, op, flags | LOOKUP_RCU);
+-			if (unlikely(filp == ERR_PTR(-ECHILD)))
+-				filp = path_openat(&nd, op, flags);
+-			if (unlikely(filp == ERR_PTR(-ESTALE)))
+-				filp = path_openat(&nd, op, flags | LOOKUP_REVAL);
+-			restore_nameidata();
+-			putname(fake_pathname);
+-			return filp;
+-		}
+-	}
++	if (!IS_ERR(filp)) {
++		inode = file_inode(filp);
++		if (inode->i_mapping &&
++			unlikely(test_bit(AS_FLAGS_OPEN_REDIRECT, &inode->i_mapping->flags)) &&
++			current_uid().val < 11000)
++    	{
++    		fake_pathname = susfs_get_redirected_path(inode->i_ino);
++    		if (!IS_ERR(fake_pathname)) {
++    			restore_nameidata();
++    			filp_close(filp, NULL);
++    			// no need to do `putname(pathname);` here as it will be done by calling process
++    			set_nameidata(&nd, dfd, fake_pathname);
++    			filp = path_openat(&nd, op, flags | LOOKUP_RCU);
++    			if (unlikely(filp == ERR_PTR(-ECHILD)))
++    				filp = path_openat(&nd, op, flags);
++    			if (unlikely(filp == ERR_PTR(-ESTALE)))
++    				filp = path_openat(&nd, op, flags | LOOKUP_REVAL);
++    			restore_nameidata();
++    			putname(fake_pathname);
++    			return filp;
++    		}
++    	}
++    }
+ #endif
+ 	restore_nameidata();
+ 	return filp;
+diff --git a/fs/proc/base.c b/fs/proc/base.c
+index 25811aec8..534142a8c 100644
+--- a/fs/proc/base.c
++++ b/fs/proc/base.c
+@@ -928,8 +928,9 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
+ 		vma = find_vma(mm, addr);
+ 		if (vma && vma->vm_file) {
+ 			struct inode *inode = file_inode(vma->vm_file);
+-			if (unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
+-				susfs_is_current_proc_umounted()))
++			if (inode->i_mapping &&
++				unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
++				susfs_is_current_proc_umounted_app()))
+ 			{
+ 				if (write) {
+ 					copied = -EFAULT;
+@@ -2260,6 +2261,9 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
+ 	struct map_files_info info;
+ 	struct map_files_info *p;
+ 	int ret;
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++	struct inode *inode;
++#endif
+ 
+ 	ret = -ENOENT;
+ 	task = get_proc_task(file_inode(file));
+@@ -2313,11 +2317,11 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
+ 			if (!vma->vm_file)
+ 				continue;
+ #ifdef CONFIG_KSU_SUSFS_SUS_MAP
+-		    if (unlikely(test_bit(AS_FLAGS_SUS_MAP, &file_inode(vma->vm_file)->i_mapping->flags) &&
+-			susfs_is_current_proc_umounted()))
+-		    {
++			inode = file_inode(vma->vm_file);
++			if (inode->i_mapping &&
++			    unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
++			    susfs_is_current_proc_umounted_app()))
+ 			    continue;
+-		    }
+ #endif
+ 
+ 			if (++pos <= ctx->pos)
+diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
+index cbd716f51..ecc874174 100644
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -368,15 +368,19 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+ 	if (file) {
+ 		struct inode *inode = file_inode(vma->vm_file);
+ #ifdef CONFIG_KSU_SUSFS_SUS_MAP
+-		if (unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
+-			susfs_is_current_proc_umounted()))
++		if (inode->i_mapping &&
++			unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
++			susfs_is_current_proc_umounted_app()))
+ 		{
+ 			show_vma_header_prefix(m, vma->vm_start, vma->vm_end, flags, pgoff, dev, ino);
+ 			goto done;
+ 		}
+ #endif
+ #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+-		if (unlikely(test_bit(AS_FLAGS_SUS_KSTAT, &inode->i_mapping->flags))) {
++		if (inode->i_mapping &&
++			unlikely(test_bit(AS_FLAGS_SUS_KSTAT, &inode->i_mapping->flags) &&
++			susfs_is_current_proc_umounted_app()))
++		{
+ 			susfs_sus_ino_for_show_map_vma(inode->i_ino, &dev, &ino);
+ 			goto bypass_orig_flow;
+ 		}
+@@ -879,23 +883,26 @@ static int show_smap(struct seq_file *m, void *v)
+ 
+ 	memset(&mss, 0, sizeof(mss));
+ #ifdef CONFIG_KSU_SUSFS_SUS_MAP
+-	if (vma->vm_file &&
+-		unlikely(test_bit(AS_FLAGS_SUS_MAP, &file_inode(vma->vm_file)->i_mapping->flags) &&
+-		susfs_is_current_proc_umounted()))
+-	{
+-		show_map_vma(m, vma);
+-		seq_printf(m,
+-		   "Size:           %8lu kB\n"
+-		   "KernelPageSize: %8lu kB\n"
+-		   "MMUPageSize:    %8lu kB\n",
+-		   (vma->vm_end - vma->vm_start) >> 10,
+-		   vma_kernel_pagesize(vma) >> 10,
+-		   vma_mmu_pagesize(vma) >> 10);
+-
+-		__show_smap(m, &mss);
+-		seq_puts(m, "VmFlags: mr mw me");
+-		seq_putc(m, '\n');
+-		goto bypass_orig_flow;
++	if (vma->vm_file) {
++		struct inode *inode = file_inode(vma->vm_file);
++		if (inode->i_mapping &&
++			unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
++			susfs_is_current_proc_umounted_app()))
++		{
++			show_map_vma(m, vma);
++			seq_printf(m,
++				   "Size:           %8lu kB\n"
++				   "KernelPageSize: %8lu kB\n"
++				   "MMUPageSize:    %8lu kB\n",
++				   (vma->vm_end - vma->vm_start) >> 10,
++				   vma_kernel_pagesize(vma) >> 10,
++				   vma_mmu_pagesize(vma) >> 10);
++
++			__show_smap(m, &mss);
++			seq_puts(m, "VmFlags: mr mw me");
++			seq_putc(m, '\n');
++			goto bypass_orig_flow;
++		}
+ 	}
+ #endif
+ 
+@@ -955,12 +962,15 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
+ 
+ 	for (vma = priv->mm->mmap; vma;) {
+ #ifdef CONFIG_KSU_SUSFS_SUS_MAP
+-		if (vma->vm_file &&
+-			unlikely(test_bit(AS_FLAGS_SUS_MAP, &file_inode(vma->vm_file)->i_mapping->flags) &&
+-			susfs_is_current_proc_umounted()))
+-		{
+-			memset(&mss, 0, sizeof(mss));
+-			goto bypass_orig_flow;
++		if (vma->vm_file) {
++			struct inode *inode = file_inode(vma->vm_file);
++			if (inode->i_mapping &&
++				unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
++				susfs_is_current_proc_umounted_app()))
++			{
++				memset(&mss, 0, sizeof(mss));
++				goto bypass_orig_flow;
++			}
+ 		}
+ #endif
+ 		smap_gather_stats(vma, &mss);
+@@ -1730,8 +1740,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+ 		vma = find_vma(mm, start_vaddr);
+ 		if (vma && vma->vm_file) {
+ 			struct inode *inode = file_inode(vma->vm_file);
+-			if (unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
+-				susfs_is_current_proc_umounted()))
++			if (inode->i_mapping &&
++				unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
++				susfs_is_current_proc_umounted_app()))
+ 			{
+ 				pm.buffer->pme = 0;
+ 			}
+diff --git a/fs/stat.c b/fs/stat.c
+index 8669b1bb1..2c23d2531 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -44,8 +44,9 @@ extern void susfs_sus_ino_for_generic_fillattr(unsigned long ino, struct kstat *
+ void generic_fillattr(struct inode *inode, struct kstat *stat)
+ {
+ #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+-	if (unlikely(test_bit(AS_FLAGS_SUS_KSTAT, &inode->i_mapping->flags)) &&
+-		likely(susfs_is_current_proc_umounted()))
++	if (inode->i_mapping &&
++		unlikely(test_bit(AS_FLAGS_SUS_KSTAT, &inode->i_mapping->flags)) &&
++		likely(susfs_is_current_proc_umounted_app()))
+ 	{
+ 		susfs_sus_ino_for_generic_fillattr(inode->i_ino, stat);
+ 		stat->mode = inode->i_mode;
+diff --git a/fs/susfs.c b/fs/susfs.c
+index 7297c2fe4..5d05d87e2 100644
+--- a/fs/susfs.c
++++ b/fs/susfs.c
+@@ -95,8 +95,8 @@ void susfs_add_sus_path(void __user **user_info) {
+ 
+ 	if (inode->i_sb->s_magic == FUSE_SUPER_MAGIC) {
+ 		fi = get_fuse_inode(inode);
+-		if (!fi) {
+-			SUSFS_LOGE("fi is NULL\n");
++		if (!fi || !fi->inode.i_mapping) {
++			SUSFS_LOGE("fi || fi->inode.i_mapping is NULL\n");
+ 			info.err = -ENOENT;
+ 			goto out_path_put_path;
+ 		}
+@@ -171,13 +171,14 @@ void susfs_run_sus_path_loop(void) {
+ 		{
+ 			inode = d_backing_inode(path.dentry);
+ 			if (!inode || !inode->i_mapping) {
++				SUSFS_LOGE("inode || inode->i_mapping is NULL\n");
+ 				path_put(&path);
+ 				continue;
+ 			}
+ 			if (inode->i_sb->s_magic == FUSE_SUPER_MAGIC) {
+ 				fi = get_fuse_inode(inode);
+-				if (!fi) {
+-					SUSFS_LOGE("fi is NULL\n");
++				if (!fi || !fi->inode.i_mapping) {
++					SUSFS_LOGE("fi || fi->inode.i_mapping is NULL\n");
+ 					path_put(&path);
+ 					continue;
+ 				}
+@@ -185,8 +186,8 @@ void susfs_run_sus_path_loop(void) {
+ 			} else {
+ 				set_bit(AS_FLAGS_SUS_PATH, &inode->i_mapping->flags);
+ 			}
+-			path_put(&path);
+ 			SUSFS_LOGI("re-flag AS_FLAGS_SUS_PATH on path '%s'\n", cursor->target_pathname);
++			path_put(&path);
+ 		}
+ 	}
+ }
+@@ -196,84 +197,57 @@ static inline bool is_i_uid_not_allowed(uid_t i_uid) {
+ }
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+-bool susfs_is_inode_sus_path(struct mnt_idmap* idmap, struct inode *inode) {
++bool susfs_is_inode_sus_path(struct mnt_idmap* idmap, struct inode *inode)
++#else
++bool susfs_is_inode_sus_path(struct inode *inode)
++#endif
++{
+ 	struct fuse_inode *fi = NULL;
+ 	if (!susfs_is_current_proc_umounted_app()) {
+ 		return false;
+ 	}
++	if (!inode->i_mapping) {
++		SUSFS_LOGE("inode->i_mapping is NULL\n");
++		return false;
++	}
+ 	if (inode->i_sb->s_magic == FUSE_SUPER_MAGIC) {
+ 		fi = get_fuse_inode(inode);
+-		if (!fi) {
++		if (!fi || !fi->inode.i_mapping) {
++			SUSFS_LOGE("fi || fi->inode.i_mapping is NULL\n");
+ 			return false;
+ 		}
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+ 		if (unlikely(test_bit(AS_FLAGS_SUS_PATH, &fi->inode.i_mapping->flags) &&
+-			is_i_uid_not_allowed(i_uid_into_vfsuid(idmap, &fi->inode).val))) {
++			is_i_uid_not_allowed(i_uid_into_vfsuid(idmap, &fi->inode).val)))
++#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
++		if (unlikely(test_bit(AS_FLAGS_SUS_PATH, &fi->inode.i_mapping->flags) &&
++			is_i_uid_not_allowed(i_uid_into_mnt(i_user_ns(&fi->inode), &fi->inode).val)))
++#else
++		if (unlikely(test_bit(AS_FLAGS_SUS_PATH, &fi->inode.i_mapping->flags) &&
++			is_i_uid_not_allowed(fi->inode.i_uid.val)))
++#endif
++		{
+ 			SUSFS_LOGI("hiding path with ino '%lu'\n", inode->i_ino);
+ 			return true;
+ 		}
+ 		return false;
+ 	}
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+ 	if (unlikely(test_bit(AS_FLAGS_SUS_PATH, &inode->i_mapping->flags) &&
+ 		is_i_uid_not_allowed(i_uid_into_vfsuid(idmap, inode).val)))
+-	{
+-		SUSFS_LOGI("hiding path with ino '%lu'\n", inode->i_ino);
+-		return true;
+-	}
+-	return false;
+-}
+ #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+-bool susfs_is_inode_sus_path(struct inode *inode) {
+-	struct fuse_inode *fi = NULL;
+-	if (!susfs_is_current_proc_umounted_app()) {
+-		return false;
+-	}
+-	if (inode->i_sb->s_magic == FUSE_SUPER_MAGIC) {
+-		fi = get_fuse_inode(inode);
+-		if (!fi) {
+-			return false;
+-		}
+-		if (unlikely(test_bit(AS_FLAGS_SUS_PATH, &fi->inode.i_mapping->flags) &&
+-			is_i_uid_not_allowed(i_uid_into_mnt(i_user_ns(&fi->inode), &fi->inode).val))) {
+-			SUSFS_LOGI("hiding path with ino '%lu'\n", inode->i_ino);
+-			return true;
+-		}
+-		return false;
+-	}
+ 	if (unlikely(test_bit(AS_FLAGS_SUS_PATH, &inode->i_mapping->flags) &&
+ 		is_i_uid_not_allowed(i_uid_into_mnt(i_user_ns(inode), inode).val)))
+-	{
+-		SUSFS_LOGI("hiding path with ino '%lu'\n", inode->i_ino);
+-		return true;
+-	}
+-	return false;
+-}
+ #else
+-bool susfs_is_inode_sus_path(struct inode *inode) {
+-	struct fuse_inode *fi = NULL;
+-	if (!susfs_is_current_proc_umounted_app()) {
+-		return false;
+-	}
+-	if (inode->i_sb->s_magic == FUSE_SUPER_MAGIC) {
+-		fi = get_fuse_inode(inode);
+-		if (!fi) {
+-			return false;
+-		}
+-		if (unlikely(test_bit(AS_FLAGS_SUS_PATH, &fi->inode.i_mapping->flags) &&
+-			is_i_uid_not_allowed(fi->inode.i_uid.val))) {
+-			SUSFS_LOGI("hiding path with ino '%lu'\n", inode->i_ino);
+-			return true;
+-		}
+-		return false;
+-	}
+ 	if (unlikely(test_bit(AS_FLAGS_SUS_PATH, &inode->i_mapping->flags) &&
+ 		is_i_uid_not_allowed(inode->i_uid.val)))
++#endif
+ 	{
+ 		SUSFS_LOGI("hiding path with ino '%lu'\n", inode->i_ino);
+ 		return true;
+ 	}
+ 	return false;
+ }
+-#endif
+ #endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
+ 
+ /* sus_mount */
+-- 
+2.52.0
+
