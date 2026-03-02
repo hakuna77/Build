@@ -1,6 +1,6 @@
-From 3279cb0d530122c75021d759098cc13e32f23ab9 Mon Sep 17 00:00:00 2001
+From 0d78016d7e622281d1de908969dfb2490d6e34a7 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 3 Mar 2026 00:30:08 +0700
+Date: Tue, 3 Mar 2026 00:39:21 +0700
 Subject: [PATCH] simple_lmk
 
 ---
@@ -31,7 +31,7 @@ Subject: [PATCH] simple_lmk
  create mode 100644 include/linux/simple_lmk.h
 
 diff --git a/arch/arm64/configs/begonia_user_defconfig b/arch/arm64/configs/begonia_user_defconfig
-index ed956e966..0ad9854bb 100644
+index ed956e966..84e8ffe52 100644
 --- a/arch/arm64/configs/begonia_user_defconfig
 +++ b/arch/arm64/configs/begonia_user_defconfig
 @@ -482,4 +482,7 @@ CONFIG_BLK_WBT=y
@@ -44,7 +44,6 @@ index ed956e966..0ad9854bb 100644
 +CONFIG_ANDROID_SIMPLE_LMK=y
 +CONFIG_ANDROID_SIMPLE_LMK_MINFREE=128
 +CONFIG_ANDROID_SIMPLE_LMK_TIMEOUT_MSEC=200
-\ No newline at end of file
 diff --git a/drivers/android/Kconfig b/drivers/android/Kconfig
 index 3a90d51d8..fd19384bb 100644
 --- a/drivers/android/Kconfig
