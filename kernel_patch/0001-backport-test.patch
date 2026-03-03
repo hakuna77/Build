@@ -11,23 +11,6 @@ diff --git a/fs/namespace.c b/fs/namespace.c
 index 7ae059333..296218311 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
-@@ -1695,7 +1695,7 @@ static void namespace_unlock(void)
- 	if (likely(hlist_empty(&head)))
- 		return;
- 
--	synchronize_rcu();
-+	synchronize_rcu_expedited();
- 
- 	group_pin_kill(&head);
- }
-@@ -1957,6 +1957,7 @@ static int can_umount(const struct path *path, int flags)
- {
- 	struct mount *mnt = real_mount(path->mnt);
- 
-+	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
- 	if (!may_mount())
- 		return -EPERM;
- 	if (path->dentry != path->mnt->mnt_root)
 @@ -2853,9 +2854,12 @@ static int do_new_mount(struct path *path, const char *fstype, int sb_flags,
  		return -ENODEV;
  
