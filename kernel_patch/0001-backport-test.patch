@@ -11,6 +11,15 @@ diff --git a/fs/namespace.c b/fs/namespace.c
 index 7ae059333..296218311 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
+@@ -1905,6 +1905,8 @@ static int can_umount(const struct path *path, int flags)
+ {
+ 	struct mount *mnt = real_mount(path->mnt);
+ 
++	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
++		return -EINVAL;
+ 	if (!may_mount())
+ 		return -EPERM;
+ 	if (path->dentry != path->mnt->mnt_root)
 @@ -2853,9 +2854,12 @@ static int do_new_mount(struct path *path, const char *fstype, int sb_flags,
  		return -ENODEV;
  
