@@ -1,7 +1,7 @@
-From f3f4c6e81ece7a2c6abcfa51e192a1784e478dd9 Mon Sep 17 00:00:00 2001
+From 060ff19f96aa9f6c4ea4b1a961438eab8a3b82e2 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Mon, 23 Feb 2026 22:07:34 +0700
-Subject: [PATCH] test sus 6
+Date: Wed, 4 Mar 2026 16:07:17 +0700
+Subject: [PATCH] test sus 7
 
 ---
  kernel/Kbuild            |   2 -
@@ -10,7 +10,7 @@ Subject: [PATCH] test sus 6
  kernel/extras.c          |  16 ++-
  kernel/kernel_umount.c   |   3 +
  kernel/ksu.c             |  24 +++++
- kernel/ksud.c            |  63 +++++++-----
+ kernel/ksud.c            |  64 +++++++-----
  kernel/ksud.h            |  19 ++++
  kernel/selinux/rules.c   |   9 ++
  kernel/selinux/selinux.c |  96 ++++++++++++++++++
@@ -19,10 +19,10 @@ Subject: [PATCH] test sus 6
  kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 208 ++++++++++++++++++++++++++++++++-------
- 15 files changed, 740 insertions(+), 62 deletions(-)
+ 15 files changed, 740 insertions(+), 63 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
-index 49bde06c..5802f01b 100644
+index 9a549c74..f398f674 100644
 --- a/kernel/Kbuild
 +++ b/kernel/Kbuild
 @@ -3,7 +3,6 @@ kernelsu-objs += allowlist.o
@@ -290,7 +290,7 @@ index 7742dad6..2c9ed554 100644
  	ksu_supercalls_exit();
  
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 8861b6ac..b4d12817 100644
+index dd6e9661..8906d320 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
 @@ -78,7 +78,6 @@ static struct work_struct __maybe_unused stop_execve_hook_work;
@@ -330,8 +330,8 @@ index 8861b6ac..b4d12817 100644
  
  static const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
  {
-@@ -238,6 +243,10 @@ fail:
- 	return false;
+@@ -234,6 +239,10 @@ static bool check_argv(struct user_arg_ptr argv, int index,
+ 	return !strcmp(buf, expected);
  }
  
 +#ifdef CONFIG_KSU_SUSFS
@@ -340,19 +340,20 @@ index 8861b6ac..b4d12817 100644
 +
  // IMPORTANT NOTE: the call from execve_handler_pre WON'T provided correct value for envp and flags in GKI version
  int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
-                              struct user_arg_ptr *argv,
-@@ -292,6 +301,10 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
-             stop_execve_hook();
-         }
-     }
+ 				struct user_arg_ptr *argv,
+@@ -339,7 +348,10 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+ 			stop_execve_hook();
+ 		}
+ 	}
+-
 +#ifdef CONFIG_KSU_SUSFS
 +    // - We need to run ksu_handle_execveat_init() at the very end in case the above checks are skipped
 +    (void)ksu_handle_execveat_init(filename);
 +#endif // #ifdef CONFIG_KSU_SUSFS
- 
-     return 0;
+ 	return 0;
  }
-@@ -427,14 +440,22 @@ static bool is_init_rc(struct file *fp)
+ 
+@@ -474,14 +486,22 @@ static bool is_init_rc(struct file *fp)
      return true;
  }
  
@@ -377,7 +378,7 @@ index 8861b6ac..b4d12817 100644
      }
      rc_hooked = true;
  
-@@ -458,17 +479,7 @@ static void ksu_apply_init_rc_proxy(struct file *file)
+@@ -505,17 +525,7 @@ static void ksu_apply_init_rc_proxy(struct file *file)
      }
      // replace the file_operations
      file->f_op = &fops_proxy;
@@ -396,7 +397,7 @@ index 8861b6ac..b4d12817 100644
      fput(file);
  }
  
-@@ -707,22 +718,24 @@ int __maybe_unused ksu_handle_compat_execve_ksud(
+@@ -754,22 +764,24 @@ int __maybe_unused ksu_handle_compat_execve_ksud(
  }
  #endif /* COMPAT & 64BIT */
  
@@ -934,7 +935,7 @@ index 1999af84..6d82243d 100644
  				void *__never_use_argv, void *__never_use_envp,
  				int *__never_use_flags);
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index 10f9c5d9..ba08ad74 100644
+index f4d074cf..5cbda51a 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
 @@ -12,6 +12,10 @@
@@ -968,7 +969,7 @@ index 10f9c5d9..ba08ad74 100644
  		}
  		break;
  	}
-@@ -358,7 +367,6 @@ static int do_get_wrapper_fd(void __user *arg) {
+@@ -424,7 +433,6 @@ static int do_get_wrapper_fd(void __user *arg) {
  
  static int do_manage_mark(void __user *arg)
  {
@@ -976,7 +977,7 @@ index 10f9c5d9..ba08ad74 100644
  	struct ksu_manage_mark_cmd cmd;
  	int ret = 0;
  
-@@ -369,6 +377,7 @@ static int do_manage_mark(void __user *arg)
+@@ -435,6 +443,7 @@ static int do_manage_mark(void __user *arg)
  
  	switch (cmd.operation) {
  	case KSU_MARK_GET: {
@@ -984,7 +985,7 @@ index 10f9c5d9..ba08ad74 100644
  		// Get task mark status
  		ret = ksu_get_task_mark(cmd.pid);
  		if (ret < 0) {
-@@ -377,8 +386,19 @@ static int do_manage_mark(void __user *arg)
+@@ -443,8 +452,19 @@ static int do_manage_mark(void __user *arg)
  		}
  		cmd.result = (u32)ret;
  		break;
@@ -1004,7 +1005,7 @@ index 10f9c5d9..ba08ad74 100644
  		if (cmd.pid == 0) {
  			ksu_mark_all_process();
  		} else {
-@@ -389,9 +409,15 @@ static int do_manage_mark(void __user *arg)
+@@ -455,9 +475,15 @@ static int do_manage_mark(void __user *arg)
  				return ret;
  			}
  		}
@@ -1020,7 +1021,7 @@ index 10f9c5d9..ba08ad74 100644
  		if (cmd.pid == 0) {
  			ksu_unmark_all_process();
  		} else {
-@@ -402,11 +428,20 @@ static int do_manage_mark(void __user *arg)
+@@ -468,11 +494,20 @@ static int do_manage_mark(void __user *arg)
  				return ret;
  			}
  		}
@@ -1041,7 +1042,7 @@ index 10f9c5d9..ba08ad74 100644
  		break;
  	}
  	default: {
-@@ -420,11 +455,6 @@ static int do_manage_mark(void __user *arg)
+@@ -486,11 +521,6 @@ static int do_manage_mark(void __user *arg)
  	}
  
  	return 0;
@@ -1053,8 +1054,8 @@ index 10f9c5d9..ba08ad74 100644
  }
  
  static int do_get_hook_mode(void __user *arg)
-@@ -677,6 +707,29 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
- 	{ .cmd = 0, .name = NULL, .handler = NULL, .perm_check = NULL } // Sentinel
+@@ -811,6 +841,29 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
+     { .cmd = 0, .name = NULL, .handler = NULL, .perm_check = NULL } // Sentinel
  };
  
 +struct ksu_install_fd_tw {
@@ -1083,7 +1084,7 @@ index 10f9c5d9..ba08ad74 100644
  int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  			  void __user **arg)
  {
-@@ -688,6 +741,98 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -822,6 +875,98 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		magic2);
  #endif
  
@@ -1182,7 +1183,7 @@ index 10f9c5d9..ba08ad74 100644
  	// Check if this is a request to install KSU fd
  	if (magic2 == KSU_INSTALL_MAGIC2) {
  		int fd = ksu_install_fd();
-@@ -702,6 +847,24 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -836,6 +981,24 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		}
  		return 0;
  	}
@@ -1207,7 +1208,7 @@ index 10f9c5d9..ba08ad74 100644
  
  	// extensions 
  	u64 reply = (u64)*arg;
-@@ -824,30 +987,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -958,30 +1121,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  	return 0;
  }
  
@@ -1239,7 +1240,7 @@ index 10f9c5d9..ba08ad74 100644
  static int reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
  {
  	struct pt_regs *real_regs = PT_REAL_REGS(regs);
-@@ -875,7 +1015,7 @@ void ksu_supercalls_init(void)
+@@ -1009,7 +1149,7 @@ void ksu_supercalls_init(void)
  		pr_info("  %-18s = 0x%08x\n", ksu_ioctl_handlers[i].name, ksu_ioctl_handlers[i].cmd);
  	}
  
@@ -1248,7 +1249,7 @@ index 10f9c5d9..ba08ad74 100644
  	int rc = register_kprobe(&reboot_kp);
  	if (rc) {
  		pr_err("reboot kprobe failed: %d\n", rc);
-@@ -888,9 +1028,11 @@ void ksu_supercalls_init(void)
+@@ -1022,9 +1162,11 @@ void ksu_supercalls_init(void)
  }
  
  void ksu_supercalls_exit(void){
