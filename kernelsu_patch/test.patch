@@ -1,11 +1,11 @@
-From 060ff19f96aa9f6c4ea4b1a961438eab8a3b82e2 Mon Sep 17 00:00:00 2001
+From 0c58bc480cf7a1f21ba8f2491aca57912b280242 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Wed, 4 Mar 2026 16:07:17 +0700
+Date: Wed, 4 Mar 2026 20:29:14 +0700
 Subject: [PATCH] test sus 7
 
 ---
  kernel/Kbuild            |   2 -
- kernel/Kconfig           |  90 +++++++++++++++++
+ kernel/Kconfig           |  90 ++++++++++++++++
  kernel/Makefile          |  10 ++
  kernel/extras.c          |  16 ++-
  kernel/kernel_umount.c   |   3 +
@@ -13,13 +13,13 @@ Subject: [PATCH] test sus 7
  kernel/ksud.c            |  64 +++++++-----
  kernel/ksud.h            |  19 ++++
  kernel/selinux/rules.c   |   9 ++
- kernel/selinux/selinux.c |  96 ++++++++++++++++++
+ kernel/selinux/selinux.c |  96 +++++++++++++++++
  kernel/selinux/selinux.h |  13 +++
  kernel/setuid_hook.c     | 109 ++++++++++++++++++++
  kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
- kernel/supercalls.c      | 208 ++++++++++++++++++++++++++++++++-------
- 15 files changed, 740 insertions(+), 63 deletions(-)
+ kernel/supercalls.c      | 215 +++++++++++++++++++++++++++++++++------
+ 15 files changed, 747 insertions(+), 63 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 9a549c74..f398f674 100644
@@ -935,7 +935,7 @@ index 1999af84..6d82243d 100644
  				void *__never_use_argv, void *__never_use_envp,
  				int *__never_use_flags);
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index f4d074cf..5cbda51a 100644
+index f4d074cf..2fc42b9a 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
 @@ -12,6 +12,10 @@
@@ -1054,7 +1054,7 @@ index f4d074cf..5cbda51a 100644
  }
  
  static int do_get_hook_mode(void __user *arg)
-@@ -811,6 +841,29 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
+@@ -811,17 +841,135 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
      { .cmd = 0, .name = NULL, .handler = NULL, .perm_check = NULL } // Sentinel
  };
  
@@ -1084,7 +1084,15 @@ index f4d074cf..5cbda51a 100644
  int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  			  void __user **arg)
  {
-@@ -822,6 +875,98 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+ 	if (magic1 != KSU_INSTALL_MAGIC1)
++#ifndef CONFIG_KSU_SUSFS
+ 		return 0;
+-
++#else
++		return -EINVAL;
++#endif
+ #ifdef CONFIG_KSU_DEBUG
+ 	pr_info("sys_reboot: intercepted call! magic: 0x%x id: %d\n", magic1,
  		magic2);
  #endif
  
@@ -1175,7 +1183,7 @@ index f4d074cf..5cbda51a 100644
 +            susfs_show_version(arg);
 +            return 0;
 +        }
-+        return 0;
++        return -EINVAL;
 +    }
 +#endif // #ifdef CONFIG_KSU_SUSFS
 +
@@ -1183,7 +1191,7 @@ index f4d074cf..5cbda51a 100644
  	// Check if this is a request to install KSU fd
  	if (magic2 == KSU_INSTALL_MAGIC2) {
  		int fd = ksu_install_fd();
-@@ -836,6 +981,24 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -836,6 +984,25 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		}
  		return 0;
  	}
@@ -1203,15 +1211,21 @@ index f4d074cf..5cbda51a 100644
 +            kfree(tw);
 +            pr_warn("install fd add task_work failed\n");
 +        }
-+	}
++        return 0;
++    }
 +#endif // #ifndef CONFIG_KSU_SUSFS
  
  	// extensions 
  	u64 reply = (u64)*arg;
-@@ -958,30 +1121,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -954,34 +1121,14 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+ 		if (copy_to_user((void __user *)*arg, &reply, sizeof(reply)))
+ 			return 0;
+ 	}
+-
++#ifndef CONFIG_KSU_SUSFS
  	return 0;
- }
- 
+-}
+-
 -#ifdef KSU_KPROBES_HOOK
 -struct ksu_install_fd_tw {
 -	struct callback_head cb;
@@ -1228,19 +1242,20 @@ index f4d074cf..5cbda51a 100644
 -		pr_err("install ksu fd reply err\n");
 -#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
 -		close_fd(fd);
--#else
+ #else
 -		__close_fd(current->files, fd);
--#endif
++	return -EINVAL;
+ #endif
 -	}
 -
 -	kfree(tw);
--}
--
+ }
+ 
 +#if defined(KSU_KPROBES_HOOK) && !defined(CONFIG_KSU_SUSFS)
  static int reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
  {
  	struct pt_regs *real_regs = PT_REAL_REGS(regs);
-@@ -1009,7 +1149,7 @@ void ksu_supercalls_init(void)
+@@ -1009,7 +1156,7 @@ void ksu_supercalls_init(void)
  		pr_info("  %-18s = 0x%08x\n", ksu_ioctl_handlers[i].name, ksu_ioctl_handlers[i].cmd);
  	}
  
@@ -1249,7 +1264,7 @@ index f4d074cf..5cbda51a 100644
  	int rc = register_kprobe(&reboot_kp);
  	if (rc) {
  		pr_err("reboot kprobe failed: %d\n", rc);
-@@ -1022,9 +1162,11 @@ void ksu_supercalls_init(void)
+@@ -1022,9 +1169,11 @@ void ksu_supercalls_init(void)
  }
  
  void ksu_supercalls_exit(void){
