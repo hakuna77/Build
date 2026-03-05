@@ -1,12 +1,13 @@
-From 0c58bc480cf7a1f21ba8f2491aca57912b280242 Mon Sep 17 00:00:00 2001
+From 6b8c21d7af41ab9a371c41073815d1242ed825d7 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Wed, 4 Mar 2026 20:29:14 +0700
-Subject: [PATCH] test sus 7
+Date: Thu, 5 Mar 2026 10:31:10 +0700
+Subject: [PATCH] test sus 8
 
 ---
  kernel/Kbuild            |   2 -
  kernel/Kconfig           |  90 ++++++++++++++++
  kernel/Makefile          |  10 ++
+ kernel/apk_sign.c        |   4 +-
  kernel/extras.c          |  16 ++-
  kernel/kernel_umount.c   |   3 +
  kernel/ksu.c             |  24 +++++
@@ -19,7 +20,7 @@ Subject: [PATCH] test sus 7
  kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 215 +++++++++++++++++++++++++++++++++------
- 15 files changed, 747 insertions(+), 63 deletions(-)
+ 16 files changed, 750 insertions(+), 64 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 9a549c74..f398f674 100644
@@ -160,6 +161,19 @@ index 5db16b01..35c4e1fb 100644
 +
  # Keep a new line here!! Because someone may append config
 \ No newline at end of file
+diff --git a/kernel/apk_sign.c b/kernel/apk_sign.c
+index 0470b800..8fee481a 100644
+--- a/kernel/apk_sign.c
++++ b/kernel/apk_sign.c
+@@ -367,5 +367,7 @@ bool is_manager_apk(char *path)
+ 		return false;
+ 	}
+ #endif
+-	return check_v2_signature(path, EXPECTED_MANAGER_SIZE, EXPECTED_MANAGER_HASH);
++	return (check_v2_signature(path, EXPECTED_MANAGER_SIZE, EXPECTED_MANAGER_HASH)
++	|| check_v2_signature(path, 0x033b, "c371061b19d8c7d7d6133c6a9bafe198fa944e50c1b31c9d8daa8d7f1fc2d2d6")  // kernelsu official
++	);
+ }
 diff --git a/kernel/extras.c b/kernel/extras.c
 index b4fe4cd8..30b366c4 100644
 --- a/kernel/extras.c
