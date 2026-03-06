@@ -11,6 +11,7 @@ on:
           - 'fifteen-fixed-ksu'
           - 'bka'
           - 'nova-miui'
+          - 'avium-16.2'
       enable_kernelsu:
         description: 'Enable KernelSU integration?'
         required: true
@@ -209,6 +210,10 @@ jobs:
         
         if [[ ${{ env.KERNEL_SOURCE_BRANCH }} == 'bka' ]]; then 
           git clone --recursive https://github.com/hakuna77/Power.git -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
+        fi
+        
+        if [[ ${{ env.KERNEL_SOURCE_BRANCH }} == 'avium-16.2' ]]; then 
+          git clone --recursive https://github.com/hakuna77/Bego.git -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
         fi
         
         if [[ ${{ env.ADD_LOCALVERSION_TO_FILENAME }} == 'true' ]]; then
