@@ -53,6 +53,7 @@ on:
         options:
           - '0001-scope-manual-hook-1.6.patch'
           - '0001-scope-minimized-manual-hooks-v1.6-do_execve.patch'
+          - '0001-scope-minimized-manual-hooks-v1.6.patch'
           - 'None'
       select_version_patch_susfs_to_kernel:
         description: 'Select SUSFS PATCH Into Kernel'
