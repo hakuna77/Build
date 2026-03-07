@@ -215,7 +215,7 @@ jobs:
         else
           git clone --recursive https://github.com/hakuna77/kernel_stock.git -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
         fi
-        git clone --recursive https://github.com/hakuna77/kernel_stock.git -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
+        
         if [[ ${{ env.ADD_LOCALVERSION_TO_FILENAME }} == 'true' ]]; then
           echo "LOCALVERSION=$(cat android-kernel/localversion)" >> $GITHUB_ENV
         else
