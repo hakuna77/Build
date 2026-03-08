@@ -441,6 +441,7 @@ jobs:
         
         if [ ${{ env.REPO_KSU }} = "backslashxx/KernelSU" ]; then
             echo "CONFIG_KSU_TAMPER_SYSCALL_TABLE=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+            echo "CONFIG_KSU_EXTRAS=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
         fi
         
         if [ ${{ env.REPO_KSU }} = "KernelSU-Next/KernelSU-Next" ]; then
