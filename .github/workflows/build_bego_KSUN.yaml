@@ -28,6 +28,7 @@ on:
           - 'susfs-rksu-master'
           - 'main'
           - 'legacy'
+          - 'master'
       repo_ksu:
         description: 'Repo for KernelSU (owner/repo)'
         required: false
@@ -35,8 +36,7 @@ on:
         type: choice
         options:
           - 'rsuntk/KernelSU'
-          - 'hakuna77/KernelSU'
-          - 'hakuna77/KernelSU-Next'
+          - 'backslashxx/KernelSU'
           - 'KernelSU-Next/KernelSU-Next'
       patching_susfs:
         description: 'Enable patch susfs Kernel?'
@@ -436,9 +436,16 @@ jobs:
                 echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
                 echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
                 echo "CONFIG_KSU_SUSFS_SUS_MAP=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-                echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-                echo "CONFIG_KSU_KPROBES_HOOK=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             fi
+        fi
+        
+        if [ ${{ env.REPO_KSU }} = "backslashxx/KernelSU" ]; then
+            echo "CONFIG_KSU_TAMPER_SYSCALL_TABLE=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+        fi
+        
+        if [ ${{ env.REPO_KSU }} = "KernelSU-Next/KernelSU-Next" ]; then
+            echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
+            echo "CONFIG_KSU_KPROBES_HOOK=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
         fi
         
         if [ ${{ env.SELECT_VERSION_PATCH_SUSFS_TO_KERNEL }} = "0001-susfs-v2.0.0-try_umount.patch" ]; then
