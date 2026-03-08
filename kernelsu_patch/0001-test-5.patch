@@ -1,25 +1,25 @@
-From 710dfc930532fee0423ba50718935d7d84b870f0 Mon Sep 17 00:00:00 2001
+From 2ae81b311c686bb9ec412a6913a55784a32ebde5 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sat, 28 Feb 2026 14:57:35 +0700
+Date: Sun, 8 Mar 2026 13:46:13 +0700
 Subject: [PATCH] test sus 5
 
 ---
  kernel/Kbuild            |   2 -
- kernel/Kconfig           |  90 +++++++++++++++++
+ kernel/Kconfig           |  90 ++++++++++++++++
  kernel/Makefile          |  10 ++
  kernel/extras.c          |  16 ++-
- kernel/kernel_umount.c   |  12 +++
+ kernel/kernel_umount.c   |   3 +
  kernel/ksu.c             |  24 +++++
- kernel/ksud.c            |  63 +++++++-----
+ kernel/ksud.c            |  64 +++++++-----
  kernel/ksud.h            |  19 ++++
  kernel/selinux/rules.c   |   9 ++
- kernel/selinux/selinux.c |  96 ++++++++++++++++++
+ kernel/selinux/selinux.c |  96 +++++++++++++++++
  kernel/selinux/selinux.h |  13 +++
- kernel/setuid_hook.c     | 102 +++++++++++++++++++
- kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
+ kernel/setuid_hook.c     | 144 ++++++++++++++++++++++++++
+ kernel/sucompat.c        | 136 +++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
- kernel/supercalls.c      | 208 ++++++++++++++++++++++++++++++++-------
- 15 files changed, 742 insertions(+), 62 deletions(-)
+ kernel/supercalls.c      | 217 +++++++++++++++++++++++++++++++++------
+ 15 files changed, 783 insertions(+), 64 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 9a549c74..f398f674 100644
@@ -188,33 +188,10 @@ index b4fe4cd8..30b366c4 100644
  void ksu_avc_spoof_disable(void)
  {
 diff --git a/kernel/kernel_umount.c b/kernel/kernel_umount.c
-index e4d1e60c..8af6767f 100644
+index e4d1e60c..bcfac544 100644
 --- a/kernel/kernel_umount.c
 +++ b/kernel/kernel_umount.c
-@@ -103,6 +103,10 @@ struct umount_tw {
- 	struct callback_head cb;
- };
- 
-+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-+extern void susfs_run_sus_path_loop(void);
-+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-+
- static void umount_tw_func(struct callback_head *cb)
- {
- 	struct umount_tw *tw = container_of(cb, struct umount_tw, cb);
-@@ -116,6 +120,11 @@ static void umount_tw_func(struct callback_head *cb)
-     }
-     up_read(&mount_list_lock);
- 
-+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-+    // susfs_run_sus_path_loop() runs here with ksu_cred so that it can reach all the paths
-+    susfs_run_sus_path_loop();
-+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-+
- 	revert_creds(saved);
- 
- 	kfree(tw);
-@@ -138,6 +147,7 @@ int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
+@@ -138,6 +138,7 @@ int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
  		return 0;
  	}
  
@@ -222,7 +199,7 @@ index e4d1e60c..8af6767f 100644
      // There are 5 scenarios:
      // 1. Normal app: zygote -> appuid
      // 2. Isolated process forked from zygote: zygote -> isolated_process
-@@ -161,6 +171,8 @@ int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
+@@ -161,6 +162,8 @@ int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
  		pr_info("handle umount ignore non zygote child: %d\n", current->pid);
  		return 0;
  	}
@@ -313,7 +290,7 @@ index 7742dad6..2c9ed554 100644
  	ksu_supercalls_exit();
  
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 8861b6ac..b4d12817 100644
+index dd6e9661..8906d320 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
 @@ -78,7 +78,6 @@ static struct work_struct __maybe_unused stop_execve_hook_work;
@@ -353,8 +330,8 @@ index 8861b6ac..b4d12817 100644
  
  static const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
  {
-@@ -238,6 +243,10 @@ fail:
- 	return false;
+@@ -234,6 +239,10 @@ static bool check_argv(struct user_arg_ptr argv, int index,
+ 	return !strcmp(buf, expected);
  }
  
 +#ifdef CONFIG_KSU_SUSFS
@@ -363,19 +340,20 @@ index 8861b6ac..b4d12817 100644
 +
  // IMPORTANT NOTE: the call from execve_handler_pre WON'T provided correct value for envp and flags in GKI version
  int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
-                              struct user_arg_ptr *argv,
-@@ -292,6 +301,10 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
-             stop_execve_hook();
-         }
-     }
+ 				struct user_arg_ptr *argv,
+@@ -339,7 +348,10 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+ 			stop_execve_hook();
+ 		}
+ 	}
+-
 +#ifdef CONFIG_KSU_SUSFS
 +    // - We need to run ksu_handle_execveat_init() at the very end in case the above checks are skipped
 +    (void)ksu_handle_execveat_init(filename);
 +#endif // #ifdef CONFIG_KSU_SUSFS
- 
-     return 0;
+ 	return 0;
  }
-@@ -427,14 +440,22 @@ static bool is_init_rc(struct file *fp)
+ 
+@@ -474,14 +486,22 @@ static bool is_init_rc(struct file *fp)
      return true;
  }
  
@@ -400,7 +378,7 @@ index 8861b6ac..b4d12817 100644
      }
      rc_hooked = true;
  
-@@ -458,17 +479,7 @@ static void ksu_apply_init_rc_proxy(struct file *file)
+@@ -505,17 +525,7 @@ static void ksu_apply_init_rc_proxy(struct file *file)
      }
      // replace the file_operations
      file->f_op = &fops_proxy;
@@ -419,7 +397,7 @@ index 8861b6ac..b4d12817 100644
      fput(file);
  }
  
-@@ -707,22 +718,24 @@ int __maybe_unused ksu_handle_compat_execve_ksud(
+@@ -754,22 +764,24 @@ int __maybe_unused ksu_handle_compat_execve_ksud(
  }
  #endif /* COMPAT & 64BIT */
  
@@ -632,7 +610,7 @@ index 214c964b..9aa718fe 100644
 +
  #endif
 diff --git a/kernel/setuid_hook.c b/kernel/setuid_hook.c
-index 49915092..bad902e8 100644
+index 49915092..8bb10d96 100644
 --- a/kernel/setuid_hook.c
 +++ b/kernel/setuid_hook.c
 @@ -15,6 +15,9 @@
@@ -655,7 +633,7 @@ index 49915092..bad902e8 100644
  #include "kernel_umount.h"
  
  // force_sig kcompat, TODO: move it out of core_hook.c
-@@ -36,12 +41,29 @@
+@@ -36,12 +41,69 @@
  
  extern void disable_seccomp(struct task_struct *tsk);
  
@@ -673,6 +651,46 @@ index 49915092..bad902e8 100644
 +}
 +
 +extern u32 susfs_zygote_sid;
++extern struct cred *ksu_cred;
++
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++extern void susfs_run_sus_path_loop(void);
++#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
++
++struct susfs_handle_setuid_tw {
++    struct callback_head cb;
++};
++
++static void susfs_handle_setuid_tw_func(struct callback_head *cb)
++{
++    struct susfs_handle_setuid_tw *tw = container_of(cb, struct susfs_handle_setuid_tw, cb);
++    const struct cred *saved = override_creds(ksu_cred);
++
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++    susfs_run_sus_path_loop();
++#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
++
++    revert_creds(saved);
++    kfree(tw);
++}
++
++static void ksu_handle_extra_susfs_work(void)
++{
++    struct susfs_handle_setuid_tw *tw = kzalloc(sizeof(*tw), GFP_ATOMIC);
++
++    if (!tw) {
++        pr_err("susfs: No enough memory\n");
++        return;
++    }
++
++    tw->cb.func = susfs_handle_setuid_tw_func;
++
++    int err = task_work_add(current, &tw->cb, TWA_RESUME);
++    if (err) {
++        kfree(tw);
++        pr_err("susfs: Failed adding task_work 'susfs_handle_setuid_tw', err: %d\n", err);
++    }
++}
 +#endif // #ifdef CONFIG_KSU_SUSFS
 +
  static void ksu_install_manager_fd_tw_func(struct callback_head *cb)
@@ -685,7 +703,7 @@ index 49915092..bad902e8 100644
  int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
  {
      // we rely on the fact that zygote always call setresuid(3) with same uids
-@@ -96,6 +118,86 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+@@ -96,6 +158,88 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
  
      return 0;
  }
@@ -763,6 +781,8 @@ index 49915092..bad902e8 100644
 +do_umount:
 +    // Handle kernel umount
 +    ksu_handle_umount(old_uid, new_uid);
++
++    ksu_handle_extra_susfs_work();
 +
 +    susfs_set_current_proc_umounted();
 +
@@ -950,7 +970,7 @@ index 1999af84..6d82243d 100644
  				void *__never_use_argv, void *__never_use_envp,
  				int *__never_use_flags);
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index f4d074cf..5cbda51a 100644
+index f4d074cf..d6f000d7 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
 @@ -12,6 +12,10 @@
@@ -1069,7 +1089,7 @@ index f4d074cf..5cbda51a 100644
  }
  
  static int do_get_hook_mode(void __user *arg)
-@@ -811,6 +841,29 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
+@@ -811,17 +841,135 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
      { .cmd = 0, .name = NULL, .handler = NULL, .perm_check = NULL } // Sentinel
  };
  
@@ -1099,7 +1119,15 @@ index f4d074cf..5cbda51a 100644
  int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  			  void __user **arg)
  {
-@@ -822,6 +875,98 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+ 	if (magic1 != KSU_INSTALL_MAGIC1)
++#ifndef CONFIG_KSU_SUSFS
+ 		return 0;
+-
++#else
++		return -EINVAL;
++#endif // #ifndef CONFIG_KSU_SUSFS
+ #ifdef CONFIG_KSU_DEBUG
+ 	pr_info("sys_reboot: intercepted call! magic: 0x%x id: %d\n", magic1,
  		magic2);
  #endif
  
@@ -1198,7 +1226,7 @@ index f4d074cf..5cbda51a 100644
  	// Check if this is a request to install KSU fd
  	if (magic2 == KSU_INSTALL_MAGIC2) {
  		int fd = ksu_install_fd();
-@@ -836,6 +981,24 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -836,6 +984,25 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		}
  		return 0;
  	}
@@ -1218,15 +1246,21 @@ index f4d074cf..5cbda51a 100644
 +            kfree(tw);
 +            pr_warn("install fd add task_work failed\n");
 +        }
++        return 0;
 +	}
 +#endif // #ifndef CONFIG_KSU_SUSFS
  
  	// extensions 
  	u64 reply = (u64)*arg;
-@@ -958,30 +1121,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -954,34 +1121,14 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+ 		if (copy_to_user((void __user *)*arg, &reply, sizeof(reply)))
+ 			return 0;
+ 	}
+-
++#ifndef CONFIG_KSU_SUSFS
  	return 0;
- }
- 
+-}
+-
 -#ifdef KSU_KPROBES_HOOK
 -struct ksu_install_fd_tw {
 -	struct callback_head cb;
@@ -1243,19 +1277,21 @@ index f4d074cf..5cbda51a 100644
 -		pr_err("install ksu fd reply err\n");
 -#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
 -		close_fd(fd);
--#else
+ #else
 -		__close_fd(current->files, fd);
 -#endif
 -	}
 -
 -	kfree(tw);
--}
--
++	return -EINVAL;
++#endif // #ifndef CONFIG_KSU_SUSFS
+ }
+ 
 +#if defined(KSU_KPROBES_HOOK) && !defined(CONFIG_KSU_SUSFS)
  static int reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
  {
  	struct pt_regs *real_regs = PT_REAL_REGS(regs);
-@@ -1009,7 +1149,7 @@ void ksu_supercalls_init(void)
+@@ -1009,7 +1156,7 @@ void ksu_supercalls_init(void)
  		pr_info("  %-18s = 0x%08x\n", ksu_ioctl_handlers[i].name, ksu_ioctl_handlers[i].cmd);
  	}
  
@@ -1264,7 +1300,7 @@ index f4d074cf..5cbda51a 100644
  	int rc = register_kprobe(&reboot_kp);
  	if (rc) {
  		pr_err("reboot kprobe failed: %d\n", rc);
-@@ -1022,9 +1162,11 @@ void ksu_supercalls_init(void)
+@@ -1022,9 +1169,11 @@ void ksu_supercalls_init(void)
  }
  
  void ksu_supercalls_exit(void){
