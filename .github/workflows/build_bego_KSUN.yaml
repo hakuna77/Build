@@ -84,6 +84,7 @@ on:
         options:
           - 'test.patch'
           - '0001-test-5.patch'
+          - '0001-legacy-susfs.patch'
           - '0001-susfs-v2.0.0-ksun.patch'
           - '0001-fix-build-error.patch'
           - '0001-avc-v2.patch'
