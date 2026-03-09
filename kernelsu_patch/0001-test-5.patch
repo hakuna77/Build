@@ -1,25 +1,25 @@
-From 2ae81b311c686bb9ec412a6913a55784a32ebde5 Mon Sep 17 00:00:00 2001
+From 3880d0380cae8b862e3820117f79ec0adf3f42b6 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sun, 8 Mar 2026 13:46:13 +0700
+Date: Mon, 9 Mar 2026 17:41:49 +0700
 Subject: [PATCH] test sus 5
 
 ---
  kernel/Kbuild            |   2 -
- kernel/Kconfig           |  90 ++++++++++++++++
+ kernel/Kconfig           |  89 +++++++++++++++++
  kernel/Makefile          |  10 ++
  kernel/extras.c          |  16 ++-
  kernel/kernel_umount.c   |   3 +
- kernel/ksu.c             |  24 +++++
+ kernel/ksu.c             |  27 +++++
  kernel/ksud.c            |  64 +++++++-----
  kernel/ksud.h            |  19 ++++
  kernel/selinux/rules.c   |   9 ++
- kernel/selinux/selinux.c |  96 +++++++++++++++++
+ kernel/selinux/selinux.c |  96 ++++++++++++++++++
  kernel/selinux/selinux.h |  13 +++
- kernel/setuid_hook.c     | 144 ++++++++++++++++++++++++++
- kernel/sucompat.c        | 136 +++++++++++++++++++++++-
+ kernel/setuid_hook.c     | 144 +++++++++++++++++++++++++++
+ kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
- kernel/supercalls.c      | 217 +++++++++++++++++++++++++++++++++------
- 15 files changed, 783 insertions(+), 64 deletions(-)
+ kernel/supercalls.c      | 209 ++++++++++++++++++++++++++++++++-------
+ 15 files changed, 777 insertions(+), 64 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 9a549c74..f398f674 100644
@@ -42,10 +42,10 @@ index 9a549c74..f398f674 100644
  kernelsu-objs += selinux/selinux.o
  kernelsu-objs += selinux/sepolicy.o
 diff --git a/kernel/Kconfig b/kernel/Kconfig
-index b382a63d..008fbcfc 100644
+index b382a63d..4698c68c 100644
 --- a/kernel/Kconfig
 +++ b/kernel/Kconfig
-@@ -42,4 +42,94 @@ config KSU_KPROBES_HOOK
+@@ -42,4 +42,93 @@ config KSU_KPROBES_HOOK
  	  Enable KPROBES, KRETPROBES and TRACEPOINT hook for KernelSU core.
  	  This should not be used on kernel below 5.10.
  
@@ -59,24 +59,23 @@ index b382a63d..008fbcfc 100644
 +        Patch and Enable SUSFS to kernel with KernelSU.
 +
 +config KSU_SUSFS_SUS_PATH
-+    bool "Enable to hide suspicious path (NOT recommended)"
++    bool "Enable to hide suspicious path"
 +    depends on KSU_SUSFS
 +    default y
 +    help
 +        - Allow hiding the user-defined path and all its sub-paths from various system calls.
-+        - Includes temp fix for the leaks of app path in /sdcard/Android/data directory.
-+        - Effective only on zygote spawned user app process.
++        - Use "add_sus_path_loop" instead of "add_sus_path" if the user-defined path is frequently modified.
 +        - Use with cautious as it may cause performance loss and will be vulnerable to side channel attacks,
 +          just disable this feature if it doesn't work for you or you don't need it at all.
++        - Effective only on zygote spawned user app process with uid >= 10000.
 +
 +config KSU_SUSFS_SUS_MOUNT
 +    bool "Enable to hide suspicious mounts"
 +    depends on KSU_SUSFS
 +    default y
 +    help
-+        - Allow hiding the user-defined mount paths from /proc/self/[mounts|mountinfo|mountstat].
-+        - Effective on all processes for hiding mount entries.
-+        - mnt_id and mnt_group_id of the sus mount will be assigned to a much bigger number to solve the ssue of id not being contiguous.
++        - Automatically assign fake mnt_id and fake mnt_group_id for mounts mounted by ksu process until /sdcard is decrypted, this is to evade from mnt_id/mnt_group_id gap detections.
++        - Allow hiding all sus mounts from /proc/self/[mounts|mountinfo|mountstat] for non-su processes.
 +
 +config KSU_SUSFS_SUS_KSTAT
 +    bool "Enable to spoof suspicious kstat"
@@ -84,7 +83,7 @@ index b382a63d..008fbcfc 100644
 +    default y
 +    help
 +        - Allow spoofing the kstat of user-defined file/directory.
-+        - Effective only on zygote spawned user app process.
++        - Effective only on zygote spawned user app process with uid >= 10000.
 +
 +config KSU_SUSFS_SPOOF_UNAME
 +    bool "Enable to spoof uname"
@@ -123,8 +122,8 @@ index b382a63d..008fbcfc 100644
 +    default y
 +    help
 +        - Allow redirecting a target path to be opened with another user-defined path.
-+        - Effective only on processes with uid < 2000.
 +        - Please be reminded that process with open access to the target and redirected path can be detected.
++        - Effective only on processes with uid < 2000.
 +
 +config KSU_SUSFS_SUS_MAP
 +    bool "Enable to hide some mmapped real file from different proc maps interfaces"
@@ -135,7 +134,7 @@ index b382a63d..008fbcfc 100644
 +        - It does NOT support hiding for anon memory.
 +        - It does NOT hide any inline hooks or plt hooks cause by the injected library itself.
 +        - It may not be able to evade detections by apps that implement a good injection detection.
-+        - Effective only on zygote spawned umounted user app process.
++        - Effective only on zygote spawned umounted user app process >= 10000.
 +
 +endmenu
 +
@@ -209,7 +208,7 @@ index e4d1e60c..bcfac544 100644
  	pr_info("handle umount for uid: %d, pid: %d\n", new_uid, current->pid);
  
 diff --git a/kernel/ksu.c b/kernel/ksu.c
-index 7742dad6..2c9ed554 100644
+index 7742dad6..c50b3c03 100644
 --- a/kernel/ksu.c
 +++ b/kernel/ksu.c
 @@ -3,12 +3,20 @@
@@ -277,7 +276,7 @@ index 7742dad6..2c9ed554 100644
  
  	ksu_file_wrapper_init();
  
-@@ -79,9 +101,11 @@ void kernelsu_exit(void)
+@@ -79,9 +101,14 @@ void kernelsu_exit(void)
  
  	ksu_observer_exit();
  
@@ -285,6 +284,9 @@ index 7742dad6..2c9ed554 100644
  	ksu_ksud_exit();
  
  	ksu_syscall_hook_manager_exit();
++#else
++	ksu_sucompat_exit();
++	ksu_setuid_hook_exit();
 +#endif // #ifndef CONFIG_KSU_SUSFS
  
  	ksu_supercalls_exit();
@@ -970,7 +972,7 @@ index 1999af84..6d82243d 100644
  				void *__never_use_argv, void *__never_use_envp,
  				int *__never_use_flags);
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index f4d074cf..d6f000d7 100644
+index f4d074cf..3e0ca942 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
 @@ -12,6 +12,10 @@
@@ -1089,7 +1091,7 @@ index f4d074cf..d6f000d7 100644
  }
  
  static int do_get_hook_mode(void __user *arg)
-@@ -811,17 +841,135 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
+@@ -811,17 +841,127 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
      { .cmd = 0, .name = NULL, .handler = NULL, .perm_check = NULL } // Sentinel
  };
  
@@ -1141,14 +1143,6 @@ index f4d074cf..d6f000d7 100644
 +        }
 +        if (cmd == CMD_SUSFS_ADD_SUS_PATH_LOOP) {
 +            susfs_add_sus_path_loop(arg);
-+            return 0;
-+        }
-+        if (cmd == CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH) {
-+            susfs_set_i_state_on_external_dir(arg);
-+            return 0;
-+        }
-+        if (cmd == CMD_SUSFS_SET_SDCARD_ROOT_PATH) {
-+            susfs_set_i_state_on_external_dir(arg);
 +            return 0;
 +        }
 +#endif //#ifdef CONFIG_KSU_SUSFS_SUS_PATH
@@ -1226,7 +1220,7 @@ index f4d074cf..d6f000d7 100644
  	// Check if this is a request to install KSU fd
  	if (magic2 == KSU_INSTALL_MAGIC2) {
  		int fd = ksu_install_fd();
-@@ -836,6 +984,25 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -836,6 +976,25 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		}
  		return 0;
  	}
@@ -1252,7 +1246,7 @@ index f4d074cf..d6f000d7 100644
  
  	// extensions 
  	u64 reply = (u64)*arg;
-@@ -954,34 +1121,14 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -954,34 +1113,14 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		if (copy_to_user((void __user *)*arg, &reply, sizeof(reply)))
  			return 0;
  	}
@@ -1291,7 +1285,7 @@ index f4d074cf..d6f000d7 100644
  static int reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
  {
  	struct pt_regs *real_regs = PT_REAL_REGS(regs);
-@@ -1009,7 +1156,7 @@ void ksu_supercalls_init(void)
+@@ -1009,7 +1148,7 @@ void ksu_supercalls_init(void)
  		pr_info("  %-18s = 0x%08x\n", ksu_ioctl_handlers[i].name, ksu_ioctl_handlers[i].cmd);
  	}
  
@@ -1300,7 +1294,7 @@ index f4d074cf..d6f000d7 100644
  	int rc = register_kprobe(&reboot_kp);
  	if (rc) {
  		pr_err("reboot kprobe failed: %d\n", rc);
-@@ -1022,9 +1169,11 @@ void ksu_supercalls_init(void)
+@@ -1022,9 +1161,11 @@ void ksu_supercalls_init(void)
  }
  
  void ksu_supercalls_exit(void){
