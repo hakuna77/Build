@@ -484,8 +484,11 @@ jobs:
       if: env.ENABLE_CCACHE == 'true'
       uses: actions/cache@v5
       with:
-        key: build-kernel-stock-${{ env.DEVICE }}${{ env.LOCALVERSION }}${{ env.UPLOADNAME }}
-        
+        path: ~/.ccache
+        key: ccache-build-kernel-stock-${{ env.DEVICE }}-${{ env.LOCALVERSION }}-${{ env.UPLOADNAME }}
+        restore-keys: |
+          ccache-build-kernel-stock-${{ env.DEVICE }}-
+    
     - name: Detect Compiler Version
       id: compiler_version
       run: |
