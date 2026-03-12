@@ -484,11 +484,21 @@ jobs:
       if: env.ENABLE_CCACHE == 'true'
       uses: actions/cache@v5
       with:
-        path: ~/.ccache
+        path: ${{ github.workspace }}/.ccache
         key: ccache-build-kernel-stock-${{ env.DEVICE }}-${{ env.LOCALVERSION }}-${{ env.UPLOADNAME }}
         restore-keys: |
           ccache-build-kernel-stock-${{ env.DEVICE }}-
     
+    - name: Configure ccache
+      if: env.ENABLE_CCACHE == 'true'
+      run:
+        sudo apt-get install -y ccache
+        ccache --set-config=cache_dir='/home/runner/work/Build/Build/.ccache'
+        ccache --set-config=max_size='2G'
+        ccache --set-config=compression=true
+        ccache -p
+        ccache -z
+
     - name: Detect Compiler Version
       id: compiler_version
       run: |
