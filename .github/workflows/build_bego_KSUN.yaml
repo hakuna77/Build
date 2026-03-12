@@ -491,7 +491,7 @@ jobs:
     
     - name: Configure ccache
       if: env.ENABLE_CCACHE == 'true'
-      run:
+      run: |
         sudo apt-get install -y ccache
         ccache --set-config=cache_dir='/home/runner/work/Build/Build/.ccache'
         ccache --set-config=max_size='2G'
