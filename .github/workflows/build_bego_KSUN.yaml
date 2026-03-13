@@ -489,6 +489,12 @@ jobs:
         restore-keys: |
           ccache-build-kernel-stock-${{ env.DEVICE }}-
     
+    - name: Delete old cache
+      run: |
+        gh cache delete ccache-build-kernel-stock-begonia-KSUN_33026 || true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
     - name: Configure ccache
       if: env.ENABLE_CCACHE == 'true'
       run: |
@@ -638,8 +644,4 @@ jobs:
       with:
         name: boot${{ env.LOCALVERSION }}${{ env.UPLOADNAME }}-${{ env.DEVICE }}-${{ env.BUILD_TIME }}
         path: kernel_workspace/boot.img
-    - name: Delete old cache
-      run: |
-        gh cache delete ccache-build-kernel-stock-begonia-KSUN_33026 || true
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
