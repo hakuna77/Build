@@ -493,8 +493,8 @@ jobs:
       if: env.ENABLE_CCACHE == 'true'
       run: |
         sudo apt-get install -y ccache
-        ccache --set-config=cache_dir='/home/runner/work/Build/Build/.ccache'
-        ccache --set-config=max_size='2G'
+        ccache --set-config=cache_dir="${{ github.workspace }}/.ccache"
+        ccache --set-config=max_size='5G'
         ccache --set-config=compression=true
         ccache -p
         ccache -z
@@ -522,6 +522,7 @@ jobs:
         make -j$(nproc --all) CC=clang O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- ${{ env.KERNEL_CONFIG }}
         if [ ${{ env.ENABLE_CCACHE }} = true ]; then
             make -j$(nproc --all) CC="ccache clang" O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            ccache -s
         else
             make -j$(nproc --all) CC=clang O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
         fi
@@ -637,3 +638,8 @@ jobs:
       with:
         name: boot${{ env.LOCALVERSION }}${{ env.UPLOADNAME }}-${{ env.DEVICE }}-${{ env.BUILD_TIME }}
         path: kernel_workspace/boot.img
+    - name: Delete old cache
+      run: |
+        gh cache delete ccache-build-kernel-stock-begonia-KSUN_33026 || true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
