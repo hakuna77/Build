@@ -485,13 +485,16 @@ jobs:
       uses: actions/cache@v5
       with:
         path: ${{ github.workspace }}/.ccache
-        key: ccache-build-kernel-stock-${{ env.DEVICE }}${{ env.LOCALVERSION }}${{ env.UPLOADNAME }}
+        key: ccache-build-kernel-stock-${{ env.DEVICE }}${{ env.LOCALVERSION }}${{ env.UPLOADNAME }}-${{ env.BUILD_TIME }}
         restore-keys: |
           ccache-build-kernel-stock-${{ env.DEVICE }}-
     
     - name: Delete old cache
       run: |
-        gh cache delete ccache-build-kernel-stock-begonia-KSUN_33026 || true
+        gh cache list -k ccache-build-kernel-stock-begonia- |
+        awk '{print $1}' | while read id; do
+          gh cache delete $id
+        done
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
