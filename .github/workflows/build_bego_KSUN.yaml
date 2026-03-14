@@ -482,22 +482,10 @@ jobs:
 
     - name: Setup ccache
       if: env.ENABLE_CCACHE == 'true'
-      uses: actions/cache@v5
+      uses: hendrikmuhs/ccache-action@v1.2
       with:
-        path: ${{ github.workspace }}/.ccache
-        key: ccache-build-kernel-stock-${{ env.DEVICE }}${{ env.LOCALVERSION }}${{ env.UPLOADNAME }}-${{ env.BUILD_TIME }}
-        restore-keys: |
-          ccache-build-kernel-stock-${{ env.DEVICE }}-
-    
-    - name: Configure ccache
-      if: env.ENABLE_CCACHE == 'true'
-      run: |
-        sudo apt-get install -y ccache
-        ccache --set-config=cache_dir="${{ github.workspace }}/.ccache"
-        ccache --set-config=max_size='5G'
-        ccache --set-config=compression=true
-        ccache -p
-        ccache -z
+        key: build-kernel-stock-begonia-${{ env.DEVICE }}${{ env.LOCALVERSION }}${{ env.UPLOADNAME }}
+        max-size: 2G
 
     - name: Detect Compiler Version
       id: compiler_version
