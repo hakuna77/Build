@@ -489,15 +489,6 @@ jobs:
         restore-keys: |
           ccache-build-kernel-stock-${{ env.DEVICE }}-
     
-    - name: Delete old cache
-      run: |
-        gh cache list -k ccache-build-kernel-stock-begonia- |
-        awk '{print $1}' | while read id; do
-          gh cache delete $id
-        done
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
     - name: Configure ccache
       if: env.ENABLE_CCACHE == 'true'
       run: |
@@ -531,11 +522,20 @@ jobs:
         make -j$(nproc --all) CC=clang O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- ${{ env.KERNEL_CONFIG }}
         if [ ${{ env.ENABLE_CCACHE }} = true ]; then
             make -j$(nproc --all) CC="ccache clang" O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-            ccache -s
         else
             make -j$(nproc --all) CC=clang O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
         fi
     
+    - name: Delete old cache
+      if: success()
+      run: |
+        gh cache list -k ccache-build-kernel-stock-begonia- |
+        awk '{print $1}' | while read id; do
+          gh cache delete $id
+        done
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Verify compile.h for Clang version
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
