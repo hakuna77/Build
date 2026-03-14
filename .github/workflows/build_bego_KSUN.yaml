@@ -517,10 +517,19 @@ jobs:
     - name: Delete old cache
       if: success()
       run: |
-        gh cache list -k ccache-build-kernel-stock-begonia- |
-        awk '{print $1}' | while read id; do
-          gh cache delete $id
-        done
+        CACHE_IDS=$(gh cache list -k ccache-build-kernel-stock-begonia- --limit 100 \
+          --json id,createdAt \
+          --jq 'sort_by(.createdAt) | reverse | .[].id')
+        COUNT=$(echo "$CACHE_IDS" | wc -l)
+        
+        if [ "$COUNT" -ge 3 ]; then
+          echo "$CACHE_IDS" | tail -n +2 | while read id; do
+            echo "Deleting cache $id"
+            gh cache delete "$id"
+          done
+        else
+          echo "Cache count < 3, skip deletion"
+        fi
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
