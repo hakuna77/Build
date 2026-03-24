@@ -1,6 +1,6 @@
-From 5bd4df0ec751379135822c9dcb848d9649e6e52d Mon Sep 17 00:00:00 2001
+From 16f61b7671c434f1f56b5cdba2e54342346d2f46 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Wed, 25 Mar 2026 06:10:47 +0700
+Date: Wed, 25 Mar 2026 06:41:32 +0700
 Subject: [PATCH] test sus 11
 
 ---
@@ -13,9 +13,9 @@ Subject: [PATCH] test sus 11
  kernel/selinux/rules.c   |   7 ++
  kernel/selinux/selinux.c |  96 ++++++++++++++++++++++++++
  kernel/selinux/selinux.h |  13 ++++
- kernel/setuid_hook.c     |  92 +++++++++++++++++++++++++
+ kernel/setuid_hook.c     |  91 +++++++++++++++++++++++++
  kernel/supercalls.c      | 143 ++++++++++++++++++++++++++++++++++++---
- 11 files changed, 488 insertions(+), 35 deletions(-)
+ 11 files changed, 487 insertions(+), 35 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 18f93503..5c25b697 100644
@@ -483,7 +483,7 @@ index d8e034f5..325861c3 100644
 +
  #endif
 diff --git a/kernel/setuid_hook.c b/kernel/setuid_hook.c
-index 49915092..a7e102e3 100644
+index 49915092..5ca2fcc0 100644
 --- a/kernel/setuid_hook.c
 +++ b/kernel/setuid_hook.c
 @@ -25,6 +25,9 @@
@@ -496,7 +496,7 @@ index 49915092..a7e102e3 100644
  
  // force_sig kcompat, TODO: move it out of core_hook.c
  // https://elixir.bootlin.com/linux/v5.3-rc1/source/kernel/signal.c#L1613
-@@ -36,6 +39,66 @@
+@@ -36,6 +39,65 @@
  
  extern void disable_seccomp(struct task_struct *tsk);
  
@@ -518,7 +518,6 @@ index 49915092..a7e102e3 100644
 +#ifdef CONFIG_KSU_SUSFS_SUS_PATH
 +extern void susfs_run_sus_path_loop(void);
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-+#endif // #ifdef CONFIG_KSU_SUSFS
 +
 +struct susfs_handle_setuid_tw {
 +    struct callback_head cb;
@@ -563,7 +562,7 @@ index 49915092..a7e102e3 100644
  static void ksu_install_manager_fd_tw_func(struct callback_head *cb)
  {
      ksu_install_fd();
-@@ -48,6 +111,17 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+@@ -48,6 +110,17 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
      uid_t new_uid = ruid;
      uid_t old_uid = current_uid().val;
  
@@ -581,7 +580,7 @@ index 49915092..a7e102e3 100644
      pr_info("handle_setresuid from %d to %d\n", old_uid, new_uid);
  
      if (likely(ksu_is_manager_appid_valid()) &&
-@@ -73,6 +147,11 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+@@ -73,6 +146,11 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
          return 0;
      }
  
@@ -593,7 +592,7 @@ index 49915092..a7e102e3 100644
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
      if (ksu_is_allow_uid_for_current(new_uid)) {
          if (current->seccomp.mode == SECCOMP_MODE_FILTER &&
-@@ -91,8 +170,21 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+@@ -91,8 +169,21 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
  	}
  #endif
  
