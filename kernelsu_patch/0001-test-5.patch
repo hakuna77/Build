@@ -1,21 +1,21 @@
-From 16f61b7671c434f1f56b5cdba2e54342346d2f46 Mon Sep 17 00:00:00 2001
+From 8736c389516c38667d243fbc33e414b7817737c0 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Wed, 25 Mar 2026 06:41:32 +0700
+Date: Wed, 25 Mar 2026 06:49:30 +0700
 Subject: [PATCH] test sus 11
 
 ---
  kernel/Kbuild            |  10 +++
- kernel/Kconfig           |  89 ++++++++++++++++++++++++
+ kernel/Kconfig           |  89 ++++++++++++++++++++++++++
  kernel/kernel_umount.c   |  13 +++-
  kernel/kernel_umount.h   |   2 +
  kernel/ksu.c             |  10 +++
- kernel/ksud.c            |  48 ++++++-------
+ kernel/ksud.c            |  48 +++++++-------
  kernel/selinux/rules.c   |   7 ++
- kernel/selinux/selinux.c |  96 ++++++++++++++++++++++++++
+ kernel/selinux/selinux.c |  96 ++++++++++++++++++++++++++++
  kernel/selinux/selinux.h |  13 ++++
- kernel/setuid_hook.c     |  91 +++++++++++++++++++++++++
- kernel/supercalls.c      | 143 ++++++++++++++++++++++++++++++++++++---
- 11 files changed, 487 insertions(+), 35 deletions(-)
+ kernel/setuid_hook.c     |  91 ++++++++++++++++++++++++++
+ kernel/supercalls.c      | 135 +++++++++++++++++++++++++++++++++++----
+ 11 files changed, 479 insertions(+), 35 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 18f93503..5c25b697 100644
@@ -615,7 +615,7 @@ index 49915092..5ca2fcc0 100644
      return 0;
  }
 diff --git a/kernel/supercalls.c b/kernel/supercalls.c
-index a58e6a13..bd353e9d 100644
+index a58e6a13..eb8333d2 100644
 --- a/kernel/supercalls.c
 +++ b/kernel/supercalls.c
 @@ -12,7 +12,12 @@
@@ -727,7 +727,7 @@ index a58e6a13..bd353e9d 100644
  }
  
  static int do_get_hook_mode(void __user *arg)
-@@ -833,6 +862,96 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -833,6 +862,88 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  		magic2);
  #endif
  
@@ -741,14 +741,6 @@ index a58e6a13..bd353e9d 100644
 +        }
 +        if (cmd == CMD_SUSFS_ADD_SUS_PATH_LOOP) {
 +            susfs_add_sus_path_loop(arg);
-+            return 0;
-+        }
-+        if (cmd == CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH) {
-+            susfs_set_i_state_on_external_dir(arg);
-+            return 0;
-+        }
-+        if (cmd == CMD_SUSFS_SET_SDCARD_ROOT_PATH) {
-+            susfs_set_i_state_on_external_dir(arg);
 +            return 0;
 +        }
 +#endif //#ifdef CONFIG_KSU_SUSFS_SUS_PATH
@@ -824,7 +816,7 @@ index a58e6a13..bd353e9d 100644
  	// Check if this is a request to install KSU fd
  	if (magic2 == KSU_INSTALL_MAGIC2) {
  		int fd = ksu_install_fd();
-@@ -969,7 +1088,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+@@ -969,7 +1080,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
  	return 0;
  }
  
@@ -833,7 +825,7 @@ index a58e6a13..bd353e9d 100644
  struct ksu_install_fd_tw {
  	struct callback_head cb;
  	int __user *outp;
-@@ -1020,7 +1139,7 @@ void ksu_supercalls_init(void)
+@@ -1020,7 +1131,7 @@ void ksu_supercalls_init(void)
  		pr_info("  %-18s = 0x%08x\n", ksu_ioctl_handlers[i].name, ksu_ioctl_handlers[i].cmd);
  	}
  
@@ -842,7 +834,7 @@ index a58e6a13..bd353e9d 100644
  	int rc = register_kprobe(&reboot_kp);
  	if (rc) {
  		pr_err("reboot kprobe failed: %d\n", rc);
-@@ -1033,9 +1152,11 @@ void ksu_supercalls_init(void)
+@@ -1033,9 +1144,11 @@ void ksu_supercalls_init(void)
  }
  
  void ksu_supercalls_exit(void){
