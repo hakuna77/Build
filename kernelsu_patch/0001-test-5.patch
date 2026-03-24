@@ -1,6 +1,6 @@
-From a674f447296ddf837cd0787db0ad71c47ca315b1 Mon Sep 17 00:00:00 2001
+From 3edcd7cebf8108daeadb0e76f26b78436a2d5b1d Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 24 Mar 2026 20:07:51 +0700
+Date: Tue, 24 Mar 2026 20:14:49 +0700
 Subject: [PATCH] test sus 11
 
 ---
@@ -10,7 +10,7 @@ Subject: [PATCH] test sus 11
  kernel/kernel_umount.c   |   3 +
  kernel/ksu.c             |  73 ++++---------
  kernel/ksu.h             |   1 -
- kernel/ksud.c            |  72 +++++++------
+ kernel/ksud.c            |  76 +++++++------
  kernel/ksud.h            |  19 ++++
  kernel/selinux/rules.c   |   7 ++
  kernel/selinux/selinux.c |  96 +++++++++++++++++
@@ -19,7 +19,7 @@ Subject: [PATCH] test sus 11
  kernel/sucompat.c        | 136 ++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 228 ++++++++++++++++++++++++++++++---------
- 15 files changed, 778 insertions(+), 135 deletions(-)
+ 15 files changed, 778 insertions(+), 139 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 18f93503..6d13c5fc 100644
@@ -355,7 +355,7 @@ index a996d2ff..78d7d48e 100644
  
  #endif
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index ad04bf9a..b3e1c280 100644
+index ad04bf9a..e1eda0bc 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
 @@ -70,7 +70,7 @@ static const char KERNEL_SU_RC[] =
@@ -475,7 +475,18 @@ index ad04bf9a..b3e1c280 100644
      fput(file);
  }
  
-@@ -775,22 +785,24 @@ int __maybe_unused ksu_handle_compat_execve_ksud(
+@@ -574,10 +584,6 @@ bool ksu_is_safe_mode()
+ 		return true;
+ 	}
+ 
+-	if (ksu_late_loaded) {
+-		return false;
+-	}
+-
+ 	// stop hook first!
+ 	stop_input_hook();
+ 
+@@ -775,22 +781,24 @@ int __maybe_unused ksu_handle_compat_execve_ksud(
  }
  #endif /* COMPAT & 64BIT */
  
@@ -511,7 +522,7 @@ index ad04bf9a..b3e1c280 100644
  
  static void stop_init_rc_hook()
  {
-@@ -803,13 +815,13 @@ static void stop_init_rc_hook()
+@@ -803,13 +811,13 @@ static void stop_init_rc_hook()
  #endif
  }
  
