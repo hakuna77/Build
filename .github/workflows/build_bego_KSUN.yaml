@@ -38,6 +38,7 @@ on:
           - 'rsuntk/KernelSU'
           - 'backslashxx/KernelSU'
           - 'KernelSU-Next/KernelSU-Next'
+          - 'hakuna77/KernelSU-Next'
       patching_susfs:
         description: 'Enable patch susfs Kernel?'
         required: true
