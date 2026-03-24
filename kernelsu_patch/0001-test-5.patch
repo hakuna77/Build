@@ -1,6 +1,6 @@
-From 8b671b30ff85ff4fc3593434319d29653e5b5803 Mon Sep 17 00:00:00 2001
+From b66af8ce1df65558667e455a0fb66cbe0976de55 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Wed, 25 Mar 2026 00:08:54 +0700
+Date: Wed, 25 Mar 2026 02:48:59 +0700
 Subject: [PATCH] test sus 11
 
 ---
@@ -478,12 +478,12 @@ index 7779fbb4..05cfa3ba 100644
  
  #endif
 diff --git a/kernel/selinux/rules.c b/kernel/selinux/rules.c
-index 39039e70..c21e173b 100644
+index 39039e70..4496c55c 100644
 --- a/kernel/selinux/rules.c
 +++ b/kernel/selinux/rules.c
-@@ -169,6 +169,13 @@ static int apply_kernelsu_rules_fn(void *ptr)
-     ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "getpgid");
-     ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "sigkill");
+@@ -192,6 +192,13 @@ void apply_kernelsu_rules()
+ 
+ 	apply_kernelsu_rules_fn((void *)db);
  
 +#ifdef CONFIG_KSU_SUSFS
 +    susfs_set_priv_app_sid();
@@ -492,9 +492,9 @@ index 39039e70..c21e173b 100644
 +    susfs_set_zygote_sid();
 +#endif // #ifdef CONFIG_KSU_SUSFS
 +
-     return 0;
- }
- 
+ 	rcu_assign_pointer(selinux_state.policy, pol);
+ 	synchronize_rcu();
+ 	ksu_destroy_sepolicy(old_pol);
 diff --git a/kernel/selinux/selinux.c b/kernel/selinux/selinux.c
 index c5e415f9..a9a56444 100644
 --- a/kernel/selinux/selinux.c
