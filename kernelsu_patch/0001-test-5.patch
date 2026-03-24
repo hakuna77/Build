@@ -1,6 +1,6 @@
-From 59949fecc6c529d264503bd4a09b7f4bcdc57d19 Mon Sep 17 00:00:00 2001
+From 79290f3fa6c6ba660061e05902bc829e7f4299d9 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 24 Mar 2026 18:19:47 +0700
+Date: Tue, 24 Mar 2026 19:36:11 +0700
 Subject: [PATCH] test sus 11
 
 ---
@@ -8,8 +8,9 @@ Subject: [PATCH] test sus 11
  kernel/Kconfig           |  89 +++++++++++++++++
  kernel/extras.c          |  16 ++-
  kernel/kernel_umount.c   |   3 +
- kernel/ksu.c             |  35 ++++++-
- kernel/ksud.c            |  64 +++++++-----
+ kernel/ksu.c             |  71 ++++---------
+ kernel/ksu.h             |   1 -
+ kernel/ksud.c            |  72 ++++++++------
  kernel/ksud.h            |  19 ++++
  kernel/selinux/rules.c   |   7 ++
  kernel/selinux/selinux.c |  96 ++++++++++++++++++
@@ -18,7 +19,7 @@ Subject: [PATCH] test sus 11
  kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 209 ++++++++++++++++++++++++++++++++-------
- 14 files changed, 781 insertions(+), 66 deletions(-)
+ 15 files changed, 772 insertions(+), 120 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 18f93503..6d13c5fc 100644
@@ -202,7 +203,7 @@ index e4d1e60c..bcfac544 100644
  	pr_info("handle umount for uid: %d, pid: %d\n", new_uid, current->pid);
  
 diff --git a/kernel/ksu.c b/kernel/ksu.c
-index d363c202..6f9f9a5a 100644
+index d363c202..30b1fd52 100644
 --- a/kernel/ksu.c
 +++ b/kernel/ksu.c
 @@ -4,6 +4,9 @@
@@ -228,85 +229,128 @@ index d363c202..6f9f9a5a 100644
  #include "ksud.h"
  #include "supercalls.h"
  #include "ksu.h"
-@@ -19,6 +27,7 @@
- #include "selinux/selinux.h"
+@@ -69,16 +77,9 @@ __attribute__((naked)) int __init kernelsu_init_early(void)
+ #endif
  
- extern void __init ksu_lsm_hook_init(void);
-+#ifndef CONFIG_KSU_SUSFS
- extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
- 					void *argv, void *envp, int *flags);
- extern int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
-@@ -30,6 +39,7 @@ int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
- 	return ksu_handle_execveat_sucompat(fd, filename_ptr, argv, envp,
- 					    flags);
+ struct cred *ksu_cred;
+-bool ksu_late_loaded;
+ 
+ int __init kernelsu_init(void)
+ {
+-#ifdef MODULE
+-	ksu_late_loaded = (current->pid != 1);
+-#else
+-	ksu_late_loaded = false;
+-#endif
+-
+ #ifdef CONFIG_KSU_DEBUG
+ 	pr_alert("*************************************************************");
+ 	pr_alert("**     NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE    **");
+@@ -98,54 +99,25 @@ int __init kernelsu_init(void)
+ 
+ 	ksu_supercalls_init();
+ 
+-	
+-
+-	if (ksu_late_loaded) {
+-		pr_info("late load mode, skipping kprobe hooks\n");
+-
+-		apply_kernelsu_rules();
+-		cache_sid();
+-		setup_ksu_cred();
+-
+-		// Grant current process (ksud late-load) root
+-		// with KSU SELinux domain before enforcing SELinux, so it
+-		// can continue to access /data/app etc. after enforcement.
+-		escape_to_root_for_init();
+-
+-		ksu_allowlist_init();
+-		ksu_load_allow_list();
+-
+-		ksu_syscall_hook_manager_init();
++#ifdef CONFIG_KSU_SUSFS
++    ksu_setuid_hook_init();
++    ksu_sucompat_init();
++#endif // #ifdef CONFIG_KSU_SUSFS
+ 
+-		ksu_throne_tracker_init();
+-		ksu_observer_init();
+-		ksu_file_wrapper_init();
++    ksu_allowlist_init();
+ 
+-		ksu_boot_completed = true;
+-		track_throne(false);
++	ksu_throne_tracker_init();
+ 
+-		if (!getenforce()) {
+-			pr_info("Permissive SELinux, enforcing\n");
+-			setenforce(true);
+-		}
+-
+-	} else {
+-		ksu_syscall_hook_manager_init();
+-
+-		ksu_allowlist_init();
+-
+-		ksu_throne_tracker_init();
+-
+-		ksu_ksud_init();
+-
+-		ksu_file_wrapper_init();
+-	}
++	ksu_file_wrapper_init();
+ 
+ #ifdef MODULE
+ #ifndef CONFIG_KSU_DEBUG
+ 	kobject_del(&THIS_MODULE->mkobj.kobj);
+ #endif
+ #endif
++#ifdef CONFIG_KSU_SUSFS
++    susfs_init();
++#endif // #ifdef CONFIG_KSU_SUSFS
+ 	return 0;
  }
-+#endif // #ifndef CONFIG_KSU_SUSFS
  
- // workaround for A12-5.10 kernel
- // Some third-party kernel (e.g. linegaeOS) uses wrong toolchain, which supports
-@@ -114,10 +124,19 @@ int __init kernelsu_init(void)
- 
- 		ksu_allowlist_init();
- 		ksu_load_allow_list();
--
-+#ifndef CONFIG_KSU_SUSFS
- 		ksu_syscall_hook_manager_init();
-+#else
-+        ksu_setuid_hook_init();
-+        ksu_sucompat_init();
-+#endif // #ifndef CONFIG_KSU_SUSFS
- 
- 		ksu_throne_tracker_init();
-+
-+#ifdef CONFIG_KSU_SUSFS
-+        susfs_init();
-+#endif // #ifdef CONFIG_KSU_SUSFS
-+
- 		ksu_observer_init();
- 		ksu_file_wrapper_init();
- 
-@@ -130,13 +149,23 @@ int __init kernelsu_init(void)
- 		}
- 
- 	} else {
-+#ifndef CONFIG_KSU_SUSFS
- 		ksu_syscall_hook_manager_init();
--
-+#else
-+		ksu_setuid_hook_init();
-+		ksu_sucompat_init();
-+#endif // #ifndef CONFIG_KSU_SUSFS
- 		ksu_allowlist_init();
- 
- 		ksu_throne_tracker_init();
- 
-+#ifdef CONFIG_KSU_SUSFS
-+        susfs_init();
-+#endif // #ifdef CONFIG_KSU_SUSFS
-+
-+#ifndef CONFIG_KSU_SUSFS
- 		ksu_ksud_init();
-+#endif // #ifndef CONFIG_KSU_SUSFS
- 
- 		ksu_file_wrapper_init();
- 	}
-@@ -158,10 +187,12 @@ void kernelsu_exit(void)
+@@ -158,13 +130,10 @@ void kernelsu_exit(void)
  
  	ksu_observer_exit();
  
-+#ifndef CONFIG_KSU_SUSFS
- 	if (!ksu_late_loaded)
- 		ksu_ksud_exit();
- 
- 	ksu_syscall_hook_manager_exit();
-+#endif // #ifndef CONFIG_KSU_SUSFS
- 
+-	if (!ksu_late_loaded)
+-		ksu_ksud_exit();
+-
+-	ksu_syscall_hook_manager_exit();
+-
  	ksu_supercalls_exit();
  
++	ksu_ksud_exit();
++
+ 	ksu_feature_exit();
+ 
+ 	if (ksu_cred) {
+diff --git a/kernel/ksu.h b/kernel/ksu.h
+index a996d2ff..78d7d48e 100644
+--- a/kernel/ksu.h
++++ b/kernel/ksu.h
+@@ -27,6 +27,5 @@ static inline int endswith(const char *s, const char *t)
+ }
+ 
+ extern struct cred* ksu_cred;
+-extern bool ksu_late_loaded;
+ 
+ #endif
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index ad04bf9a..aa856daf 100644
+index ad04bf9a..b3e1c280 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
+@@ -70,7 +70,7 @@ static const char KERNEL_SU_RC[] =
+ 	"\n";
+ 
+ static void stop_init_rc_hook();
+-static void stop_execve_hook();
++static void stop_execveat_hook();
+ static void stop_input_hook();
+ 
+ #ifdef KSU_KPROBES_HOOK
 @@ -79,7 +79,6 @@ static struct work_struct __maybe_unused stop_execve_hook_work;
  static struct work_struct __maybe_unused stop_input_hook_work;
  #else
@@ -355,8 +399,12 @@ index ad04bf9a..aa856daf 100644
  // IMPORTANT NOTE: the call from execve_handler_pre WON'T provided correct value for envp and flags in GKI version
  int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
  				struct user_arg_ptr *argv,
-@@ -356,7 +365,10 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
- 			stop_execve_hook();
+@@ -353,10 +362,13 @@ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+ 				task_work_add(init_task, &on_post_fs_data_cb, TWA_RESUME);
+ 			rcu_read_unlock();
+ 			first_zygote = false;
+-			stop_execve_hook();
++			stop_execveat_hook();
  		}
  	}
 -
@@ -447,6 +495,22 @@ index ad04bf9a..aa856daf 100644
  
  static void stop_init_rc_hook()
  {
+@@ -803,13 +815,13 @@ static void stop_init_rc_hook()
+ #endif
+ }
+ 
+-static void stop_execve_hook()
++static void stop_execveat_hook()
+ {
+ #ifdef KSU_KPROBES_HOOK
+ 	bool ret = schedule_work(&stop_execve_hook_work);
+ 	pr_info("unregister execve kprobe: %d!\n", ret);
+ #else
+-	pr_info("stop execve_hook\n");
++	pr_info("stop_execveat_hook\n");
+ 	ksu_execveat_hook = false;
+ #endif
+ }
 diff --git a/kernel/ksud.h b/kernel/ksud.h
 index 7779fbb4..05cfa3ba 100644
 --- a/kernel/ksud.h
