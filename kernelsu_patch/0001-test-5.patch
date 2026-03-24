@@ -1,6 +1,6 @@
-From 79290f3fa6c6ba660061e05902bc829e7f4299d9 Mon Sep 17 00:00:00 2001
+From 89c0e2eebb9596d204905525562c6729b86a27d4 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Tue, 24 Mar 2026 19:36:11 +0700
+Date: Tue, 24 Mar 2026 19:50:25 +0700
 Subject: [PATCH] test sus 11
 
 ---
@@ -8,7 +8,7 @@ Subject: [PATCH] test sus 11
  kernel/Kconfig           |  89 +++++++++++++++++
  kernel/extras.c          |  16 ++-
  kernel/kernel_umount.c   |   3 +
- kernel/ksu.c             |  71 ++++---------
+ kernel/ksu.c             |  73 +++++---------
  kernel/ksu.h             |   1 -
  kernel/ksud.c            |  72 ++++++++------
  kernel/ksud.h            |  19 ++++
@@ -19,7 +19,7 @@ Subject: [PATCH] test sus 11
  kernel/sucompat.c        | 136 ++++++++++++++++++++++++-
  kernel/sucompat.h        |   4 +
  kernel/supercalls.c      | 209 ++++++++++++++++++++++++++++++++-------
- 15 files changed, 772 insertions(+), 120 deletions(-)
+ 15 files changed, 774 insertions(+), 120 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 18f93503..6d13c5fc 100644
@@ -203,7 +203,7 @@ index e4d1e60c..bcfac544 100644
  	pr_info("handle umount for uid: %d, pid: %d\n", new_uid, current->pid);
  
 diff --git a/kernel/ksu.c b/kernel/ksu.c
-index d363c202..30b1fd52 100644
+index d363c202..2b44a21a 100644
 --- a/kernel/ksu.c
 +++ b/kernel/ksu.c
 @@ -4,6 +4,9 @@
@@ -229,7 +229,23 @@ index d363c202..30b1fd52 100644
  #include "ksud.h"
  #include "supercalls.h"
  #include "ksu.h"
-@@ -69,16 +77,9 @@ __attribute__((naked)) int __init kernelsu_init_early(void)
+@@ -19,6 +27,7 @@
+ #include "selinux/selinux.h"
+ 
+ extern void __init ksu_lsm_hook_init(void);
++#ifndef CONFIG_KSU_SUSFS
+ extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+ 					void *argv, void *envp, int *flags);
+ extern int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+@@ -30,6 +39,7 @@ int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
+ 	return ksu_handle_execveat_sucompat(fd, filename_ptr, argv, envp,
+ 					    flags);
+ }
++#endif // #ifndef CONFIG_KSU_SUSFS
+ 
+ // workaround for A12-5.10 kernel
+ // Some third-party kernel (e.g. linegaeOS) uses wrong toolchain, which supports
+@@ -69,16 +79,9 @@ __attribute__((naked)) int __init kernelsu_init_early(void)
  #endif
  
  struct cred *ksu_cred;
@@ -246,7 +262,7 @@ index d363c202..30b1fd52 100644
  #ifdef CONFIG_KSU_DEBUG
  	pr_alert("*************************************************************");
  	pr_alert("**     NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE    **");
-@@ -98,54 +99,25 @@ int __init kernelsu_init(void)
+@@ -98,54 +101,25 @@ int __init kernelsu_init(void)
  
  	ksu_supercalls_init();
  
@@ -311,7 +327,7 @@ index d363c202..30b1fd52 100644
  	return 0;
  }
  
-@@ -158,13 +130,10 @@ void kernelsu_exit(void)
+@@ -158,13 +132,10 @@ void kernelsu_exit(void)
  
  	ksu_observer_exit();
  
