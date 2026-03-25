@@ -1,6 +1,6 @@
-From 8736c389516c38667d243fbc33e414b7817737c0 Mon Sep 17 00:00:00 2001
+From 0b09794a985700a9ee4099ffb373e90d5db35682 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Wed, 25 Mar 2026 06:49:30 +0700
+Date: Wed, 25 Mar 2026 19:41:47 +0700
 Subject: [PATCH] test sus 11
 
 ---
@@ -8,14 +8,14 @@ Subject: [PATCH] test sus 11
  kernel/Kconfig           |  89 ++++++++++++++++++++++++++
  kernel/kernel_umount.c   |  13 +++-
  kernel/kernel_umount.h   |   2 +
- kernel/ksu.c             |  10 +++
+ kernel/ksu.c             |  11 ++++
  kernel/ksud.c            |  48 +++++++-------
  kernel/selinux/rules.c   |   7 ++
  kernel/selinux/selinux.c |  96 ++++++++++++++++++++++++++++
  kernel/selinux/selinux.h |  13 ++++
  kernel/setuid_hook.c     |  91 ++++++++++++++++++++++++++
  kernel/supercalls.c      | 135 +++++++++++++++++++++++++++++++++++----
- 11 files changed, 479 insertions(+), 35 deletions(-)
+ 11 files changed, 480 insertions(+), 35 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index 18f93503..5c25b697 100644
@@ -211,7 +211,7 @@ index e5448955..e19ba08e 100644
  // for the umount list
  struct mount_entry {
 diff --git a/kernel/ksu.c b/kernel/ksu.c
-index d363c202..1931253f 100644
+index cfedc730..77fb7f42 100644
 --- a/kernel/ksu.c
 +++ b/kernel/ksu.c
 @@ -4,6 +4,9 @@
@@ -234,17 +234,18 @@ index d363c202..1931253f 100644
  		ksu_observer_init();
  		ksu_file_wrapper_init();
  
-@@ -136,6 +142,10 @@ int __init kernelsu_init(void)
+@@ -137,6 +143,11 @@ int __init kernelsu_init(void)
+ 		ksu_allowlist_init();
  
  		ksu_throne_tracker_init();
- 
++
 +#ifdef CONFIG_KSU_SUSFS
 +		susfs_init();
 +#endif // #ifdef CONFIG_KSU_SUSFS
 +
- 		ksu_ksud_init();
+ 		ksu_observer_init();
  
- 		ksu_file_wrapper_init();
+ 		ksu_ksud_init();
 diff --git a/kernel/ksud.c b/kernel/ksud.c
 index ad04bf9a..f825cee2 100644
 --- a/kernel/ksud.c
