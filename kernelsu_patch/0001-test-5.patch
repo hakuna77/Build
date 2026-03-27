@@ -1,16 +1,16 @@
-From 12884be1198054cec7e30eb5ccdb22842dbe47b7 Mon Sep 17 00:00:00 2001
+From 4a19b628adbae80241754069cb079a2281c4d36d Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Thu, 26 Mar 2026 04:08:50 +0700
-Subject: [PATCH] test sus 11
+Date: Fri, 27 Mar 2026 20:12:42 +0700
+Subject: [PATCH] test sus 12
 
 ---
  kernel/Kbuild            |  10 +++
  kernel/Kconfig           |  89 ++++++++++++++++++++++++++
  kernel/kernel_umount.c   |  13 +++-
  kernel/kernel_umount.h   |   2 +
- kernel/ksu.c             |  11 ++++
+ kernel/ksu.c             |  10 +++
  kernel/ksud.c            |  48 +++++++-------
- kernel/selinux/rules.c   |   6 ++
+ kernel/selinux/rules.c   |   7 ++
  kernel/selinux/selinux.c |  96 ++++++++++++++++++++++++++++
  kernel/selinux/selinux.h |  13 ++++
  kernel/setuid_hook.c     |  91 ++++++++++++++++++++++++++
@@ -211,7 +211,7 @@ index e5448955..e19ba08e 100644
  // for the umount list
  struct mount_entry {
 diff --git a/kernel/ksu.c b/kernel/ksu.c
-index cfedc730..77fb7f42 100644
+index 1180b82c..f7a1577e 100644
 --- a/kernel/ksu.c
 +++ b/kernel/ksu.c
 @@ -4,6 +4,9 @@
@@ -234,18 +234,17 @@ index cfedc730..77fb7f42 100644
  		ksu_observer_init();
  		ksu_file_wrapper_init();
  
-@@ -137,6 +143,11 @@ int __init kernelsu_init(void)
- 		ksu_allowlist_init();
+@@ -138,6 +144,10 @@ int __init kernelsu_init(void)
  
  		ksu_throne_tracker_init();
-+
+ 
 +#ifdef CONFIG_KSU_SUSFS
 +		susfs_init();
 +#endif // #ifdef CONFIG_KSU_SUSFS
 +
- 		ksu_observer_init();
- 
  		ksu_ksud_init();
+ 
+ 		ksu_file_wrapper_init();
 diff --git a/kernel/ksud.c b/kernel/ksud.c
 index ad04bf9a..f825cee2 100644
 --- a/kernel/ksud.c
@@ -340,22 +339,23 @@ index ad04bf9a..f825cee2 100644
  static void stop_init_rc_hook()
  {
 diff --git a/kernel/selinux/rules.c b/kernel/selinux/rules.c
-index 39039e70..50b35c91 100644
+index 92f948a0..6ee7afd1 100644
 --- a/kernel/selinux/rules.c
 +++ b/kernel/selinux/rules.c
-@@ -238,6 +238,12 @@ do_stop_machine:
- 	stop_machine(apply_kernelsu_rules_fn, (void *)db, NULL);
+@@ -168,6 +168,13 @@ static int apply_kernelsu_rules_fn(void *ptr)
+     ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "getpgid");
+     ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "sigkill");
  
- out_flush:
 +#ifdef CONFIG_KSU_SUSFS
 +    susfs_set_priv_app_sid();
 +    susfs_set_init_sid();
 +    susfs_set_ksu_sid();
 +    susfs_set_zygote_sid();
 +#endif // #ifdef CONFIG_KSU_SUSFS
- 	smp_mb();
- 	reset_avc_cache();
- #endif
++
+     return 0;
+ }
+ 
 diff --git a/kernel/selinux/selinux.c b/kernel/selinux/selinux.c
 index c5e415f9..a9a56444 100644
 --- a/kernel/selinux/selinux.c
