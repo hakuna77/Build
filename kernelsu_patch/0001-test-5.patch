@@ -1,6 +1,6 @@
-From fe707bee4636e48a14ab84a33e283f05ab7a93bb Mon Sep 17 00:00:00 2001
+From 739063434c15e06832d6b95cd110a61a431f4619 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Fri, 27 Mar 2026 21:00:25 +0700
+Date: Sat, 28 Mar 2026 23:24:19 +0700
 Subject: [PATCH] test sus 12
 
 ---
@@ -339,22 +339,22 @@ index ad04bf9a..f825cee2 100644
  static void stop_init_rc_hook()
  {
 diff --git a/kernel/selinux/rules.c b/kernel/selinux/rules.c
-index 92f948a0..b6ef6fb6 100644
+index 92f948a0..764abb38 100644
 --- a/kernel/selinux/rules.c
 +++ b/kernel/selinux/rules.c
-@@ -214,6 +214,12 @@ do_stop_machine:
- 	stop_machine(apply_kernelsu_rules_fn, (void *)db, NULL);
- 
+@@ -216,6 +216,12 @@ do_stop_machine:
  out_flush:
+ 	smp_mb();
+ 	reset_avc_cache();
 +#ifdef CONFIG_KSU_SUSFS
 +    susfs_set_priv_app_sid();
 +    susfs_set_init_sid();
 +    susfs_set_ksu_sid();
 +    susfs_set_zygote_sid();
 +#endif // #ifdef CONFIG_KSU_SUSFS
- 	smp_mb();
- 	reset_avc_cache();
  #endif
+ }
+ 
 diff --git a/kernel/selinux/selinux.c b/kernel/selinux/selinux.c
 index c5e415f9..a9a56444 100644
 --- a/kernel/selinux/selinux.c
