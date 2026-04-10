@@ -1,6 +1,6 @@
-From bfcd1c30d498700be0d0b8f6fe45d427f496cc57 Mon Sep 17 00:00:00 2001
+From 1ac8df0fec4c9576341950110ab78984d879faed Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sat, 11 Apr 2026 03:03:41 +0700
+Date: Sat, 11 Apr 2026 04:27:39 +0700
 Subject: [PATCH] ksun susfs latest
 
 ---
@@ -8,14 +8,14 @@ Subject: [PATCH] ksun susfs latest
  kernel/Kconfig                 | 89 +++++++++++++++++++++++++++++++
  kernel/core/init.c             | 10 +++-
  kernel/feature/kernel_umount.c | 24 ---------
- kernel/hook/setuid_hook.c      | 52 +++++++++++++++++-
+ kernel/hook/setuid_hook.c      | 53 ++++++++++++++++++-
  kernel/policy/allowlist.c      |  8 ---
  kernel/selinux/rules.c         |  6 +++
  kernel/selinux/selinux.c       | 96 ++++++++++++++++++++++++++++++++++
  kernel/selinux/selinux.h       | 13 +++++
  kernel/supercall/dispatch.c    | 36 ++++++++++---
  kernel/supercall/supercall.c   | 89 ++++++++++++++++++++++++++++++-
- 11 files changed, 392 insertions(+), 41 deletions(-)
+ 11 files changed, 393 insertions(+), 41 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index b11e4e93..fd8d3aa0 100644
@@ -205,7 +205,7 @@ index ab11bfaf..4e5709bb 100644
  	pr_info("handle umount for uid: %d, pid: %d\n", new_uid, current->pid);
  
 diff --git a/kernel/hook/setuid_hook.c b/kernel/hook/setuid_hook.c
-index c260cb73..ebdb7205 100644
+index c260cb73..eda6dc4a 100644
 --- a/kernel/hook/setuid_hook.c
 +++ b/kernel/hook/setuid_hook.c
 @@ -15,6 +15,8 @@
@@ -267,7 +267,7 @@ index c260cb73..ebdb7205 100644
  
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
          if (current->seccomp.mode == SECCOMP_MODE_FILTER && current->seccomp.filter) {
-@@ -69,6 +103,15 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+@@ -69,6 +103,16 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
          return 0;
      }
  
@@ -277,13 +277,14 @@ index c260cb73..ebdb7205 100644
 +    }
 +
 +    // Check if spawned process is normal user app and needs to be umounted
-+    if (likely(is_appuid(new_uid) && ksu_uid_should_umount(new_uid)))
++    if (likely(is_appuid(new_uid) && ksu_uid_should_umount(new_uid))) {
 +        goto do_umount;
++    }
 +
  	if (ksu_is_allow_uid_for_current(new_uid)) {
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
          if (current->seccomp.mode == SECCOMP_MODE_FILTER && current->seccomp.filter) {
-@@ -87,9 +130,16 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+@@ -87,9 +131,16 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
  #endif
      }
  
