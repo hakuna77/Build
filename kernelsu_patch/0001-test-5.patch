@@ -1,21 +1,21 @@
-From 15b9f17708c3c2fe96a036222c469c63b877a745 Mon Sep 17 00:00:00 2001
+From bfcd1c30d498700be0d0b8f6fe45d427f496cc57 Mon Sep 17 00:00:00 2001
 From: hakuna77 <194330619+hakuna77@users.noreply.github.com>
-Date: Sat, 11 Apr 2026 00:52:28 +0700
+Date: Sat, 11 Apr 2026 03:03:41 +0700
 Subject: [PATCH] ksun susfs latest
 
 ---
  kernel/Kbuild                  | 10 ++++
  kernel/Kconfig                 | 89 +++++++++++++++++++++++++++++++
  kernel/core/init.c             | 10 +++-
- kernel/feature/kernel_umount.c | 12 +++++
- kernel/feature/kernel_umount.h |  2 +
- kernel/hook/setuid_hook.c      | 53 +++++++++++++++++++
+ kernel/feature/kernel_umount.c | 24 ---------
+ kernel/hook/setuid_hook.c      | 52 +++++++++++++++++-
+ kernel/policy/allowlist.c      |  8 ---
  kernel/selinux/rules.c         |  6 +++
  kernel/selinux/selinux.c       | 96 ++++++++++++++++++++++++++++++++++
  kernel/selinux/selinux.h       | 13 +++++
  kernel/supercall/dispatch.c    | 36 ++++++++++---
  kernel/supercall/supercall.c   | 89 ++++++++++++++++++++++++++++++-
- 11 files changed, 408 insertions(+), 8 deletions(-)
+ 11 files changed, 392 insertions(+), 41 deletions(-)
 
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index b11e4e93..fd8d3aa0 100644
@@ -170,82 +170,42 @@ index 3c151c6b..4cd81826 100644
  
  		ksu_file_wrapper_init();
 diff --git a/kernel/feature/kernel_umount.c b/kernel/feature/kernel_umount.c
-index ab11bfaf..8f015487 100644
+index ab11bfaf..4e5709bb 100644
 --- a/kernel/feature/kernel_umount.c
 +++ b/kernel/feature/kernel_umount.c
-@@ -22,7 +22,11 @@
- #include "ksu.h"
- #include "compat/kernel_compat.h"
- 
-+#ifndef CONFIG_KSU_SUSFS
- static bool ksu_kernel_umount_enabled = true;
-+#else
-+bool ksu_kernel_umount_enabled = true;
-+#endif // #ifndef CONFIG_KSU_SUSFS
- 
- static int kernel_umount_feature_get(u64 *value)
- {
-@@ -79,7 +83,11 @@ static void ksu_sys_umount(const char *mnt, int flags)
- 
- #endif
- 
-+#if !defined(CONFIG_KSU_SUSFS) || !defined(CONFIG_KSU_SUSFS_TRY_UMOUNT)
- static void try_umount(const char *mnt, int flags)
-+#else
-+void try_umount(const char *mnt, int flags)
-+#endif
- {
- 	struct path path;
- 	int err = kern_path(mnt, 0, &path);
-@@ -99,6 +107,7 @@ struct umount_tw {
- 	struct callback_head cb;
- };
- 
-+#if !defined(CONFIG_KSU_SUSFS) || !defined(CONFIG_KSU_SUSFS_TRY_UMOUNT)
- static void umount_tw_func(struct callback_head *cb)
- {
- 	struct umount_tw *tw = container_of(cb, struct umount_tw, cb);
-@@ -117,6 +126,7 @@ static void umount_tw_func(struct callback_head *cb)
- 	kfree(tw);
- }
- 
-+#if defined(CONFIG_KSU_SUSFS) || !defined(CONFIG_KSU_SUSFS_TRY_UMOUNT)
- int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
- {
- 	struct umount_tw *tw;
-@@ -158,6 +168,7 @@ int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
- 		pr_info("handle umount ignore non zygote child: %d\n", current->pid);
+@@ -134,30 +134,6 @@ int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
  		return 0;
  	}
-+#endif // #if defined(CONFIG_KSU_SUSFS) || !defined(CONFIG_KSU_SUSFS_TRY_UMOUNT)
+ 
+-    // There are 6 scenarios:
+-    // 1. Normal app: zygote -> appuid
+-    // 2. Isolated process forked from zygote: zygote -> isolated_process
+-    // 3. App zygote forked from zygote: zygote -> appuid
+-    // 4. Webview zygote forked from zygote: zygote -> WEBVIEW_ZYGOTE_UID (no need to handle, app cannot run custom code)
+-    // 5. Isolated process forked from app zygote: appuid -> isolated_process (already handled by 3)
+-    // 6. Isolated process forked from webview zygote (no need to handle, app cannot run custom code)
+-    if (!is_appuid(new_uid) && !is_isolated_process(new_uid)) {
+-        return 0;
+-    }
+-
+-	if (!ksu_uid_should_umount(new_uid) && !is_isolated_process(new_uid)) {
+-		return 0;
+-	}
+-
+-	// check old process's selinux context, if it is not zygote, ignore it!
+-	// because some su apps may setuid to untrusted_app but they are in global mount namespace
+-	// when we umount for such process, that is a disaster!
+-	// also handle case 4 and 5
+-	bool is_zygote_child = is_zygote(current_cred());
+-	if (!is_zygote_child) {
+-		pr_info("handle umount ignore non zygote child: %d\n", current->pid);
+-		return 0;
+-	}
  	// umount the target mnt
  	pr_info("handle umount for uid: %d, pid: %d\n", new_uid, current->pid);
  
-@@ -175,6 +186,7 @@ int ksu_handle_umount(uid_t old_uid, uid_t new_uid)
- 
- 	return 0;
- }
-+#endif // #if defined(CONFIG_KSU_SUSFS) || !defined(CONFIG_KSU_SUSFS_TRY_UMOUNT)
- 
- void __init ksu_kernel_umount_init(void)
- {
-diff --git a/kernel/feature/kernel_umount.h b/kernel/feature/kernel_umount.h
-index e5448955..e19ba08e 100644
---- a/kernel/feature/kernel_umount.h
-+++ b/kernel/feature/kernel_umount.h
-@@ -8,8 +8,10 @@
- void ksu_kernel_umount_init(void);
- void ksu_kernel_umount_exit(void);
- 
-+#if !defined(CONFIG_KSU_SUSFS) || !defined(CONFIG_KSU_SUSFS_TRY_UMOUNT)
- // Handler function to be called from setresuid hook
- int ksu_handle_umount(uid_t old_uid, uid_t new_uid);
-+#endif
- 
- // for the umount list
- struct mount_entry {
 diff --git a/kernel/hook/setuid_hook.c b/kernel/hook/setuid_hook.c
-index c260cb73..32fbfd80 100644
+index c260cb73..ebdb7205 100644
 --- a/kernel/hook/setuid_hook.c
 +++ b/kernel/hook/setuid_hook.c
 @@ -15,6 +15,8 @@
@@ -282,7 +242,7 @@ index c260cb73..32fbfd80 100644
  static void ksu_install_manager_fd_tw_func(struct callback_head *cb)
  {
      ksu_install_fd();
-@@ -41,6 +61,17 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+@@ -41,9 +61,23 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
      uid_t new_uid = ruid;
      uid_t old_uid = current_uid().val;
  
@@ -299,8 +259,15 @@ index c260cb73..32fbfd80 100644
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
      pr_debug("handle_setresuid from %d to %d\n", old_uid, new_uid);
  
-     if (unlikely(is_uid_manager(new_uid))) {
-@@ -69,6 +100,15 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+-    if (unlikely(is_uid_manager(new_uid))) {
++    // - Since ksu maanger app uid is excluded in allow_list_arr, so ksu_uid_should_umount(manager_uid)
++    //   will always return true, that's why we need to explicitly check if new_uid belongs to
++    //   ksu manager
++    if (is_uid_manager(new_uid)) {
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+         if (current->seccomp.mode == SECCOMP_MODE_FILTER && current->seccomp.filter) {
+@@ -69,6 +103,15 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
          return 0;
      }
  
@@ -316,7 +283,7 @@ index c260cb73..32fbfd80 100644
  	if (ksu_is_allow_uid_for_current(new_uid)) {
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
          if (current->seccomp.mode == SECCOMP_MODE_FILTER && current->seccomp.filter) {
-@@ -87,8 +127,21 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+@@ -87,9 +130,16 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
  #endif
      }
  
@@ -324,20 +291,34 @@ index c260cb73..32fbfd80 100644
 +
 +do_umount:
      // Handle kernel umount
-+#ifndef CONFIG_KSU_SUSFS_TRY_UMOUNT
      ksu_handle_umount(old_uid, new_uid);
-+#else
-+    susfs_try_umount(new_uid);
-+#endif // #ifndef CONFIG_KSU_SUSFS_TRY_UMOUNT
-+
-+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
+ 
 +    ksu_handle_extra_susfs_work();
-+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 +
 +    susfs_set_current_proc_umounted();
- 
++
      return 0;
  }
+ 
+diff --git a/kernel/policy/allowlist.c b/kernel/policy/allowlist.c
+index 008e3db3..ad05d5a4 100644
+--- a/kernel/policy/allowlist.c
++++ b/kernel/policy/allowlist.c
+@@ -357,14 +357,6 @@ bool ksu_uid_should_umount(uid_t uid)
+ #ifndef CONFIG_KSU_DISABLE_POLICY
+     struct app_profile profile = { .current_uid = uid };
+ #endif
+-    if (unlikely(is_uid_manager(uid))) {
+-        // we should not umount on manager!
+-        return false;
+-    }
+-    if (unlikely(uid == WEBVIEW_ZYGOTE_UID)) {
+-        // we should not umount for webview zygote
+-        return false;
+-    }
+ #ifdef CONFIG_KSU_DISABLE_POLICY
+     return !__ksu_is_allow_uid(uid);
+ #else
 diff --git a/kernel/selinux/rules.c b/kernel/selinux/rules.c
 index 1a08dffa..158e4180 100644
 --- a/kernel/selinux/rules.c
