@@ -175,7 +175,7 @@ jobs:
         path: ${{ github.workspace }}/kernel_workspace/clang-aosp
         key: clang-${{ env.CLANG_BRANCH }}-${{ env.CLANG_VERSION }}
         restore-keys: |
-          clang-android16-release-
+          clang-android17-release-
     
     - name: Download Clang-aosp
       if: steps.cache-clang.outputs.cache-hit != 'true' && env.USE_CUSTOM_CLANG != 'true'
