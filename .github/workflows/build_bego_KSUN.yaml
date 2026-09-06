@@ -11,7 +11,7 @@ on:
           - 'begonia-r-oss'
           - 'begonia'
           - 'main'
-          - 'stock-ksu'
+          - 'test'
       enable_kernelsu:
         description: 'Enable KernelSU integration?'
         required: true
