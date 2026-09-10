@@ -507,14 +507,6 @@ jobs:
         echo "========================================"
 
         echo ""
-        echo "=== Source ==="
-        grep -Rnw --exclude-dir=.git \
-          "type_attribute_bounds_av" security/selinux || true
-
-        grep -Rnw --exclude-dir=.git \
-          "selinux_policy_cancel" security/selinux || true
-
-        echo ""
         echo "=== System.map ==="
         grep -E \
           'type_attribute_bounds_av|selinux_policy_cancel' \
@@ -522,15 +514,16 @@ jobs:
 
         echo ""
         echo "=== vmlinux / nm ==="
+        readelf -S vmlinux
         nm -n out/vmlinux 2>/dev/null | \
           grep -E \
-          'type_attribute_bounds_av|selinux_policy_cancel' || true
+          'kallsyms|__ksymtab' || true
 
         echo ""
         echo "=== vmlinux / strings ==="
         strings out/vmlinux 2>/dev/null | \
           grep -E \
-          'type_attribute_bounds_av|selinux_policy_cancel' || true
+          '(_text|_stext|_etext|__start_rodata|__init_begin|__init_end|__ksymtab|kallsyms)' || true
 
         echo ""
         echo "========================================"
