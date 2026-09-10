@@ -498,6 +498,20 @@ jobs:
            fi
        fi
 
+    - name: Check SELinux symbols
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+
+        echo "=== System.map files ==="
+        find out -name System.map -type f -print
+
+        echo "=== Search System.map ==="
+        find out -name System.map -type f -exec \
+        grep -HnE 'type_attribute_bounds_av|selinux_policy_cancel' {} \; || true
+
+    echo "=== vmlinux files ==="
+    find out -name vmlinux -type f -print
+    
     - name: Make Anykernel3
       if: env.CHECK_FILE_IS_OK == 'true' && env.USE_CUSTOM_ANYKERNEL3 != 'true'
       run: |
