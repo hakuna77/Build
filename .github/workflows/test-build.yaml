@@ -514,7 +514,7 @@ jobs:
 
         echo ""
         echo "=== vmlinux / nm ==="
-        readelf -S vmlinux
+        readelf -S out/vmlinux
         nm -n out/vmlinux 2>/dev/null | \
           grep -E \
           'kallsyms|__ksymtab' || true
