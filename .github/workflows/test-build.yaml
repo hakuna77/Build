@@ -498,19 +498,44 @@ jobs:
            fi
        fi
 
-    - name: Check SELinux symbols
+    - name: Check SELinux KPM symbols
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
 
-        echo "=== System.map files ==="
-        find out -name System.map -type f -print
+        echo "========================================"
+        echo "        SELINUX KPM SYMBOL CHECK"
+        echo "========================================"
 
-        echo "=== Search System.map ==="
-        find out -name System.map -type f -exec \
-        grep -HnE 'type_attribute_bounds_av|selinux_policy_cancel' {} \; || true
+        echo ""
+        echo "=== Source ==="
+        grep -Rnw --exclude-dir=.git \
+          "type_attribute_bounds_av" security/selinux || true
 
-        echo "=== vmlinux files ==="
-        find out -name vmlinux -type f -print
+        grep -Rnw --exclude-dir=.git \
+          "selinux_policy_cancel" security/selinux || true
+
+        echo ""
+        echo "=== System.map ==="
+        grep -E \
+          'type_attribute_bounds_av|selinux_policy_cancel' \
+          out/System.map || true
+
+        echo ""
+        echo "=== vmlinux / nm ==="
+        nm -n out/vmlinux 2>/dev/null | \
+          grep -E \
+          'type_attribute_bounds_av|selinux_policy_cancel' || true
+
+        echo ""
+        echo "=== vmlinux / strings ==="
+        strings out/vmlinux 2>/dev/null | \
+          grep -E \
+          'type_attribute_bounds_av|selinux_policy_cancel' || true
+
+        echo ""
+        echo "========================================"
+        echo "             CHECK FINISHED"
+        echo "========================================"
     
     - name: Make Anykernel3
       if: env.CHECK_FILE_IS_OK == 'true' && env.USE_CUSTOM_ANYKERNEL3 != 'true'
