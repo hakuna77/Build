@@ -497,38 +497,6 @@ jobs:
                exit 1
            fi
        fi
-
-    - name: Check SELinux KPM symbols
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-
-        echo "========================================"
-        echo "        SELINUX KPM SYMBOL CHECK"
-        echo "========================================"
-
-        echo ""
-        echo "=== System.map ==="
-        grep -E \
-          'type_attribute_bounds_av|selinux_policy_cancel' \
-          out/System.map || true
-
-        echo ""
-        echo "=== vmlinux / nm ==="
-        readelf -S out/vmlinux
-        nm -n out/vmlinux 2>/dev/null | \
-          grep -E \
-          'kallsyms|__ksymtab' || true
-
-        echo ""
-        echo "=== vmlinux / strings ==="
-        strings out/vmlinux 2>/dev/null | \
-          grep -E \
-          '(_text|_stext|_etext|__start_rodata|__init_begin|__init_end|__ksymtab|kallsyms)' || true
-
-        echo ""
-        echo "========================================"
-        echo "             CHECK FINISHED"
-        echo "========================================"
     
     - name: Make Anykernel3
       if: env.CHECK_FILE_IS_OK == 'true' && env.USE_CUSTOM_ANYKERNEL3 != 'true'
