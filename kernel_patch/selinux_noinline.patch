@@ -1,0 +1,13 @@
+diff --git a/security/selinux/ss/services.c b/security/selinux/ss/services.c
+index 1e8cc7bb76f5..a39f9709aa8f 100644
+--- a/security/selinux/ss/services.c
++++ b/security/selinux/ss/services.c
+@@ -532,7 +532,7 @@ static void security_dump_masked_av(struct policydb *policydb,
+  * security_boundary_permission - drops violated permissions
+  * on boundary constraint.
+  */
+-static void type_attribute_bounds_av(struct policydb *policydb,
++static noinline void type_attribute_bounds_av(struct policydb *policydb,
+ 				     struct context *scontext,
+ 				     struct context *tcontext,
+ 				     u16 tclass,

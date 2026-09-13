@@ -350,6 +350,7 @@ jobs:
 
     - name: Setup Configuration for Kernel
       run: |
+        cp kernel_patch/*.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         BUILD_DEF=arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
         STOCK_DEF=arch/${{ env.ARCH }}/configs/stock_defconfig
@@ -421,7 +422,7 @@ jobs:
             for FILE in "$BUILD_DEF" "$STOCK_DEF"; do
               [ -f "$FILE" ] || continue
               echo "🔧 Editing $FILE"
-              for opt in CONFIG_KALLSYMS_ALL CONFIG_KALLSYMS_BASE_RELATIVE; do
+              for opt in CONFIG_KALLSYMS_ALL; do
                 if grep -q "^${opt}=y" "$FILE"; then
                   echo "✔ ${opt} already enabled, skip"
                 else
@@ -433,6 +434,16 @@ jobs:
               done
             done
             echo "✅ KPM enabled (begonia_user_defconfig + stock_defconfig)"
+            for patch_file in \
+              selinux_noinline.patch
+            do
+              if patch -p1 < "$patch_file"; then
+                echo "✅ $patch_file applied successfully."
+              else
+                echo "❌ Patch failed to apply!"
+                exit 1
+              fi
+            done
         else
             echo "❌ KPM disabled"
         fi
