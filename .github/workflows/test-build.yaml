@@ -496,6 +496,75 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/arch/${{ env.ARCH }}/boot
         ls
 
+    - name: Check KernelPatch / Kallsyms
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+
+        echo "========================================"
+        echo "      KERNELPATCH KALLSYMS CHECK"
+        echo "========================================"
+
+        echo ""
+        echo "=== CONFIG ==="
+        grep -E \
+          'CONFIG_(KALLSYMS|KALLSYMS_ALL|KALLSYMS_BASE_RELATIVE|LTO|CFI|RELOCATABLE|RANDOMIZE_BASE)' \
+          out/.config || true
+
+        echo ""
+        echo "=== System.map / KALLSYMS ==="
+        grep -E \
+          'kallsyms_(addresses|offsets|relative_base|num_syms|names|markers|token_table|token_index)' \
+          out/System.map || true
+
+        echo ""
+        echo "=== SELINUX KPM SYMBOLS ==="
+        grep -E \
+          'type_attribute_bounds_av|selinux_policy_cancel|cond_compute_av|constraint_expr_eval' \
+          out/System.map || true
+
+        echo ""
+        echo "=== vmlinux / nm ==="
+        echo "--- kallsyms ---"
+        nm -n out/vmlinux 2>/dev/null | \
+        grep -E \
+          'kallsyms_(addresses|offsets|relative_base|num_syms|names|markers|token_table|token_index)$' || true
+
+        echo ""
+        echo "--- SELinux ---"
+        nm -n out/vmlinux 2>/dev/null | \
+        grep -E \
+          'type_attribute_bounds_av|selinux_policy_cancel|cond_compute_av|constraint_expr_eval' || true
+
+        echo ""
+        echo "--- ksymtab ---"
+        nm -n out/vmlinux 2>/dev/null | \
+        grep -E \
+          '__ksymtab|__ksymtab_gpl' | head -100 || true
+
+        echo ""
+        echo "=== vmlinux / readelf sections ==="
+        readelf -S out/vmlinux 2>/dev/null | \
+        grep -E \
+          'kallsyms|ksymtab|text|rodata|init|rela' || true
+
+        echo ""
+        echo "=== vmlinux / symbol table ==="
+        readelf -sW out/vmlinux 2>/dev/null | \
+        grep -E \
+          'kallsyms_(addresses|offsets|relative_base|num_syms|names|markers|token_table|token_index)$' || true
+
+        echo ""
+        echo "=== vmlinux / strings ==="
+        strings out/vmlinux 2>/dev/null | \
+        grep -E \
+          'kallsyms|__ksymtab|type_attribute_bounds_av|selinux_policy_cancel' | \
+          head -100 || true
+
+        echo ""
+        echo "========================================"
+        echo "             CHECK FINISHED"
+        echo "========================================"
+
     - name: Check a kernel output files
       run: |
        cd $GITHUB_WORKSPACE/kernel_workspace
