@@ -13,6 +13,7 @@ on:
           - 'nova-miui'
           - 'ksu'
           - 'Suzaku-bka'
+          - '14.0'
       enable_kernelsu:
         description: 'Enable KernelSU integration?'
         required: true
@@ -221,6 +222,10 @@ jobs:
         
         if [[ ${{ env.KERNEL_SOURCE_BRANCH }} == 'Suzaku-bka' ]]; then 
           git clone --recursive https://github.com/hakuna77/begonia_kernel_dev.git -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
+        fi
+        
+        if [[ ${{ env.KERNEL_SOURCE_BRANCH }} == '14.0' ]]; then 
+          git clone --recursive https://github.com/crdroidandroid/android_kernel_xiaomi_mt6785 -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
         fi
         
         if [[ ${{ env.ADD_LOCALVERSION_TO_FILENAME }} == 'true' ]]; then
